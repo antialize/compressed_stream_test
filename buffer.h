@@ -38,25 +38,25 @@ inline crapper log_info() {
 
 class file;
 
-constexpr block_size_t block_size = 102;
+constexpr block_size_t block_size = 102*8;
 
-class buffer {
+class block {
 public:
 	uint64_t m_idx;
 	block_idx_t m_block;
 	file * m_file;
 	bool m_dirty, m_read;
 	uint32_t m_usage;
-	buffer * m_successor;
+	block * m_successor;
 	mutex_t m_mutex;  
 	cond_t m_cond;  
 
 	block_size_t m_prev_physical_size, m_next_physical_size, m_physical_size, m_logical_size;
 	block_offset_t m_logical_offset, m_physical_offset;
 
-	size_t m_data[block_size];
+	char m_data[block_size];
 
-	buffer()
+	block()
 		: m_idx(0)
 		, m_block(no_block_idx)
 		, m_file(nullptr)
@@ -72,7 +72,7 @@ public:
 		, m_physical_offset(no_block_offset) {}
 		
 	
-	friend std::ostream & operator << (std::ostream & o, const buffer & b) {
+	friend std::ostream & operator << (std::ostream & o, const block & b) {
 		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage;
 		if (b.m_physical_offset == 0) o << "*";
 		return o << ")";

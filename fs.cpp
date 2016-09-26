@@ -22,13 +22,13 @@
 void file::update_physical_size(lock_t & lock, uint64_t block, uint32_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {
-		auto it = buffers.find(block -1);
-		if (it != buffers.end()) it->second->m_next_physical_size = size;
+		auto it = blocks.find(block -1);
+		if (it != blocks.end()) it->second->m_next_physical_size = size;
 	}
 	if (block + 1 == m_blocks) m_last_physical_size = size;
 	else {
-		auto it = buffers.find(block + 1);
-		if (it != buffers.end()) it->second->m_prev_physical_size = size;
+		auto it = blocks.find(block + 1);
+		if (it != blocks.end()) it->second->m_prev_physical_size = size;
 	}
 }
 
@@ -41,7 +41,7 @@ enum class job_type {
 class job {
 public:
 	job_type type;
-	buffer * buff;
+	block * buff;
 };
 
 std::queue<job> jobs;
@@ -162,7 +162,7 @@ void process_run() {
 			{
 				auto f = j.buff->m_file;
 				lock_t l2(f->m_mut);
-				f->free_buffer(l2, j.buff);
+				f->free_block(l2, j.buff);
 			}
 			
 		}
@@ -170,15 +170,14 @@ void process_run() {
 		case job_type::write:
 		{
 			// TODO check if it is undefined behaiviure to change data underneeth snappy
-			memcpy(data1, j.buff->m_data, sizeof(size_t) * block_size);
+			// TODO only used bytes here
+			memcpy(data1, j.buff->m_data, j.buff->m_logical_size * sizeof(size_t) );
 
 			// TODO free the block here
-			using namespace std::chrono_literals;
-			//std::this_thread::sleep_for(10s);
 	
 			log_info() << "io write " << *j.buff << std::endl;
 			size_t s2 = 1024*1024;
-			snappy::RawCompress(data1, sizeof(size_t) * block_size, data2+sizeof(block_header), &s2);
+			snappy::RawCompress(data1, j.buff->m_logical_size * sizeof(size_t) , data2+sizeof(block_header), &s2);
 			size_t bs = 2*sizeof(block_header) + s2;
 			
 			block_header h;
@@ -213,11 +212,11 @@ void process_run() {
 
 				f->update_physical_size(l2, j.buff->m_block, bs);
 				
-				f->free_buffer(l2, j.buff);
+				f->free_block(l2, j.buff);
 
 				if (nb && nb->m_usage == 0) {
 					nb->m_usage = 1;
-					f->free_buffer(l2, nb);
+					f->free_block(l2, nb);
 				}
 			}
 	
@@ -234,9 +233,9 @@ void process_run() {
 }
 
 
-buffer * file::get_successor_buffer(lock_t & l, buffer * t) {
-	auto it = buffers.find(t->m_block+1);
-	if (it != buffers.end()) {
+block * file::get_successor_block(lock_t & l, block * t) {
+	auto it = blocks.find(t->m_block+1);
+	if (it != blocks.end()) {
 		if (it->second->m_block != t->m_block+1){
 			throw std::runtime_error("Logic error");
 		}
@@ -245,7 +244,7 @@ buffer * file::get_successor_buffer(lock_t & l, buffer * t) {
 	}
 
 	l.unlock();
-	auto buff = pop_available_buffer();
+	auto buff = pop_available_block();
 	l.lock();
   
 	size_t off = no_block_offset;
@@ -258,9 +257,10 @@ buffer * file::get_successor_buffer(lock_t & l, buffer * t) {
 	buff->m_physical_offset = off;
 	buff->m_logical_offset = t->m_logical_offset + t->m_logical_size;
 	buff->m_successor = nullptr;
+	buff->m_logical_size = no_block_size;
 	buff->m_usage = 1;
 	buff->m_read = false;
-	buffers.emplace(buff->m_block, buff);
+	blocks.emplace(buff->m_block, buff);
 
 	log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m" << std::endl;
   
@@ -268,9 +268,10 @@ buffer * file::get_successor_buffer(lock_t & l, buffer * t) {
 		t->m_successor = buff;
 	}
 
-	if (buff->m_block == m_blocks)
+	if (buff->m_block == m_blocks) {
 		++m_blocks;
-	else {
+		buff->m_logical_size = 0;
+	} else {
 
 		l.unlock();
 		{
@@ -279,7 +280,7 @@ buffer * file::get_successor_buffer(lock_t & l, buffer * t) {
 			j.type = job_type::read;
 			j.buff = buff;
 			buff->m_usage++;
-			log_info() << "read buffer " << *buff << std::endl;
+			log_info() << "read block " << *buff << std::endl;
 			jobs.push(j);
 			job_cond.notify_all();
 		}
@@ -295,19 +296,19 @@ buffer * file::get_successor_buffer(lock_t & l, buffer * t) {
 	}
   
 	if (buff->m_block + 1 == m_blocks)
-		m_last_buffer = buff;
+		m_last_block = buff;
    
 	log_info() << "get succ " << *buff << std::endl;
 	return buff;
 }
 
-buffer * file::get_predecessor_buffer(lock_t &, buffer * t) {
+block * file::get_predecessor_block(lock_t &, block * t) {
 	return nullptr;
 }
 
-void file::free_buffer(lock_t &, buffer * t) {
+void file::free_block(lock_t &, block * t) {
 	if (t == nullptr) return;
-	log_info() << "free buffer " << *t << std::endl;
+	log_info() << "free block " << *t << std::endl;
 	--t->m_usage;
 
 	if (t->m_usage != 0) return;
@@ -321,18 +322,18 @@ void file::free_buffer(lock_t &, buffer * t) {
 		j.buff = t;
 		t->m_usage++;
 		t->m_dirty = 0;
-		log_info() << "write buffer " << *t << std::endl;
+		log_info() << "write block " << *t << std::endl;
 		jobs.push(j);
 		job_cond.notify_all();
 	} else if (t->m_physical_offset != no_block_offset) {
-		log_info() << "avail buffer " << *t << std::endl;
-		push_available_buffer(t);
+		log_info() << "avail block " << *t << std::endl;
+		push_available_block(t);
 	}
 }
 
-buffer * file::get_first_buffer(lock_t & l ) {
-	auto it = buffers.find(0);
-	if (it != buffers.end()) {
+block * file::get_first_block(lock_t & l ) {
+	auto it = blocks.find(0);
+	if (it != blocks.end()) {
 		log_info() << "\033[0;34mfetch " << it->second->m_idx << " " << 0 << "\033[0m" << std::endl;
 		if (it->second->m_block != 0) {
 			throw std::runtime_error("Logic error");
@@ -343,7 +344,7 @@ buffer * file::get_first_buffer(lock_t & l ) {
 
 
 	l.unlock();
-	auto buff = pop_available_buffer();
+	auto buff = pop_available_block();
 
 	l.lock();
 	buff->m_file = this;
@@ -351,10 +352,11 @@ buffer * file::get_first_buffer(lock_t & l ) {
 	buff->m_block = 0;
 	buff->m_physical_offset = 4;
 	buff->m_logical_offset = 0;
+	buff->m_logical_size = no_block_size;
 	buff->m_physical_size = m_first_physical_size;
 	buff->m_successor = nullptr;
 	buff->m_usage = 1;
-	buffers.emplace(buff->m_block, buff);
+	blocks.emplace(buff->m_block, buff);
 	buff->m_read = false;
   
 	log_info() << "\033[0;31massign " << buff->m_idx << " " << 0 << "\033[0m" << std::endl;
@@ -362,6 +364,7 @@ buffer * file::get_first_buffer(lock_t & l ) {
 	if (m_blocks == 0) {
 		m_blocks = 1;
 		buff->m_read = true;
+		buff->m_logical_size = 0;
 	} else {
 		l.unlock();
 		{
@@ -370,7 +373,7 @@ buffer * file::get_first_buffer(lock_t & l ) {
 			j.type = job_type::read;
 			j.buff = buff;
 			buff->m_usage++;
-			log_info() << "read buffer " << *buff << std::endl;
+			log_info() << "read block " << *buff << std::endl;
 			jobs.push(j);
 			job_cond.notify_all();
 		}
@@ -384,12 +387,12 @@ buffer * file::get_first_buffer(lock_t & l ) {
 	}
   
 	if (m_blocks == 1)
-		m_last_buffer = buff;
+		m_last_block = buff;
   
 	return buff;
 }
 
-buffer * file::get_last_buffer(lock_t &) {
+block * file::get_last_block(lock_t &) {
 	return nullptr;
 }
 
@@ -397,59 +400,61 @@ template <typename T>
 class stream {
 public:
 	file * m_file;
-	buffer * m_cur_buffer;
+	block * m_cur_block;
 	uint32_t m_cur_index;
-  
+
+	constexpr block_size_t logical_block_size() {return block_size / sizeof(T);}
+	
 	stream(file & file) :
-		m_file(&file), m_cur_buffer(nullptr), m_cur_index(block_size) {
-		create_available_buffer();
+		m_file(&file), m_cur_block(nullptr), m_cur_index(logical_block_size()) {
+		create_available_block();
 	}
 
 	~stream() {
-		if (m_cur_buffer) {
+		if (m_cur_block) {
 			lock_t lock(m_file->m_mut);
-			m_file->free_buffer(lock, m_cur_buffer);
+			m_file->free_block(lock, m_cur_block);
 		}
-		destroy_available_buffer();
+		destroy_available_block();
 	}
     
-	void next_buffer() {
+	void next_block() {
 		lock_t lock(m_file->m_mut);
-		buffer * buff = m_cur_buffer;
-		if (buff == nullptr) m_cur_buffer = m_file->get_first_buffer(lock);
-		else m_cur_buffer = m_file->get_successor_buffer(lock, buff);
-		m_file->free_buffer(lock, buff);
+		block * buff = m_cur_block;
+		if (buff == nullptr) m_cur_block = m_file->get_first_block(lock);
+		else m_cur_block = m_file->get_successor_block(lock, buff);
+		m_file->free_block(lock, buff);
 		m_cur_index = 0;
 	}
 
-	void prev_buffer() {
+	void prev_block() {
 		lock_t lock(m_file->m_mut);
-		buffer * buff = m_cur_buffer;
-		if (buff = nullptr) m_cur_buffer = m_file->get_last_buffer(lock);
-		else m_cur_buffer = m_file->get_predecessor_buffer(lock, buff);
-		m_file->free_buffer(lock, buff);
+		block * buff = m_cur_block;
+		if (buff = nullptr) m_cur_block = m_file->get_last_block(lock);
+		else m_cur_block = m_file->get_predecessor_block(lock, buff);
+		m_file->free_block(lock, buff);
 	}
   
 	void write(T item) {
-		if (m_cur_index == block_size) next_buffer();
-		m_cur_buffer->m_data[m_cur_index++] = std::move(item);
-		m_cur_buffer->m_logical_size = std::max(m_cur_buffer->m_logical_size, m_cur_index); //Hopefully this is a cmove
-		m_cur_buffer->m_dirty = true;
+		if (m_cur_index == logical_block_size()) next_block();
+		reinterpret_cast<T*>(m_cur_block->m_data)[m_cur_index++] = std::move(item);
+		m_cur_block->m_logical_size = std::max(m_cur_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
+		m_cur_block->m_dirty = true;
 	}
   
 	const T & read() {
-		if (m_cur_index == block_size) next_buffer();
-		return m_cur_buffer->m_data[m_cur_index++];
+		if (m_cur_index == logical_block_size()) next_block();
+		return reinterpret_cast<const T*>(m_cur_block->m_data)[m_cur_index++];
 	}
   
 	void skip() {
-		if (m_cur_index == block_size) next_buffer();
+		if (m_cur_index == logical_block_size()) next_block();
 		m_cur_index++;
 	}
   
 	const T & peek() {
-		if (m_cur_index == block_size) next_buffer();
-		return m_cur_buffer->m_data[m_cur_index];
+		if (m_cur_index == logical_block_size()) next_block();
+		return m_cur_block->m_data[m_cur_index];
 	}
   
 	void seek(uint64_t offset) {
@@ -457,36 +462,38 @@ public:
 		if (offset != 0)
 			throw std::runtime_error("Not supported");
     
-		if (m_cur_buffer)
-			m_file->free_buffer(lock, m_cur_buffer);
+		if (m_cur_block)
+			m_file->free_block(lock, m_cur_block);
 
-		m_cur_buffer = nullptr;
-		m_cur_index = block_size;
+		m_cur_block = nullptr;
+		m_cur_index = logical_block_size();
 	}
 };
 
 int main() {
-	std::thread p1(process_run); create_available_buffer();
-	std::thread p2(process_run); create_available_buffer();
-	std::thread p3(process_run); create_available_buffer();
-	// std::thread p4(process_run); create_available_buffer();
-	// std::thread p5(process_run); create_available_buffer();
-	// std::thread p6(process_run); create_available_buffer();
-	// std::thread p7(process_run); create_available_buffer();
+	std::thread p1(process_run); create_available_block();
+	std::thread p2(process_run); create_available_block();
+	std::thread p3(process_run); create_available_block();
+	// std::thread p4(process_run); create_available_block();
+	// std::thread p5(process_run); create_available_block();
+	// std::thread p6(process_run); create_available_block();
+	// std::thread p7(process_run); create_available_block();
 
+	log_info() << "CONT SIZE " << sizeof(cond_t) << std::endl;
+	
 	{
 		file f;
 		f.open("/dev/shm/hello.tst");
 		stream<size_t> s(f);
     
 		//log_info() << f.size() << std::endl;
-		for (size_t i=0; i < block_size * 12; ++i) {
+		for (size_t i=0; i < s.logical_block_size() * 12; ++i) {
 			s.write(i);
 			//log_info() << f.size() << std::endl;
 		}      
     
 		s.seek(0);
-		for (size_t i=0; i < block_size * 12; ++i) {
+		for (size_t i=0; i < s.logical_block_size() * 12; ++i) {
 			auto v = s.read();
 log_info() << v << std::endl;
 			assert(v == i);

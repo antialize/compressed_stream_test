@@ -2,10 +2,10 @@
 // vi:set ts=4 sts=4 sw=4 noet :
 #pragma once
 
-class buffer;
-void create_available_buffer();
-void destroy_available_buffer();
+class block;
+void create_available_block();
+void destroy_available_block();
 
-buffer * pop_available_buffer();
-void push_available_buffer(buffer *);
+block * pop_available_block();
+void push_available_block(block *);
 

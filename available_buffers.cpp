@@ -7,45 +7,45 @@
 #include <file.h>
 
 namespace {
-mutex_t available_buffers_mutex;
-std::condition_variable available_buffer_cond;
-std::queue<buffer *> available_buffers;
+mutex_t available_blocks_mutex;
+std::condition_variable available_block_cond;
+std::queue<block *> available_blocks;
 }
 
 static size_t ctr = 0;
-void create_available_buffer() {
-  lock_t l(available_buffers_mutex);
-  auto b = new buffer();
+void create_available_block() {
+  lock_t l(available_blocks_mutex);
+  auto b = new block();
   b->m_idx = ctr++;
   b->m_file = nullptr;
-  available_buffers.push(b);
-  available_buffer_cond.notify_one();
+  available_blocks.push(b);
+  available_block_cond.notify_one();
 }
 
-buffer * pop_available_buffer();
+block * pop_available_block();
 
-void destroy_available_buffer() {
-  delete pop_available_buffer();
+void destroy_available_block() {
+  delete pop_available_block();
 }
 
-void push_available_buffer(buffer * b) {
-  lock_t l(available_buffers_mutex);
-  available_buffers.push(b);
-  available_buffer_cond.notify_one();
+void push_available_block(block * b) {
+  lock_t l(available_blocks_mutex);
+  available_blocks.push(b);
+  available_block_cond.notify_one();
 }
 
 
-buffer * pop_available_buffer() {
-  buffer * b = nullptr;
+block * pop_available_block() {
+  block * b = nullptr;
   {
-    lock_t l(available_buffers_mutex);
-    while (available_buffers.empty()) available_buffer_cond.wait(l);
-    b = available_buffers.front();
-    available_buffers.pop();
+    lock_t l(available_blocks_mutex);
+    while (available_blocks.empty()) available_block_cond.wait(l);
+    b = available_blocks.front();
+    available_blocks.pop();
   }
   if (b->m_file) {
 	  log_info() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
-	  b->m_file->buffers.erase(b->m_block);
+	  b->m_file->blocks.erase(b->m_block);
   }
 
   b->m_file = nullptr;
