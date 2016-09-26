@@ -12,104 +12,10 @@
 #include <snappy.h>
 #include <string.h>
 
-constexpr size_t block_size = 1024;
+#include <buffer.h>
+#include <available_buffers.h>
+#include <file.h>
 
-typedef std::mutex mutex_t;
-typedef std::unique_lock<mutex_t> lock_t;
-
-template <typename T>
-class file;
-
-
-class buffer {
-public:
-  file<size_t> * m_file;
-  uint64_t m_block;
-  uint32_t m_dirty;
-  uint32_t m_peg;
-
-
-  uint64_t m_offset;
-  uint32_t m_disk_size;
-  
-  
-  buffer * m_successor;
-  mutex_t m_mutex;  
-  std::condition_variable m_cond;  
-  size_t m_data[block_size];
-};
-
-
-mutex_t m_available_buffers_mutex;
-std::condition_variable m_available_buffer_cond;
-std::queue<buffer *> m_available_buffers;
-
-void create_available_buffer() {
-  lock_t l(m_available_buffers_mutex);
-  auto b = new buffer();
-  b->m_file = nullptr;
-  m_available_buffers.push(b);
-  m_available_buffer_cond.notify_one();
-}
-
-buffer * pop_available_buffer();
-
-void destroy_available_buffer() {
-  delete pop_available_buffer();
-}
-
-
-void push_available_buffer(buffer * b) {
-  lock_t l(m_available_buffers_mutex);
-  m_available_buffers.push(b);
-  m_available_buffer_cond.notify_one();
-}
-
-template <typename T>
-class file {
-public:
-  int m_fd;
-
-  void open(std::string path) {
-    m_fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 00660);
-    std::cout << "FD " << m_fd << std::endl;
-    if (m_fd == -1)
-      perror("open failed: ");
-
-    ::write(m_fd, "head", 4);
-  }
-  
-  
-  mutex_t m_mut;
-  std::map<uint64_t, buffer *> buffers;
-
-  buffer * get_successor_buffer(lock_t &, buffer * t);
-  buffer * get_predecessor_buffer(lock_t &, buffer * t);
-  void free_buffer(lock_t &, buffer * t);
-
-  buffer * get_first_buffer(lock_t &);
-  buffer * get_last_buffer(lock_t &);
-};
-
-buffer * pop_available_buffer() {
-  buffer * b = nullptr;
-  {
-    lock_t l(m_available_buffers_mutex);
-    while (m_available_buffers.empty()) m_available_buffer_cond.wait(l);
-    b = m_available_buffers.front();
-    m_available_buffers.pop();
-  }
-  if (b->m_file)
-    b->m_file->buffers.erase(b->m_block);
-
-  b->m_file = nullptr;
-  b->m_block = 0;
-  b->m_dirty = 0;
-  b->m_peg = 0;
-  b->m_offset = 0;
-  b->m_disk_size = 0;
-  b->m_successor = nullptr;
-}
 
 
 enum class job_type {
@@ -159,7 +65,9 @@ void process_run() {
   log_info() << "Start job thread" << std::endl;
   while (true) {
     while (jobs.empty()) job_cond.wait(l);
+    log_info() << "I HAVE JOB " << (int)jobs.front().type << std::endl;
     if (jobs.front().type == job_type::term) break;
+
     job j = jobs.front();
     jobs.pop();
     l.unlock();
@@ -175,16 +83,14 @@ void process_run() {
 	memcpy(data1, j.buff->m_data, sizeof(size_t) * block_size);
 
 	// TODO free the block here
-
-	log_info() << "WRITE " << j.buff << " " << j.buff->m_block << " " << std::endl;
+	using namespace std::chrono_literals;
+	//std::this_thread::sleep_for(10s);
 	
+	log_info() << "io write " << *j.buff << std::endl;
 	size_t s2 = 1024*1024;
-
 	snappy::RawCompress(data1, sizeof(size_t) * block_size, data2+sizeof(block_header), &s2);
-	
 	block_header h;
 	h.block_bytes = s2;
-
 	memcpy(data2, &h, sizeof(block_header));
 	memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
 
@@ -192,21 +98,33 @@ void process_run() {
 
 	uint64_t off=0;
 	{
-	  log_info() << "BAR " << j.buff << " " << j.buff->m_block << " " << std::endl;
 	  lock_t l2(j.buff->m_mutex);
-	  while (j.buff->m_offset == 0) j.buff->m_cond.wait(l2);
-	  off = j.buff->m_offset;
+	  while (j.buff->m_physical_offset == 0) j.buff->m_cond.wait(l2);
+	  off = j.buff->m_physical_offset;
+	}
+	
+	auto nb = j.buff->m_successor;
+	if (nb) {
+	  lock_t l2(nb->m_mutex);
+	  nb->m_physical_offset = off + bs;
+	  nb->m_cond.notify_one();
 	}
 
 	::pwrite(j.buff->m_file->m_fd, data2, bs, off);
 
-	log_info() << "Done writing " << j.buff->m_block << std::endl;
-	auto nb = j.buff->m_successor;
-	if (nb) {
-	  lock_t l2(nb->m_mutex);
-	  nb->m_offset = off + bs;
-	  nb->m_cond.notify_one();
+	{
+	  auto f = j.buff->m_file;
+	  lock_t l2(f->m_mut);
+	  f->free_buffer(l2, j.buff);
+
+	  if (nb && nb->m_usage == 0) {
+	    nb->m_usage = 1;
+	    f->free_buffer(l2, nb);
+	  }
 	}
+	
+	// Free buffer
+	log_info() << "Done writing " << j.buff->m_block << std::endl;
       }
       break;
     case job_type::trunc:
@@ -218,11 +136,10 @@ void process_run() {
 }
 
 
-template <typename T>
-buffer * file<T>::get_successor_buffer(lock_t & l, buffer * t) {
-  auto it = buffers.find(t->m_block);
+buffer * file::get_successor_buffer(lock_t & l, buffer * t) {
+  auto it = buffers.find(t->m_block+1);
   if (it != buffers.end()) {
-    it->second->m_peg++;
+    it->second->m_usage++;
     return it->second;
   }
 
@@ -231,87 +148,109 @@ buffer * file<T>::get_successor_buffer(lock_t & l, buffer * t) {
   l.lock();
   
   size_t off = 0;
-  if (t->m_disk_size != 0 && t->m_offset != 0)
-    off = t->m_disk_size + t->m_offset;
+  if (t->m_physical_size != 0 && t->m_physical_offset != 0)
+    off = t->m_physical_size + t->m_physical_offset;
   
   buff->m_file = this;
-  buff->m_dirty = 0;
+  buff->m_dirty = false;
   buff->m_block = t->m_block + 1;
-  buff->m_offset = off;
+  buff->m_physical_offset = off;
+  buff->m_logical_offset = t->m_logical_offset + t->m_logical_size;
   buff->m_successor = nullptr;
-  buff->m_peg = 1;
+  buff->m_usage = 1;
   buffers.emplace(0, buff);
 
   if (off == 0) {
     t->m_successor = buff;
-    buff->m_peg++;
   }
+
+  if (buff->m_block == m_blocks)
+    ++m_blocks;
+  else {
+    log_info() << "READ STUFF" << std::endl;
+    //We need to read stuff
+  }
+  
+  if (buff->m_block + 1 == m_blocks)
+    m_last_buffer = buff;
+   
+  log_info() << "get succ " << *buff << std::endl;
   return buff;
 }
 
-template <typename T>
-buffer * file<T>::get_predecessor_buffer(lock_t &, buffer * t) {
-
+buffer * file::get_predecessor_buffer(lock_t &, buffer * t) {
+  return nullptr;
 }
 
-template <typename T>
-void file<T>::free_buffer(lock_t &, buffer * t) {
+void file::free_buffer(lock_t &, buffer * t) {
   if (t == nullptr) return;
-  --t->m_peg;
+  log_info() << "free buffer " << *t << std::endl;
+  --t->m_usage;
 
-  if (t->m_peg != 0) return;
+  if (t->m_usage != 0) return;
 
   if (t->m_dirty) {
-    
+    // Write dirty block
     lock_t l2(job_mutex);
 	  
     job j;
     j.type = job_type::write;
     j.buff = t;
-    
-    t->m_peg++;
-    
+    t->m_usage++;
+    t->m_dirty = 0;
+    log_info() << "write buffer " << *t << std::endl;
     jobs.push(j);
-    job_cond.notify_one();
-  } else {
+    job_cond.notify_all();
+  } else if (t->m_physical_offset != 0) {
+    log_info() << "avail buffer " << *t << std::endl;
     push_available_buffer(t);
   }
 }
 
-template <typename T>
-buffer * file<T>::get_first_buffer(lock_t & l ) {
+buffer * file::get_first_buffer(lock_t & l ) {
+  log_info() << "GET FIRST BLOCK" << std::endl;
   auto it = buffers.find(0);
   if (it != buffers.end()) {
-    it->second->m_peg++;
+    it->second->m_usage++;
     return it->second;
   }
 
-  auto buff = new buffer();
+  log_info() << "LOG INFO HERE" << std::endl;
+
+  l.unlock();
+  auto buff = pop_available_buffer();
+  l.lock();
   buff->m_file = this;
   buff->m_dirty = 0;
   buff->m_block = 0;
-  buff->m_offset = 4;
+  buff->m_physical_offset = 4;
+  buff->m_logical_offset = 0;
   buff->m_successor = nullptr;
-  buff->m_peg = 1;
+  buff->m_usage = 1;
   buffers.emplace(0, buff);
 
-  // We need to check if we should read here
+  if (m_blocks == 0)
+    m_blocks = 1;
+  else
+    log_info() << "WE NEED TO READ STUFF" << std::endl;
+  if (m_blocks == 1)
+    m_last_buffer = buff;
+  
   return buff;
 }
 
-template <typename T>
-buffer * file<T>::get_last_buffer(lock_t &) {
+buffer * file::get_last_buffer(lock_t &) {
+  return nullptr;
 }
 
 template <typename T>
 class stream {
 public:
-  file<T> * m_file;
+  file * m_file;
   buffer * m_cur_buffer;
   uint32_t m_cur_index;
-
-
-  stream(file<T> & file) :
+  
+  stream(file & file) :
     m_file(&file), m_cur_buffer(nullptr), m_cur_index(block_size) {
     create_available_buffer();
   }
@@ -341,39 +280,11 @@ public:
     m_file->free_buffer(lock, buff);
   }
   
-    
-    // uint64_t block = m_cur_buffer ? m_cur_buffer->m_block + 1 : 0;
-
-    // auto m_old_buffer = m_cur_buffer;
-    
-    // auto it = m_file->buffers.find(block);
-    // if (it != m_file->buffers.end()) {
-    //   m_cur_buffer = it->second;
-    // } else {
-    //   m_cur_buffer = new buffer();
-    //   m_cur_buffer->m_file = m_file;
-    //   m_cur_buffer->m_dirty = 0;
-    //   m_cur_buffer->m_block = block;
-    //   m_cur_buffer->m_offset = (block == 0) ? 4 : 0;
-    //   m_cur_buffer->m_peg = 0;
-    //   log_info() << "HELLO " << m_cur_buffer << " " << m_cur_buffer->m_offset << " " << block << std::endl;
-	
-    //   if (m_old_buffer)
-    // 	m_old_buffer->m_successor = m_cur_buffer;
-
-    //   //::read(m_file->m_fd, m_cur_buffer->m_data, block_size * sizeof(T));
-
-    //   m_file->buffers.emplace(block, m_cur_buffer);
-    // }
-    // m_cur_buffer->m_peg++;
-    // m_cur_index = 0;
-    // 
-  //}
-  
   void write(T item) {
     if (m_cur_index == block_size) next_buffer();
     m_cur_buffer->m_data[m_cur_index++] = std::move(item);
-    m_cur_buffer->m_dirty = m_cur_index;
+    m_cur_buffer->m_logical_size = std::max(m_cur_buffer->m_logical_size, m_cur_index); //Hopefully this is a cmove
+    m_cur_buffer->m_dirty = true;
   }
   
   const T & read() {
@@ -405,26 +316,31 @@ public:
 };
 
 int main() {
-  std::thread p1(process_run); //create_available_buffer();
-  std::thread p2(process_run); //create_available_buffer();
-  std::thread p3(process_run); //create_available_buffer();
-  std::thread p4(process_run); //create_available_buffer();
-  std::thread p5(process_run); //create_available_buffer();
-  std::thread p6(process_run); //create_available_buffer();
-  std::thread p7(process_run); //create_available_buffer();
+  std::thread p1(process_run); create_available_buffer();
+  std::thread p2(process_run); create_available_buffer();
+  std::thread p3(process_run); create_available_buffer();
+  std::thread p4(process_run); create_available_buffer();
+  std::thread p5(process_run); create_available_buffer();
+  std::thread p6(process_run); create_available_buffer();
+  std::thread p7(process_run); create_available_buffer();
 
   {
-    file<size_t> f;
+    file f;
     f.open("/dev/shm/hello.tst");
     stream<size_t> s(f);
     
-    for (size_t i=0; i < block_size * 20; ++i)
+    //log_info() << f.size() << std::endl;
+    for (size_t i=0; i < block_size * 20; ++i) {
       s.write(i);
+      //log_info() << f.size() << std::endl;
+    }      
     
+    s.seek(0);
+    for (size_t i=0; i < 102; ++i)
+      log_info() << "r " << s.read() << std::endl;
+
     
-    // s.seek(0);
-    // for (size_t i=0; i < 102; ++i)
-    //   log_info() << "r " << s.read() << std::endl;
+    log_info() << "WHAT 2" << std::endl;
     
     {
       lock_t l(job_mutex);

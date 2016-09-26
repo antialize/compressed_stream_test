@@ -11,20 +11,26 @@ typedef std::condition_variable cond_t;
 
 class file;
 
-constexpr size_t block_size = 1024;
+constexpr size_t block_size = 102;
 
 class buffer {
 public:
 	size_t m_idx;
+
+
 	file * m_file;
+
+	uint64_t m_logical_offset;
+	uint32_t m_logical_size;
+	
 	uint64_t m_block;
-	uint32_t m_dirty;
+	bool m_dirty;
 
 	uint32_t m_usage;
 			
-	uint64_t m_offset;
-	uint32_t m_disk_size;
-	
+	uint64_t m_physical_offset;
+	uint32_t m_physical_size;
+
 	buffer * m_successor;
 	mutex_t m_mutex;  
 	cond_t m_cond;  
@@ -32,7 +38,7 @@ public:
 
 	friend std::ostream & operator << (std::ostream & o, const buffer & b) {
 		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage;
-		if (b.m_offset == 0) o << "*";
+		if (b.m_physical_offset == 0) o << "*";
 		return o << ")";
 	}
 };

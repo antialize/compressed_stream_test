@@ -48,10 +48,12 @@ buffer * pop_available_buffer() {
 
   b->m_file = nullptr;
   b->m_block = 0;
-  b->m_dirty = 0;
+  b->m_dirty = false;
   b->m_usage = 0;
-  b->m_offset = 0;
-  b->m_disk_size = 0;
+  b->m_physical_offset = 0;
+  b->m_physical_size = 0;
+  b->m_logical_offset = 0;
+  b->m_logical_size = 0;
   b->m_successor = nullptr;
   return b;
 }
