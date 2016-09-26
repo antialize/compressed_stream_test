@@ -43,17 +43,21 @@ buffer * pop_available_buffer() {
     b = available_buffers.front();
     available_buffers.pop();
   }
-  if (b->m_file)
-    b->m_file->buffers.erase(b->m_block);
+  if (b->m_file) {
+	  log_info() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
+	  b->m_file->buffers.erase(b->m_block);
+  }
 
   b->m_file = nullptr;
   b->m_block = 0;
   b->m_dirty = false;
   b->m_usage = 0;
-  b->m_physical_offset = 0;
-  b->m_physical_size = 0;
-  b->m_logical_offset = 0;
-  b->m_logical_size = 0;
+  b->m_physical_offset = no_block_offset;
+  b->m_physical_size = no_block_size;
+  b->m_next_physical_size = no_block_size;
+  b->m_prev_physical_size = no_block_size;
+  b->m_logical_offset = no_block_offset;
+  b->m_logical_size = no_block_size;
   b->m_successor = nullptr;
   return b;
 }

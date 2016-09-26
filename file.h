@@ -17,15 +17,23 @@ public:
 	uint64_t m_logical_size; // The logical size of the file if m_last_buffer is nullptr
 	uint64_t m_blocks; //The number of blocks in the file
 
+	uint32_t m_first_physical_size;
+	uint32_t m_last_physical_size;	
+	
 	file()
 		: m_last_buffer(nullptr)
 		, m_logical_size(0)
-		, m_blocks(0) {}
+		, m_blocks(0)
+		, m_first_physical_size(no_block_size)
+		, m_last_physical_size(no_block_size) {}
 	
 	uint64_t size() {
 		if (m_last_buffer == nullptr) return m_logical_size;
 		return m_last_buffer->m_logical_offset + m_last_buffer->m_logical_size;
 	}
+
+
+	void update_physical_size(lock_t &, uint64_t block, uint32_t size);	
 	
 	buffer * get_successor_buffer(lock_t &, buffer * t);
 	buffer * get_predecessor_buffer(lock_t &, buffer * t);
