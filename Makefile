@@ -11,6 +11,9 @@ all: fs
 fs: ${OFILES}
 	g++ -o fs ${OFILES} $(LDFLAGS)
 
+test: test.o file_stream.h file_stream.o
+	g++ -o test test.o file_stream.o $(LDFLAGS)
+
 clean:
 	$(RM) fs ${OFILES} *~
 
