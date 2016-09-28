@@ -5,13 +5,16 @@
 #include <string>
 #include <string.h>
 
-
 // Declare all types
 class block_base;
 class file_impl;
 class file_base_base;
 class stream_impl;
 class stream_base_base;
+
+typedef uint64_t block_idx_t;
+typedef uint64_t block_offset_t;
+typedef uint32_t block_size_t;
 
 template <typename T, bool serialized>
 class file_base;
@@ -23,20 +26,24 @@ class stream_base;
 constexpr uint32_t block_size() {return 1024;}
 
 // Some free standing methods
-stream_impl * produce_stream_impl(file_base_base *);
-file_impl * produce_file_impl(file_impl *);
+void file_stream_init(int threads); 
+void file_stream_term();
 
 // Give implementations of needed types
 class block_base {
 public:
 	uint64_t m_logical_offset;
 	uint32_t m_logical_size;
+	uint32_t m_maximal_logical_size;
 	bool m_dirty;
 	char m_data[block_size()];
 };
 
 class file_base_base {
 public:
+	friend class file_imlp;
+	friend class stream_base_base;
+	
 	file_base_base();
 	file_base_base(const file_base_base &) = delete;
 	file_base_base(file_base_base &&);
@@ -91,15 +98,18 @@ public:
 	bool can_read() {return false;}
 	
 	void skip() {
-		if (m_cur_index == m_block->m_logical_size) next_buffer();
+		if (m_cur_index == m_block->m_logical_size) next_block();
 		++m_cur_index;
 	}
 	
 	void seek(uint64_t offset);
-	
+
+
+	friend class stream_impl;
+
 protected:
-	void next_buffer();
-	stream_base_base(stream_impl * impl);
+	void next_block();
+	stream_base_base(file_base_base * impl);
 	block_base * m_block;
 	stream_impl * m_impl;
 	uint32_t m_cur_index;
@@ -109,23 +119,24 @@ template <typename T, bool serialized>
 class stream_base: public stream_base_base {
 protected:
 	constexpr uint32_t logical_block_size() {return block_size() / sizeof(T);}
-	stream_base(stream_impl * imp): stream_base_base(imp) {}
+	stream_base(file_base_base * imp): stream_base_base(imp) {}
 
 	friend class file_base<T, serialized>;
 public:
+	
 	const T & read() {
-		if (m_cur_index == m_block->m_logical_size) next_buffer();
-		return static_cast<const T *>(m_block->m_data)[m_cur_index++];
+		if (m_cur_index == m_block->m_logical_size) next_block();
+		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index++];
 	}
 	
 	const T & peek() {
-		if (m_cur_index == m_block->m_logical_size) next_buffer();
-		return static_cast<const T *>(m_block->m_data)[m_cur_index++];
+		if (m_cur_index == m_block->m_logical_size) next_block();
+		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index++];
 	}
 
 	void write(T item) {
 		//TODO handle serialized write here
-		if (m_cur_index == logical_block_size()) next_buffer();
+		if (m_cur_index == logical_block_size()) next_block();
 		m_block->m_data[m_cur_index++] = std::move(item);
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
 		m_block->m_dirty = true;
@@ -136,7 +147,7 @@ public:
 template <typename T, bool serialized>
 class file_base final: public file_base_base {
 public:
-	stream_base<T, serialized> stream() {return stream_base<T, serialized>(produce_stream_impl(this));}
+	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
 protected:
 	void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) override {}
 	void do_unserialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) override {}
@@ -146,8 +157,7 @@ protected:
 template <typename T>
 class file_base<T, true> final: public file_base_base {
 public:
-	stream_base<T, true> stream() {return stream_base<T, true>(produce_stream_impl(this));}
-
+	stream_base<T, true> stream() {return stream_base<T, true>(this);}
 protected:
 	virtual void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) {
 		struct W {
