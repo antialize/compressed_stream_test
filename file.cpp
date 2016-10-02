@@ -6,7 +6,18 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-file_base_base::file_base_base()
+
+file_impl::file_impl()
+	: m_outer(nullptr)
+	, m_fd(-1)
+	, m_last_block(nullptr)
+	, m_logical_size(0),
+	  m_blocks(0)
+	, m_first_physical_size(no_block_size)
+	, m_last_physical_size(no_block_size)
+	, m_item_size(no_block_size) {} 
+
+file_base_base::file_base_base(uint32_t item_size)
 	: m_impl(nullptr)
 	, m_last_block(nullptr)
 	, m_logical_size(0)
@@ -14,6 +25,7 @@ file_base_base::file_base_base()
 	auto impl = new file_impl();
 	m_impl = impl;
 	impl->m_outer = this;
+	impl->m_item_size = item_size;
 }
 
 file_base_base::~file_base_base() {
@@ -78,8 +90,9 @@ block * file_impl::get_first_block(lock_t & l ) {
 	buff->m_usage = 1;
 	m_block_map.emplace(buff->m_block, buff);
 	buff->m_read = false;
-  
-	log_info() << "\033[0;31massign " << buff->m_idx << " " << 0 << "\033[0m" << std::endl;
+
+	log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m first" << std::endl;
+
     
 	if (m_blocks == 0) {
 		m_blocks = 1;
@@ -91,6 +104,7 @@ block * file_impl::get_first_block(lock_t & l ) {
 			lock_t l2(job_mutex);
 			job j;
 			j.type = job_type::read;
+			j.file = this;
 			j.buff = buff;
 			buff->m_usage++;
 			log_info() << "read block " << *buff << std::endl;
@@ -116,12 +130,10 @@ block * file_impl::get_last_block(lock_t &) {
 	return nullptr;
 }
 
-
-
 block * file_impl::get_successor_block(lock_t & l, block * t) {
 	auto it = m_block_map.find(t->m_block+1);
 	if (it != m_block_map.end()) {
-		if (it->second->m_block != t->m_block+1){
+		if (it->second->m_block != t->m_block+1) {
 			throw std::runtime_error("Logic error");
 		}
 		it->second->m_usage++;
@@ -135,7 +147,7 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 	size_t off = no_block_offset;
 	if (t->m_physical_size != no_block_size && t->m_physical_offset != no_block_offset)
 		off = t->m_physical_size + t->m_physical_offset;
-  
+
 	buff->m_file = this;
 	buff->m_dirty = false;
 	buff->m_block = t->m_block + 1;
@@ -147,10 +159,12 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 	buff->m_read = false;
 	m_block_map.emplace(buff->m_block, buff);
 
-	log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m" << std::endl;
   
 	if (off == no_block_offset) {
+		log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " delayed" << "\033[0m" << std::endl;
 		t->m_successor = buff;
+	} else {
+		log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m" << std::endl;
 	}
 
 	if (buff->m_block == m_blocks) {
@@ -164,6 +178,7 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 			job j;
 			j.type = job_type::read;
 			j.buff = buff;
+			j.file = this;
 			buff->m_usage++;
 			log_info() << "read block " << *buff << std::endl;
 			jobs.push(j);
@@ -201,6 +216,7 @@ void file_impl::free_block(lock_t &, block * t) {
 		job j;
 		j.type = job_type::write;
 		j.buff = t;
+		j.file = this;
 		t->m_usage++;
 		t->m_dirty = 0;
 		log_info() << "write block " << *t << std::endl;

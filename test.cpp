@@ -1,5 +1,7 @@
 #include <file_stream.h>
 #include <cassert>
+#include <iostream>
+#include <file_stream_impl.h>
 
 int main(int argc, char ** argv) {
   file_stream_init(4);
@@ -16,6 +18,7 @@ int main(int argc, char ** argv) {
   
   for (int i=0; i < 10000; ++i) {
     int v = s.read();
+    log_info() << v << std::endl;
     assert(v = i);
   }
 

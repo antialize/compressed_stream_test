@@ -49,9 +49,11 @@ public:
 	uint64_t m_blocks; //The number of blocks in the file
 
 	uint32_t m_first_physical_size;
-	uint32_t m_last_physical_size;	
+	uint32_t m_last_physical_size;
+	uint32_t m_item_size;
 	std::map<uint64_t, block *> m_block_map;
-	
+
+	file_impl();
 	block * get_first_block(lock_t & lock);
 	block * get_last_block(lock_t &);
 	block * get_successor_block(lock_t & lock, block * block);
@@ -78,6 +80,7 @@ enum class job_type {
 class job {
 public:
 	job_type type;
+	file_impl * file;
 	block * buff;
 };
 

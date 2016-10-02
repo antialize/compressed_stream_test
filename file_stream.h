@@ -44,7 +44,6 @@ public:
 	friend class file_imlp;
 	friend class stream_base_base;
 	
-	file_base_base();
 	file_base_base(const file_base_base &) = delete;
 	file_base_base(file_base_base &&);
 	~file_base_base();
@@ -78,7 +77,9 @@ public:
 		if (m_last_block == nullptr) return m_logical_size;
 		return m_last_block->m_logical_offset + m_last_block->m_logical_size;
 	}
-	
+
+protected:
+	file_base_base(uint32_t item_size);
 private:
 	virtual void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) = 0;
 	virtual void do_unserialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) = 0;
@@ -148,6 +149,9 @@ template <typename T, bool serialized>
 class file_base final: public file_base_base {
 public:
 	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
+
+	file_base(): file_base_base(sizeof(T)) {}
+	
 protected:
 	void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) override {}
 	void do_unserialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) override {}
@@ -158,6 +162,8 @@ template <typename T>
 class file_base<T, true> final: public file_base_base {
 public:
 	stream_base<T, true> stream() {return stream_base<T, true>(this);}
+
+	file_base(): file_base_base(sizeof(T)) {}
 protected:
 	virtual void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) {
 		struct W {
@@ -169,7 +175,7 @@ protected:
 			W(char * o): o(o) {}
 		};
 		W w(out);
-		for (size_t i=0; i < size; ++i)
+		for (size_t i=0; i < in_size; ++i)
 			serialize(w, static_cast<T*>(in)[i]);
 	}
 	

@@ -5,6 +5,7 @@
 #include <cassert>
 #include <unistd.h>
 #include <snappy.h>
+#include <atomic>
 
 std::queue<job> jobs;
 mutex_t job_mutex;
@@ -17,20 +18,27 @@ struct block_header {
 };
 
 
+std::atomic_uint tid;
+
+
 void process_run() {
+	auto id = tid.fetch_add(1);
 	char data1[1024*1024];
 	char data2[1024*1024];
 	lock_t l(job_mutex);
-	log_info() << "Start job thread" << std::endl;
+	log_info() << "Start job thread " << id << std::endl;
 	while (true) {
 		while (jobs.empty()) job_cond.wait(l);
-		log_info() << "I HAVE JOB " << (int)jobs.front().type << std::endl;
+		log_info() << "I HAVE JOB " << id << " " << (int)jobs.front().type << std::endl;
 		if (jobs.front().type == job_type::term) break;
 
 		job j = jobs.front();
 		jobs.pop();
 		l.unlock();
 
+		auto file = j.file;
+		lock_t file_lock(file->m_mut);
+		
 		switch (j.type) {
 		case job_type::term:
 			break;
@@ -43,13 +51,16 @@ void process_run() {
 			block_size_t logical_size = j.buff->m_logical_size;
 			block_size_t prev_physical_size = j.buff->m_prev_physical_size;
 			block_size_t next_physical_size = j.buff->m_next_physical_size;
+			auto blocks = file->m_blocks;
+
+			file_lock.unlock();
 			
 			assert(block != no_block_idx);
 			assert(physical_offset != no_block_offset);
 	
 			if (physical_size == no_block_size) {
 				block_header h;
-				::pread(j.buff->m_file->m_fd, &h, sizeof(block_header), physical_offset);
+				::pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 				physical_size = h.physical_size;
 			}
 	
@@ -61,19 +72,19 @@ void process_run() {
 				size += sizeof(block_header);
 			}
 	
-			if (block + 1  != j.buff->m_file->m_blocks && next_physical_size == no_block_size) { //NOT THE LAST BLOCK
+			if (block + 1  != blocks && next_physical_size == no_block_size) { //NOT THE LAST BLOCK
 				size += sizeof(block_header);
 			} 
 
 			char * data = data1;
 			
-			auto r = ::pread(j.buff->m_file->m_fd, data, size, off);
-			log_info() << "pread " << off << " " << size << " " << physical_size << std::endl;
+			auto r = ::pread(file->m_fd, data, size, off);
+			log_info() << id << " pread " << off << " " << size << " " << physical_size << std::endl;
 			assert(r == size);			
 			
 			
 			if (block != 0 && prev_physical_size == no_block_size) {
-				log_info() << "read prev header" << std::endl;
+				log_info() << id << "read prev header" << std::endl;
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
 				data += sizeof(block_header);
@@ -83,7 +94,7 @@ void process_run() {
 			{
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
-				log_info() << "Read current header " << physical_size << " " << h.physical_size << std::endl;
+				log_info() << id << "Read current header " << physical_size << " " << h.physical_size << std::endl;
 								
 				data += sizeof(block_header);
 				assert(physical_size == h.physical_size);
@@ -105,6 +116,7 @@ void process_run() {
 				next_physical_size = h.physical_size;
 			}
 
+			file_lock.unlock();
 
 			j.buff->m_prev_physical_size = prev_physical_size;
 			j.buff->m_next_physical_size = next_physical_size;
@@ -129,57 +141,61 @@ void process_run() {
 		break;
 		case job_type::write:
 		{
+			const auto bytes = j.buff->m_logical_size * file->m_item_size;
+
+			block_header h;
+			h.logical_size = j.buff->m_logical_size;
+			h.logical_offset = j.buff->m_logical_offset;
+			uint64_t off = j.buff->m_physical_offset;
+
+
+			log_info() << id << " io write " << *j.buff <<  std::endl;
+			
+			
+			file_lock.unlock();
+			
 			// TODO check if it is undefined behaiviure to change data underneeth snappy
 			// TODO only used bytes here
-			memcpy(data1, j.buff->m_data, j.buff->m_logical_size * sizeof(size_t) );
+			memcpy(data1, j.buff->m_data, bytes);
 
 			// TODO free the block here
 	
-			log_info() << "io write " << *j.buff << std::endl;
-			size_t s2 = 1024*1024;
-			snappy::RawCompress(data1, j.buff->m_logical_size * sizeof(size_t) , data2+sizeof(block_header), &s2);
-			size_t bs = 2*sizeof(block_header) + s2;
 			
-			block_header h;
+			size_t s2 = 1024*1024;
+			snappy::RawCompress(data1, bytes , data2+sizeof(block_header), &s2);
+			size_t bs = 2*sizeof(block_header) + s2;
+						
 			h.physical_size = bs;
-			h.logical_size = j.buff->m_logical_size;
-			h.logical_offset = j.buff->m_logical_offset;
 			memcpy(data2, &h, sizeof(block_header));
 			memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
 			
 
-			uint64_t off = no_block_offset;
-			{
-				lock_t l2(j.buff->m_mutex);
-				while (j.buff->m_physical_offset == no_block_offset) j.buff->m_cond.wait(l2);
+			file_lock.lock();
+			if (off == no_block_offset) {
+				log_info() << id << " wait for " << j.buff->m_block -1 << std::endl;
+				while (j.buff->m_physical_offset == no_block_offset) j.buff->m_cond.wait(file_lock);
 				off = j.buff->m_physical_offset;
 			}
 	
 			auto nb = j.buff->m_successor;
 			if (nb) {
-				lock_t l2(nb->m_mutex);
-				nb->m_physical_offset = off + bs;
-				nb->m_cond.notify_one();
+			  nb->m_physical_offset = off + bs;
+			  nb->m_cond.notify_one();
 			}
 
-			::pwrite(j.buff->m_file->m_fd, data2, bs, off);
-			log_info() << "write block "<< j.buff->m_block << " at " <<  off << " physical_size " << bs << " " << j.buff->m_block << std::endl;
+			file_lock.unlock();
 
-			{
-				auto f = j.buff->m_file;
-				lock_t l2(f->m_mut);
+			::pwrite(file->m_fd, data2, bs, off);
+			log_info() << id << " write block "<< j.buff->m_block << " at " <<  off << " physical_size " << bs << " " << j.buff->m_block << std::endl;
 
-
-				f->update_physical_size(l2, j.buff->m_block, bs);
+			file_lock.lock();
+			file->update_physical_size(file_lock, j.buff->m_block, bs);
+			file->free_block(file_lock, j.buff);
+			if (nb && nb->m_usage == 0) {
+				nb->m_usage = 1;
+				file->free_block(file_lock, nb);
+			}
 				
-				f->free_block(l2, j.buff);
-
-				if (nb && nb->m_usage == 0) {
-					nb->m_usage = 1;
-					f->free_block(l2, nb);
-				}
-			}
-	
 			// Free buffer
 			log_info() << "Done writing " << j.buff->m_block << std::endl;
 		}
