@@ -137,8 +137,8 @@ public:
 
 	void write(T item) {
 		//TODO handle serialized write here
-		if (m_cur_index == logical_block_size()) next_block();
-		m_block->m_data[m_cur_index++] = std::move(item);
+		if (m_cur_index == m_block->m_maximal_logical_size) next_block();
+		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
 		m_block->m_dirty = true;
 	}

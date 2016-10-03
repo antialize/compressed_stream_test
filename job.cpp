@@ -26,16 +26,14 @@ void process_run() {
 	char data1[1024*1024];
 	char data2[1024*1024];
 	lock_t l(job_mutex);
-	log_info() << "Start job thread " << id << std::endl;
+	log_info() << "JOB " << id << " start" << std::endl;
 	while (true) {
 		while (jobs.empty()) job_cond.wait(l);
-		log_info() << "I HAVE JOB " << id << " " << (int)jobs.front().type << std::endl;
-		if (jobs.front().type == job_type::term) break;
-
-		job j = jobs.front();
+		auto j = jobs.front();
+		if (j.type == job_type::term) break;
 		jobs.pop();
 		l.unlock();
-
+		
 		auto file = j.file;
 		lock_t file_lock(file->m_mut);
 		
@@ -77,14 +75,15 @@ void process_run() {
 			} 
 
 			char * data = data1;
+
+			log_info() << "JOB " << id << " pread      " << *j.buff << " " << off << " " << size << " " << physical_size << std::endl;
 			
 			auto r = ::pread(file->m_fd, data, size, off);
-			log_info() << id << " pread " << off << " " << size << " " << physical_size << std::endl;
+			
 			assert(r == size);			
 			
-			
 			if (block != 0 && prev_physical_size == no_block_size) {
-				log_info() << id << "read prev header" << std::endl;
+				//log_info() << id << "read prev header" << std::endl;
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
 				data += sizeof(block_header);
@@ -94,7 +93,7 @@ void process_run() {
 			{
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
-				log_info() << id << "Read current header " << physical_size << " " << h.physical_size << std::endl;
+				//log_info() << id << "Read current header " << physical_size << " " << h.physical_size << std::endl;
 								
 				data += sizeof(block_header);
 				assert(physical_size == h.physical_size);
@@ -105,8 +104,9 @@ void process_run() {
 			assert(ok);
 
 			log_info() << "Read " << *j.buff << '\n'
-					   << "Logical size " << logical_size << '\n'
-					   << "First data " << j.buff->m_data[0] << " " << j.buff->m_data[1] << '\n';
+			 		   << "Logical size " << logical_size << '\n'
+					   << "First data " << reinterpret_cast<int*>(j.buff->m_data)[0]
+					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
 			
 			data += physical_size - sizeof(block_header); //Skip next block header
 			if (block + 1  != j.buff->m_file->m_blocks && next_physical_size == no_block_idx) {
@@ -116,7 +116,7 @@ void process_run() {
 				next_physical_size = h.physical_size;
 			}
 
-			file_lock.unlock();
+			file_lock.lock();
 
 			j.buff->m_prev_physical_size = prev_physical_size;
 			j.buff->m_next_physical_size = next_physical_size;

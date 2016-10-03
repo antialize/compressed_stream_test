@@ -25,7 +25,6 @@ public:
 	bool m_read;
 	uint32_t m_usage;
 	block * m_successor;
-	mutex_t m_mutex;  
 	cond_t m_cond;  
 
 	block_size_t m_prev_physical_size, m_next_physical_size, m_physical_size;
@@ -35,6 +34,10 @@ public:
 		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage;
 		if (b.m_physical_offset == 0) o << "*";
 		return o << ")";
+	}
+
+	bool is_available(lock_t & file_lock) const noexcept {
+		return m_usage == 0 && m_physical_offset != no_block_offset;
 	}
 };
 

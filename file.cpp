@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <cassert>
 
 file_impl::file_impl()
 	: m_outer(nullptr)
@@ -64,66 +64,7 @@ void file_impl::update_physical_size(lock_t & lock, uint64_t block, uint32_t siz
 }
 
 block * file_impl::get_first_block(lock_t & l ) {
-	auto it = m_block_map.find(0);
-	if (it != m_block_map.end()) {
-		log_info() << "\033[0;34mfetch " << it->second->m_idx << " " << 0 << "\033[0m" << std::endl;
-		if (it->second->m_block != 0) {
-			throw std::runtime_error("Logic error");
-		}
-		it->second->m_usage++;
-		return it->second;
-	}
-
-
-	l.unlock();
-	auto buff = pop_available_block();
-
-	l.lock();
-	buff->m_file = this;
-	buff->m_dirty = 0;
-	buff->m_block = 0;
-	buff->m_physical_offset = 4;
-	buff->m_logical_offset = 0;
-	buff->m_logical_size = no_block_size;
-	buff->m_physical_size = m_first_physical_size;
-	buff->m_successor = nullptr;
-	buff->m_usage = 1;
-	m_block_map.emplace(buff->m_block, buff);
-	buff->m_read = false;
-
-	log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m first" << std::endl;
-
-    
-	if (m_blocks == 0) {
-		m_blocks = 1;
-		buff->m_read = true;
-		buff->m_logical_size = 0;
-	} else {
-		l.unlock();
-		{
-			lock_t l2(job_mutex);
-			job j;
-			j.type = job_type::read;
-			j.file = this;
-			j.buff = buff;
-			buff->m_usage++;
-			log_info() << "read block " << *buff << std::endl;
-			jobs.push(j);
-			job_cond.notify_all();
-		}
-
-		{
-			lock_t l2(buff->m_mutex);
-			while (!buff->m_read) buff->m_cond.wait(l2);
-		}
-    
-		l.lock();
-	}
-  
-	if (m_blocks == 1)
-		m_last_block = buff;
-  
-	return buff;
+	return get_successor_block(l, nullptr);
 }
 
 block * file_impl::get_last_block(lock_t &) {
@@ -131,48 +72,58 @@ block * file_impl::get_last_block(lock_t &) {
 }
 
 block * file_impl::get_successor_block(lock_t & l, block * t) {
-	auto it = m_block_map.find(t->m_block+1);
+	if (!t)
+		log_info() << "FILE  get_succ   " << "first" << std::endl;
+	else
+		log_info() << "FILE  get_succ   " << *t << std::endl;
+	auto block_number = t?t->m_block+1:0;
+	auto it = m_block_map.find(block_number);
 	if (it != m_block_map.end()) {
-		if (it->second->m_block != t->m_block+1) {
+		//log_info() << "\033[0;34mfetch " << it->second->m_idx << " " << block_number << "\033[0m" << std::endl;
+		if (it->second->m_block != block_number) {
 			throw std::runtime_error("Logic error");
 		}
 		it->second->m_usage++;
 		return it->second;
 	}
-
+	
 	l.unlock();
 	auto buff = pop_available_block();
 	l.lock();
-  
+	
 	size_t off = no_block_offset;
-	if (t->m_physical_size != no_block_size && t->m_physical_offset != no_block_offset)
+	if (!t) 
+		off = 4;
+	else if (t->m_physical_size != no_block_size && t->m_physical_offset != no_block_offset)
 		off = t->m_physical_size + t->m_physical_offset;
-
+	
 	buff->m_file = this;
 	buff->m_dirty = false;
-	buff->m_block = t->m_block + 1;
+	buff->m_block = block_number;
 	buff->m_physical_offset = off;
-	buff->m_logical_offset = t->m_logical_offset + t->m_logical_size;
+	buff->m_logical_offset = (t?t->m_logical_offset + t->m_logical_size:0);
 	buff->m_successor = nullptr;
 	buff->m_logical_size = no_block_size;
 	buff->m_usage = 1;
 	buff->m_read = false;
+	buff->m_maximal_logical_size = block_size() / buff->m_file->m_item_size;
 	m_block_map.emplace(buff->m_block, buff);
-
-  
+	
 	if (off == no_block_offset) {
-		log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " delayed" << "\033[0m" << std::endl;
+		assert(t != nullptr);
+		//log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " delayed" << "\033[0m" << std::endl;
 		t->m_successor = buff;
 	} else {
-		log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m" << std::endl;
+		//log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m" << std::endl;
 	}
 
 	if (buff->m_block == m_blocks) {
 		++m_blocks;
 		buff->m_logical_size = 0;
+		buff->m_read = true;
 	} else {
-
-		l.unlock();
+		log_info() << "FILE  read       " << *buff << std::endl;
+		//We need to read stuff
 		{
 			lock_t l2(job_mutex);
 			job j;
@@ -180,36 +131,31 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 			j.buff = buff;
 			j.file = this;
 			buff->m_usage++;
-			log_info() << "read block " << *buff << std::endl;
+			//log_info() << "read block " << *buff << std::endl;
 			jobs.push(j);
 			job_cond.notify_all();
 		}
 
-		{
-			lock_t l2(buff->m_mutex);
-			while (!buff->m_read) buff->m_cond.wait(l2);
-		}
-    
-		l.lock();
-		
-		//We need to read stuff
+		while (!buff->m_read) buff->m_cond.wait(l);
 	}
   
-	if (buff->m_block + 1 == m_blocks)
+	if (block_number + 1 == m_blocks) {
+		//log_info() << "Setting last block to " << buff << std::endl;
 		m_last_block = buff;
+	}
    
-	log_info() << "get succ " << *buff << std::endl;
+	//log_info() << "get succ " << *buff << std::endl;
 	return buff;
 }
 
 void file_impl::free_block(lock_t &, block * t) {
 	if (t == nullptr) return;
-	log_info() << "free block " << *t << std::endl;
 	--t->m_usage;
 
 	if (t->m_usage != 0) return;
-
+	
 	if (t->m_dirty) {
+		log_info() << "      free block " << *t << " write" << std::endl;
 		// Write dirty block
 		lock_t l2(job_mutex);
 	  
@@ -218,12 +164,13 @@ void file_impl::free_block(lock_t &, block * t) {
 		j.buff = t;
 		j.file = this;
 		t->m_usage++;
-		t->m_dirty = 0;
-		log_info() << "write block " << *t << std::endl;
+		t->m_dirty = false;
+		//log_info() << "write block " << *t << std::endl;
 		jobs.push(j);
 		job_cond.notify_all();
 	} else if (t->m_physical_offset != no_block_offset) {
-		log_info() << "avail block " << *t << std::endl;
+		log_info() << "      free block " << *t << " avail" << std::endl;
+		//log_info() << "avail block " << *t << std::endl;
 		push_available_block(t);
 	}
 }
