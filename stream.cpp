@@ -1,6 +1,7 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 #include <file_stream_impl.h>
+#include <cassert>
 
 block_base void_block;
 
@@ -56,6 +57,7 @@ void stream_impl::next_block() {
 }
 
 void stream_impl::seek(uint64_t offset) {
+	log_info() << "STREM seek       " << offset << std::endl;
 	lock_t lock(m_file->m_mut); 
 	if (offset != 0)
 		throw std::runtime_error("Not supported");
@@ -66,5 +68,9 @@ void stream_impl::seek(uint64_t offset) {
 	m_cur_block = nullptr;
 	m_outer->m_cur_index = 0;
 	m_outer->m_block = &void_block;
+	
+	assert(void_block.m_logical_offset == 0);
+	assert(void_block.m_logical_size == 0);
+	assert(void_block.m_maximal_logical_size == 0);
 }
 

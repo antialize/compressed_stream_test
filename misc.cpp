@@ -19,11 +19,14 @@ void file_stream_init(int threads) {
 }
 
 void file_stream_term() {
-	lock_t l(job_mutex);
-	job j;
-	j.type = job_type::term;
-	jobs.push(j);
-	job_cond.notify_all();
+	{
+		lock_t l(job_mutex);
+		job j;
+		j.type = job_type::term;
+		j.file = nullptr;
+		jobs.push(j);
+		job_cond.notify_all();
+	}
 	for (auto & t: process_threads)
 		t.join();
 

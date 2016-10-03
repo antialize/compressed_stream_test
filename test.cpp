@@ -18,9 +18,11 @@ int main(int argc, char ** argv) {
   
   for (int i=0; i < 10000; ++i) {
     int v = s.read();
-    log_info() << v << std::endl;
-    assert(v = i);
+    log_info() << "READ " << v << std::endl;
+    assert(v == i);
   }
+
+  log_info() << "TERM IT ALL" << std::endl;
 
   file_stream_term();
 }

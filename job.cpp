@@ -125,18 +125,9 @@ void process_run() {
 			j.buff->m_logical_offset = logical_offset;
 
 			j.buff->m_read = true;
+			j.buff->m_cond.notify_all();
 			
-			{
-				lock_t l2(j.buff->m_mutex);
-				j.buff->m_cond.notify_one();
-			}
-
-			{
-				auto f = j.buff->m_file;
-				lock_t l2(f->m_mut);
-				f->free_block(l2, j.buff);
-			}
-			
+			file->free_block(file_lock, j.buff);
 		}
 		break;
 		case job_type::write:
@@ -147,11 +138,10 @@ void process_run() {
 			h.logical_size = j.buff->m_logical_size;
 			h.logical_offset = j.buff->m_logical_offset;
 			uint64_t off = j.buff->m_physical_offset;
+			log_info() << "JOB " << id << " compress   " << *j.buff << " size " << bytes << '\n'
+					   << "First data " << reinterpret_cast<int*>(j.buff->m_data)[0]
+					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
 
-
-			log_info() << id << " io write " << *j.buff <<  std::endl;
-			
-			
 			file_lock.unlock();
 			
 			// TODO check if it is undefined behaiviure to change data underneeth snappy
@@ -169,10 +159,11 @@ void process_run() {
 			memcpy(data2, &h, sizeof(block_header));
 			memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
 			
-
 			file_lock.lock();
+			log_info() << "JOB " << id << " compressed " << *j.buff << " size " << bs << std::endl;
+			
 			if (off == no_block_offset) {
-				log_info() << id << " wait for " << j.buff->m_block -1 << std::endl;
+				log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
 				while (j.buff->m_physical_offset == no_block_offset) j.buff->m_cond.wait(file_lock);
 				off = j.buff->m_physical_offset;
 			}
@@ -186,8 +177,8 @@ void process_run() {
 			file_lock.unlock();
 
 			::pwrite(file->m_fd, data2, bs, off);
-			log_info() << id << " write block "<< j.buff->m_block << " at " <<  off << " physical_size " << bs << " " << j.buff->m_block << std::endl;
-
+			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " physical_size " << std::endl;
+			
 			file_lock.lock();
 			file->update_physical_size(file_lock, j.buff->m_block, bs);
 			file->free_block(file_lock, j.buff);
@@ -195,9 +186,6 @@ void process_run() {
 				nb->m_usage = 1;
 				file->free_block(file_lock, nb);
 			}
-				
-			// Free buffer
-			log_info() << "Done writing " << j.buff->m_block << std::endl;
 		}
 		break;
 		case job_type::trunc:
@@ -205,5 +193,5 @@ void process_run() {
 		}
 		l.lock();
 	}
-	log_info() << "End job thread" << std::endl;
+	log_info() << "JOB " << id << " end" << std::endl;
 }
