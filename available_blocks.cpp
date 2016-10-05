@@ -52,8 +52,7 @@ block * pop_available_block() {
 			//log_info() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
 			lock_t l(b->m_file->m_mut);
 			if (!b->is_available(l)) continue;
-			b->m_file->m_block_map.erase(b->m_block);
-			b->m_file = nullptr;
+			b->m_file->kill_block(l, b);
 		}
 		
 		b->m_file = nullptr;

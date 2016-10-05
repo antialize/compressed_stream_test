@@ -11,11 +11,6 @@ std::queue<job> jobs;
 mutex_t job_mutex;
 std::condition_variable job_cond;
 
-struct block_header {
-	block_offset_t logical_offset;
-	block_size_t physical_size;
-	block_size_t logical_size;
-};
 
 
 std::atomic_uint tid;

@@ -11,6 +11,7 @@ class file_impl;
 class file_base_base;
 class stream_impl;
 class stream_base_base;
+class stream_position;
 
 typedef uint64_t block_idx_t;
 typedef uint64_t block_offset_t;
@@ -39,6 +40,13 @@ public:
 	char m_data[block_size()];
 };
 
+struct stream_position {
+	block_idx_t m_block;
+	block_size_t m_index;
+	block_offset_t m_logical_offset;
+	block_offset_t m_physical_offset;
+};
+
 class file_base_base {
 public:
 	friend class file_imlp;
@@ -50,14 +58,16 @@ public:
 	
 	// TODO more magic open methods here
 	void open(const std::string & path);
-
 	void close();
-	bool is_readable () const noexcept;
-	bool is_writable () const noexcept;
+
+	bool is_open() const noexcept;
+	
+	bool is_readable() const noexcept;
+	bool is_writable() const noexcept;
 
 	void read_user_data(void * data, size_t count);
-	size_t user_data_size();
-	size_t max_user_data_size();
+	size_t user_data_size() const noexcept;
+	size_t max_user_data_size() const noexcept;
 	void write_user_data (const void *data, size_t count);
 	const std::string & path() const noexcept;
 	
@@ -79,7 +89,7 @@ public:
 	}
 
 protected:
-	file_base_base(uint32_t item_size);
+	file_base_base(bool serialized, uint32_t item_size);
 private:
 	virtual void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) = 0;
 	virtual void do_unserialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) = 0;
@@ -90,27 +100,51 @@ private:
 	uint64_t m_logical_size;	
 };
 
+enum class whence {set, cur, end};
+
 class stream_base_base {
 public:
 	stream_base_base(const stream_base_base &) = delete;
 	stream_base_base(stream_base_base &&);
+	stream_base_base & operator=(stream_base_base &&);
 	~stream_base_base();
 	
-	bool can_read() {return false;}
-	
+	bool can_read() {
+		#warning "Implement can_read"
+		return false;
+	}
+
+	bool can_read_back() const noexcept {
+		return offset() != 0;
+	}
+
 	void skip() {
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		++m_cur_index;
 	}
 	
-	void seek(uint64_t offset);
+	void skip_back() {
+		#warning "Implement skip back"
+	}
 
+	void seek(uint64_t offset, whence w = whence::set);
+	
+	uint64_t offset() const noexcept {
+		return m_block->m_logical_offset + m_cur_index;
+	}
 
+	void truncate(uint64_t offset);
+	void truncate(stream_position pos);	
+	
+	stream_position get_position();
+
+	void set_position(stream_position);
+	
 	friend class stream_impl;
-
 protected:
 	void next_block();
 	stream_base_base(file_base_base * impl);
+
 	block_base * m_block;
 	stream_impl * m_impl;
 	uint32_t m_cur_index;
@@ -121,9 +155,11 @@ class stream_base: public stream_base_base {
 protected:
 	constexpr uint32_t logical_block_size() {return block_size() / sizeof(T);}
 	stream_base(file_base_base * imp): stream_base_base(imp) {}
-
+	
 	friend class file_base<T, serialized>;
 public:
+	stream_base(stream_base &&) = default;
+	stream_base & operator=(stream_base &&) = default;
 	
 	const T & read() {
 		if (m_cur_index == m_block->m_logical_size) next_block();
@@ -135,6 +171,14 @@ public:
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index++];
 	}
 
+	const T & read_back() {
+		#warning "Implement read_back"
+	}
+
+	const T & peak_back() {
+		#warning "Implement peak_back"
+	}
+	
 	void write(T item) {
 		//TODO handle serialized write here
 		if (m_cur_index == m_block->m_maximal_logical_size) next_block();
@@ -150,7 +194,7 @@ class file_base final: public file_base_base {
 public:
 	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
 
-	file_base(): file_base_base(sizeof(T)) {}
+	file_base(): file_base_base(serialized, sizeof(T)) {}
 	
 protected:
 	void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) override {}
@@ -163,7 +207,7 @@ class file_base<T, true> final: public file_base_base {
 public:
 	stream_base<T, true> stream() {return stream_base<T, true>(this);}
 
-	file_base(): file_base_base(sizeof(T)) {}
+	file_base(): file_base_base(true, sizeof(T)) {}
 protected:
 	virtual void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) {
 		struct W {
