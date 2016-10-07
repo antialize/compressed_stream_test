@@ -1,10 +1,10 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 #pragma once
+#include <log.h>
 #include <file_stream.h>
 #include <mutex>
 #include <condition_variable>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <queue>
@@ -123,27 +123,12 @@ public:
 	block * buff;
 };
 
-struct crapper {
-  static mutex_t m;
-  lock_t l;
-  crapper(): l(m) {}
-};
 
 struct block_header {
 	block_offset_t logical_offset;
 	block_size_t physical_size;
 	block_size_t logical_size;
 };
-
-template <typename T>
-std::ostream & operator <<(const crapper & c, const T & t) {
-	return std::cout << t;
-}
-
-inline crapper log_info() {
-  return crapper();
-}
-
 
 void create_available_block();
 block * pop_available_block();
