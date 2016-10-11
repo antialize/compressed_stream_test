@@ -49,7 +49,7 @@ struct stream_position {
 
 class file_base_base {
 public:
-	friend class file_imlp;
+	friend class file_impl;
 	friend class stream_base_base;
 	
 	file_base_base(const file_base_base &) = delete;
