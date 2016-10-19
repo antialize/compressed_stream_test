@@ -18,8 +18,8 @@ std::atomic_uint tid;
 
 void process_run() {
 	auto id = tid.fetch_add(1);
-	char data1[1024*1024];
-	char data2[1024*1024];
+	char * data1 = new char[1024*1024];
+	char * data2 = new char[1024*1024];
 	lock_t l(job_mutex);
 	log_info() << "JOB " << id << " start" << std::endl;
 	while (true) {
@@ -198,4 +198,7 @@ void process_run() {
 		l.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;
+
+	delete[] data1;
+	delete[] data2;
 }

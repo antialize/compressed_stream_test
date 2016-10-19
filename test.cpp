@@ -65,7 +65,7 @@ void ensure(T expect, T got, const char * name) {
 
 int flush_test() {
 	file<int> f;
-	f.open("/dev/shm/hello.tst");
+	f.open("/tmp/hello.tst");
 
 	auto s1 = f.stream(); 
 	auto s2 = f.stream();
@@ -95,7 +95,7 @@ int random_test() {
 
 
 	file<int> f1;
-	f1.open("/dev/shm/hello.tst");
+	f1.open("/tmp/hello.tst");
 	
 	internal_file<int> f2;
 	
@@ -184,7 +184,7 @@ int random_test() {
 
 int write_read() {
 	file<int> f;
-	f.open("/dev/shm/hello.tst");
+	f.open("/tmp/hello.tst");
 	stream<int> s=f.stream();
 	for (int i=0; i < 10000; ++i) s.write(i);
 	s.seek(0);
