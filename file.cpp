@@ -16,7 +16,9 @@ file_impl::file_impl()
 	, m_closed(false)
 	, m_first_physical_size(no_block_size)
 	, m_last_physical_size(no_block_size)
-	, m_item_size(no_block_size) {}
+	, m_item_size(no_block_size)
+	, m_serialized(false)
+	, m_direct(false) {}
 
 file_impl::~file_impl() {
 	// Submit a close job and wait for it to be completed
