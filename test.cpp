@@ -201,8 +201,12 @@ int main(int argc, char ** argv) {
 	  ans = flush_test();
   else if (test == "write_read")
 	  ans = write_read();
-  else
+  else if (test == "random")
 	  ans =  random_test();
+  else {
+	  std::cerr << "Usage: .t flush | write_read | random" << std::endl;
+	  ans = EXIT_FAILURE;
+  }
   
   file_stream_term();
   return ans;
