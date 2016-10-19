@@ -34,7 +34,16 @@ void process_run() {
 		
 		switch (j.type) {
 		case job_type::term:
+		{
+			assert(false);
 			break;
+		}
+		case job_type::close:
+		{
+			file->m_closed = true;
+			log_info() << "JOB " << id << " close      " << file->m_fd << std::endl;
+			break;
+		}
 		case job_type::read:
 		{
 			block_idx_t block = j.buff->m_block;

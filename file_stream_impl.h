@@ -62,6 +62,10 @@ public:
 	uint64_t m_logical_size; // The logical size of the file if m_last_block is nullptr
 	uint64_t m_blocks; //The number of blocks in the file
 
+	// Signals whether the file is closed and no jobs remain to be performed on the file.
+	// This ensures that we don't deallocate a file_base_base and file_impl when more jobs needs to done on it.
+	bool m_closed;
+
 	uint32_t m_first_physical_size;
 	uint32_t m_last_physical_size;
 	uint32_t m_item_size;
@@ -114,7 +118,7 @@ public:
 };
 
 enum class job_type {
-	term, write, read, trunc
+	term, write, read, trunc, close
 };
 
 class job {

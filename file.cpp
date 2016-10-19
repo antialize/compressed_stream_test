@@ -11,8 +11,9 @@ file_impl::file_impl()
 	: m_outer(nullptr)
 	, m_fd(-1)
 	, m_last_block(nullptr)
-	, m_logical_size(0),
-	  m_blocks(0)
+	, m_logical_size(0)
+	, m_blocks(0)
+	, m_closed(false)
 	, m_first_physical_size(no_block_size)
 	, m_last_physical_size(no_block_size)
 	, m_item_size(no_block_size) {} 
@@ -30,7 +31,7 @@ file_base_base::file_base_base(bool serialized, uint32_t item_size)
 }
 
 file_base_base::~file_base_base() {
-	delete m_impl;
+	close();
 }
 
 file_base_base::file_base_base(file_base_base &&o)
@@ -49,6 +50,35 @@ void file_base_base::open(const std::string & path) {
 		perror("open failed: ");
 	
 	::write(m_impl->m_fd, "head", 4);
+}
+
+void file_base_base::close() {
+	if (m_impl) {
+		// Submit a close job and wait for it to be completed
+		// As jobs are ordered, when the close job has been processed
+		// any remaining jobs on this file must have been submitted
+		// after it was closed, which we don't support
+		// and thus we can be sure that no valid jobs remain for the file.
+		{
+			lock_t l(job_mutex);
+			job j;
+			j.type = job_type::close;
+			j.buff = nullptr;
+			j.file = m_impl;
+			jobs.push(j);
+			job_cond.notify_all();
+		}
+
+		while (!m_impl->m_closed) {
+			lock_t l(m_impl->m_mut);
+		}
+
+		delete m_impl;
+	}
+
+	m_impl = nullptr;
+	m_last_block = nullptr;
+	m_logical_size = 0;
 }
 
 void file_impl::update_physical_size(lock_t & lock, uint64_t block, uint32_t size) {
