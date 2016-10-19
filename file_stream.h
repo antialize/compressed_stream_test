@@ -272,7 +272,7 @@ template <typename T>
 using stream = stream_base<T, false>;
 
 template <typename T>
-using serialized_straem = stream_base<T, true>;
+using serialized_stream = stream_base<T, true>;
 
 template <typename T>
 using file_stream = file_stream_base<T, false>;
