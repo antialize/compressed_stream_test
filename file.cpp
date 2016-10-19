@@ -44,7 +44,7 @@ file_impl::~file_impl() {
 	for (auto p : m_block_map) {
 		block * b = p.second;
 		assert(!b->m_dirty);
-		b->m_file = false;
+		b->m_file = nullptr;
 		push_available_block(b);
 	}
 
