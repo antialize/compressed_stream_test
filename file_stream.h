@@ -27,7 +27,7 @@ class stream_base;
 constexpr uint32_t block_size() {return 1024;}
 
 // Some free standing methods
-void file_stream_init(int threads); 
+void file_stream_init(size_t threads);
 void file_stream_term();
 
 // Give implementations of needed types

@@ -3,15 +3,21 @@
 #include <file_stream_impl.h>
 #include <vector>
 #include <thread>
+#include <cassert>
 
 std::vector<std::thread> process_threads;
 
-void file_stream_init(int threads) {
+size_t available_blocks(size_t threads) {
+	return threads + 1;
+}
+
+void file_stream_init(size_t threads) {
+	assert(threads >= 1);
 	void_block.m_logical_offset = 0;
 	void_block.m_logical_size = 0;
 	void_block.m_maximal_logical_size = 0;
 
-	for (size_t i=0; i < threads +1; ++i)
+	for (size_t i=0; i < available_blocks(threads); ++i)
 		create_available_block();
 	
 	for (size_t i=0; i < threads; ++i)
@@ -30,7 +36,7 @@ void file_stream_term() {
 	for (auto & t: process_threads)
 		t.join();
 
-	for (size_t i=0; i < process_threads.size() + 1; ++i)
+	for (size_t i=0; i < available_blocks(process_threads.size()); ++i)
 		destroy_available_block();
 	
 	process_threads.clear();
