@@ -109,10 +109,7 @@ public:
 	stream_base_base & operator=(stream_base_base &&);
 	~stream_base_base();
 	
-	bool can_read() {
-		#warning "Implement can_read"
-		return false;
-	}
+	bool can_read();
 
 	bool can_read_back() const noexcept {
 		return offset() != 0;

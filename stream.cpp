@@ -67,6 +67,10 @@ void stream_base_base::seek(uint64_t off, whence w) {
 	m_impl->seek(off, w);
 }
 
+bool stream_base_base::can_read() {
+	return m_cur_index != m_impl->m_file->m_outer->size();
+}
+
 void stream_impl::next_block() {
 	lock_t lock(m_file->m_mut);
 	block * buff = m_cur_block;
