@@ -42,6 +42,7 @@ struct internal_stream {
 	void seek(uint64_t offset, whence w) {
 		switch (w) {
 		case whence::set: m_offset = offset; break;
+		case whence::cur: m_offset += offset; break;
 		case whence::end: m_offset = m_file->size() + offset; break;
 		}
 	}
