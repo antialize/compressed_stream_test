@@ -16,7 +16,38 @@ file_impl::file_impl()
 	, m_closed(false)
 	, m_first_physical_size(no_block_size)
 	, m_last_physical_size(no_block_size)
-	, m_item_size(no_block_size) {} 
+	, m_item_size(no_block_size) {}
+
+file_impl::~file_impl() {
+	// Submit a close job and wait for it to be completed
+	// As jobs are ordered, when the close job has been processed
+	// any remaining jobs on this file must have been submitted
+	// after it was closed, which we don't support
+	// and thus we can be sure that no valid jobs remain for the file.
+	{
+		lock_t l(job_mutex);
+		job j;
+		j.type = job_type::close;
+		j.buff = nullptr;
+		j.file = this;
+		jobs.push(j);
+		job_cond.notify_all();
+	}
+
+	while (!m_closed) {
+		lock_t l(m_mut);
+	}
+
+	// Mark the blocks as not being owned by this file anymore
+	for (auto p : m_block_map) {
+		block * b = p.second;
+		assert(!b->m_dirty);
+		b->m_file = false;
+		push_available_block(b);
+	}
+
+	m_block_map.clear();
+}
 
 file_base_base::file_base_base(bool serialized, uint32_t item_size)
 	: m_impl(nullptr)
@@ -54,25 +85,6 @@ void file_base_base::open(const std::string & path) {
 
 void file_base_base::close() {
 	if (m_impl) {
-		// Submit a close job and wait for it to be completed
-		// As jobs are ordered, when the close job has been processed
-		// any remaining jobs on this file must have been submitted
-		// after it was closed, which we don't support
-		// and thus we can be sure that no valid jobs remain for the file.
-		{
-			lock_t l(job_mutex);
-			job j;
-			j.type = job_type::close;
-			j.buff = nullptr;
-			j.file = m_impl;
-			jobs.push(j);
-			job_cond.notify_all();
-		}
-
-		while (!m_impl->m_closed) {
-			lock_t l(m_impl->m_mut);
-		}
-
 		delete m_impl;
 	}
 

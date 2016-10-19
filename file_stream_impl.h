@@ -74,6 +74,7 @@ public:
 	std::map<uint64_t, block *> m_block_map;
 
 	file_impl();
+	~file_impl();
 
 	block * get_block(lock_t & lock, stream_position p, block * predecessor = nullptr);
 	
