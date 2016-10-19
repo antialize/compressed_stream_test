@@ -84,6 +84,7 @@ public:
 			p.m_index = m_last_block->m_logical_size;
 			p.m_logical_offset = m_last_block->m_logical_offset;
 			p.m_physical_offset = m_last_block->m_physical_offset;
+			return p;
 		} else {
 			return m_end_position;
 		}

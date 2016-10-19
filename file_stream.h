@@ -153,7 +153,7 @@ protected:
 template <typename T, bool serialized>
 class stream_base: public stream_base_base {
 protected:
-	constexpr uint32_t logical_block_size() {return block_size() / sizeof(T);}
+	constexpr uint32_t logical_block_size() const {return block_size() / sizeof(T);}
 	stream_base(file_base_base * imp): stream_base_base(imp) {}
 	
 	friend class file_base<T, serialized>;

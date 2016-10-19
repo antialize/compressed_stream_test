@@ -104,7 +104,7 @@ void process_run() {
 					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
 			
 			data += physical_size - sizeof(block_header); //Skip next block header
-			if (block + 1  != j.buff->m_file->m_blocks && next_physical_size == no_block_idx) {
+			if (block + 1 != j.buff->m_file->m_blocks && next_physical_size == no_block_size) {
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
 				data += sizeof(block_header);

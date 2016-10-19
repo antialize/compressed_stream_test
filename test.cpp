@@ -35,7 +35,7 @@ struct internal_stream {
 	
 	void write(const T & t) {
 		if (m_offset == m_file->m_items.size())	m_file->m_items.push_back(t);
-		else m_file->m_items[m_offset] == t;
+		else m_file->m_items[m_offset] = t;
 		m_offset++;
 	}
 
