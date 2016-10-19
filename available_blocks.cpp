@@ -10,7 +10,7 @@ std::condition_variable available_block_cond;
 std::queue<block *> available_blocks;
 }
 
-static size_t ctr = 0;
+size_t ctr = 0;
 void create_available_block() {
 	lock_t l(available_blocks_mutex);
 	auto b = new block();
@@ -26,7 +26,7 @@ void create_available_block() {
 block * pop_available_block();
 
 void destroy_available_block() {
-	auto b = pop_available_block();;
+	auto b = pop_available_block();
 	log_info() << "AVAIL destroy    " << *b << std::endl;
 	delete b;
 }
