@@ -19,10 +19,12 @@ stream_base_base::stream_base_base(file_base_base * file_base)
 
 stream_base_base::stream_base_base(stream_base_base && o)
 	: m_block(o.m_block)
+	, m_file_base(o.m_file_base)
 	, m_impl(o.m_impl)
 	, m_cur_index(o.m_cur_index) {
 	m_impl->m_outer = this;
 	o.m_block = nullptr;
+	o.m_file_base = nullptr;
 	o.m_impl = nullptr;
 	o.m_cur_index = 0;
 }
@@ -39,9 +41,11 @@ stream_base_base & stream_base_base::operator=(stream_base_base && o) {
 	}
 	
 	m_block = o.m_block;
+	m_file_base = o.m_file_base;
 	m_impl = o.m_impl;
 	m_cur_index = o.m_cur_index;
 	o.m_block = nullptr;
+	o.m_file_base = nullptr;
 	o.m_impl = nullptr;
 	o.m_cur_index = 0;
 	return *this;
