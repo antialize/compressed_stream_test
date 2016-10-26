@@ -7,6 +7,7 @@ block_base void_block;
 
 stream_base_base::stream_base_base(file_base_base * file_base)
 	: m_block(nullptr)
+	, m_file_base(file_base)
 	, m_impl(nullptr)
 	, m_cur_index(0) {
 	m_impl = new stream_impl();
@@ -65,10 +66,6 @@ void stream_base_base::next_block() {
 
 void stream_base_base::seek(uint64_t off, whence w) {
 	m_impl->seek(off, w);
-}
-
-bool stream_base_base::can_read() {
-	return m_cur_index != m_impl->m_file->m_outer->size();
 }
 
 void stream_impl::next_block() {

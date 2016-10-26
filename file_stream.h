@@ -84,8 +84,8 @@ public:
 	}
 
 	uint64_t size() const noexcept {
-		if (m_last_block == nullptr) return m_logical_size;
-		return m_last_block->m_logical_offset + m_last_block->m_logical_size;
+		if (m_last_block == nullptr || *m_last_block == nullptr) return m_logical_size;
+		return (*m_last_block)->m_logical_offset + (*m_last_block)->m_logical_size;
 	}
 
 protected:
@@ -96,7 +96,7 @@ private:
 	virtual void do_destruct(char * data, uint32_t size) = 0;
 	
 	file_impl * m_impl;
-	block_base * m_last_block;
+	block_base ** m_last_block;
 	uint64_t m_logical_size;	
 };
 
@@ -109,7 +109,9 @@ public:
 	stream_base_base & operator=(stream_base_base &&);
 	~stream_base_base();
 	
-	bool can_read();
+	bool can_read() const noexcept {
+		return offset() < m_file_base->size();
+	}
 
 	bool can_read_back() const noexcept {
 		return offset() != 0;
@@ -143,6 +145,7 @@ protected:
 	stream_base_base(file_base_base * impl);
 
 	block_base * m_block;
+	file_base_base * m_file_base;
 	stream_impl * m_impl;
 	uint32_t m_cur_index;
 };

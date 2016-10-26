@@ -31,7 +31,8 @@ public:
 	bool m_read;
 	uint32_t m_usage;
 	block * m_successor;
-	cond_t m_cond;  
+	cond_t m_cond;
+	bool io; // false = owned by main thread, true = owned by job thread
 
 	block_size_t m_prev_physical_size, m_next_physical_size, m_physical_size;
 	block_offset_t m_physical_offset;
@@ -59,12 +60,11 @@ public:
 	block * m_last_block; // A pointer to the last active block
 	stream_position m_end_position;
 	
-	uint64_t m_logical_size; // The logical size of the file if m_last_block is nullptr
 	uint64_t m_blocks; //The number of blocks in the file
 
 	// Signals whether the file is closed and no jobs remain to be performed on the file.
 	// This ensures that we don't deallocate a file_base_base and file_impl when more jobs needs to done on it.
-	bool m_closed;
+	uint32_t m_job_count;
 
 	uint32_t m_first_physical_size;
 	uint32_t m_last_physical_size;
@@ -74,7 +74,6 @@ public:
 	std::map<uint64_t, block *> m_block_map;
 
 	file_impl();
-	~file_impl();
 
 	block * get_block(lock_t & lock, stream_position p, block * predecessor = nullptr);
 	
@@ -119,7 +118,7 @@ public:
 };
 
 enum class job_type {
-	term, write, read, trunc, close
+	term, write, read, trunc
 };
 
 class job {

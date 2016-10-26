@@ -31,17 +31,11 @@ void process_run() {
 		
 		auto file = j.file;
 		lock_t file_lock(file->m_mut);
-		
+
 		switch (j.type) {
 		case job_type::term:
 		{
 			assert(false);
-			break;
-		}
-		case job_type::close:
-		{
-			file->m_closed = true;
-			log_info() << "JOB " << id << " close      " << file->m_fd << std::endl;
 			break;
 		}
 		case job_type::read:
@@ -195,6 +189,9 @@ void process_run() {
 		case job_type::trunc:
 			break;
 		}
+
+		file->m_job_count--;
+
 		l.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;

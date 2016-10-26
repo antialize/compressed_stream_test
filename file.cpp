@@ -11,45 +11,13 @@ file_impl::file_impl()
 	: m_outer(nullptr)
 	, m_fd(-1)
 	, m_last_block(nullptr)
-	, m_logical_size(0)
 	, m_blocks(0)
-	, m_closed(false)
+	, m_job_count(0)
 	, m_first_physical_size(no_block_size)
 	, m_last_physical_size(no_block_size)
 	, m_item_size(no_block_size)
 	, m_serialized(false)
 	, m_direct(false) {}
-
-file_impl::~file_impl() {
-	// Submit a close job and wait for it to be completed
-	// As jobs are ordered, when the close job has been processed
-	// any remaining jobs on this file must have been submitted
-	// after it was closed, which we don't support
-	// and thus we can be sure that no valid jobs remain for the file.
-	{
-		lock_t l(job_mutex);
-		job j;
-		j.type = job_type::close;
-		j.buff = nullptr;
-		j.file = this;
-		jobs.push(j);
-		job_cond.notify_all();
-	}
-
-	while (!m_closed) {
-		lock_t l(m_mut);
-	}
-
-	// Mark the blocks as not being owned by this file anymore
-	for (auto p : m_block_map) {
-		block * b = p.second;
-		assert(!b->m_dirty);
-		b->m_file = nullptr;
-		push_available_block(b);
-	}
-
-	m_block_map.clear();
-}
 
 file_base_base::file_base_base(bool serialized, uint32_t item_size)
 	: m_impl(nullptr)
@@ -58,6 +26,7 @@ file_base_base::file_base_base(bool serialized, uint32_t item_size)
 {
 	auto impl = new file_impl();
 	m_impl = impl;
+	m_last_block = reinterpret_cast<block_base **>(&m_impl->m_last_block);
 	impl->m_outer = this;
 	impl->m_item_size = item_size;
 	impl->m_serialized = serialized;
@@ -86,12 +55,39 @@ void file_base_base::open(const std::string & path) {
 }
 
 void file_base_base::close() {
-	if (m_impl) {
-		delete m_impl;
+	// Wait for all jobs to be completed for this file
+	while (m_impl->m_job_count) {}
+
+	// Free all blocks
+	{
+		lock_t l(m_impl->m_mut);
+
+		// Mark the blocks as not being owned by this file anymore
+		for (auto p : m_impl->m_block_map) {
+			block *b = p.second;
+			m_impl->free_block(l, b);
+		}
 	}
 
-	m_impl = nullptr;
-	m_last_block = nullptr;
+	// Wait for all freed dirty blocks to be written
+	while (m_impl->m_job_count) {}
+
+	// Set the owner of the blocks to nullptr
+	for (auto p : m_impl->m_block_map) {
+		block *b = p.second;
+		b->m_file = nullptr;
+	}
+
+	m_impl->m_block_map.clear();
+
+	::close(m_impl->m_fd);
+
+	m_impl->m_fd = -1;
+	m_impl->m_last_block = nullptr;
+	m_impl->m_blocks = 0;
+	m_impl->m_first_physical_size = no_block_size;
+	m_impl->m_last_physical_size = no_block_size;
+
 	m_logical_size = 0;
 }
 
@@ -152,6 +148,8 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 		log_info() << "FILE  read       " << *buff << std::endl;
 		//We need to read stuff
 		{
+			m_job_count++;
+
 			lock_t l2(job_mutex);
 			job j;
 			j.type = job_type::read;
@@ -210,6 +208,9 @@ void file_impl::free_block(lock_t &, block * t) {
 		//TODO check that we are allowed to write to this block
 		
 		log_info() << "      free block " << *t << " write" << std::endl;
+
+		m_job_count++;
+
 		// Write dirty block
 		lock_t l2(job_mutex);
 	  
@@ -242,6 +243,6 @@ void file_impl::kill_block(lock_t & l, block * t) {
 		m_end_position.m_physical_offset = t->m_physical_offset;
 		m_end_position.m_block = t->m_block;
 		m_end_position.m_index = t->m_logical_size;
-		m_logical_size = t->m_logical_offset + t->m_logical_size;
+		m_outer->m_logical_size = t->m_logical_offset + t->m_logical_size;
 	}
 }
