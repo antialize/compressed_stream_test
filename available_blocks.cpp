@@ -3,11 +3,20 @@
 
 #include <file_stream_impl.h>
 #include <queue>
+#include <cassert>
+
+#ifndef NDEBUG
+struct queue_t : public std::queue<block *> {
+	container_type container() { return c; }
+};
+#else
+typedef std::queue<block *> queue_t;
+#endif
 
 namespace {
 mutex_t available_blocks_mutex;
 std::condition_variable available_block_cond;
-std::queue<block *> available_blocks;
+queue_t available_blocks;
 }
 
 size_t ctr = 0;
@@ -33,6 +42,13 @@ void destroy_available_block() {
 
 void push_available_block(block * b) {
 	lock_t l(available_blocks_mutex);
+
+#ifndef NDEBUG
+	for (block * bb : available_blocks.container()) {
+		assert(bb != b);
+	}
+#endif
+
 	available_blocks.push(b);
 	available_block_cond.notify_one();
 	log_info() << "AVAIL push       " << *b << std::endl;
