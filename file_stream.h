@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <string.h>
+#include <cassert>
 
 // Declare all types
 class block_base;
@@ -132,6 +133,12 @@ public:
 		return m_block->m_logical_offset + m_cur_index;
 	}
 
+#ifndef NDEBUG
+	block_base * * get_last_block() {
+		return m_file_base->m_last_block;
+	}
+#endif
+
 	void truncate(uint64_t offset);
 	void truncate(stream_position pos);	
 	
@@ -182,6 +189,13 @@ public:
 	void write(T item) {
 		//TODO handle serialized write here
 		if (m_cur_index == m_block->m_maximal_logical_size) next_block();
+
+#ifndef NDEBUG
+		auto last_block = get_last_block();
+		assert(last_block != nullptr);
+		assert(*last_block == m_block);
+#endif
+
 		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
 		m_block->m_dirty = true;

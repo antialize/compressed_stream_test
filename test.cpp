@@ -192,6 +192,20 @@ int write_read() {
 	return EXIT_SUCCESS;
 }
 
+int write_fail() {
+	file<int> f;
+	f.open("/tmp/hello.tst");
+	auto s1 = f.stream();
+	auto s2 = f.stream();
+
+	for (int i = 0; i < 1000; i++)
+		s1.write(i);
+
+	s2.write(134);
+
+	return EXIT_SUCCESS;
+}
+
 int main(int argc, char ** argv) {
   file_stream_init(4);
 
@@ -202,9 +216,11 @@ int main(int argc, char ** argv) {
   else if (test == "write_read")
 	  ans = write_read();
   else if (test == "random")
-	  ans =  random_test();
+	  ans = random_test();
+  else if (test == "write_fail")
+	  ans = write_fail();
   else {
-	  std::cerr << "Usage: .t flush | write_read | random" << std::endl;
+	  std::cerr << "Usage: .t flush | write_read | write_fail | random" << std::endl;
 	  ans = EXIT_FAILURE;
   }
   
