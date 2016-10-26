@@ -15,7 +15,10 @@ struct internal_file {
 	internal_stream<T> stream();
 
 	uint64_t size() const noexcept {return m_items.size();}
-	
+
+	void open() {}
+	void close() { m_items.clear(); }
+
 	std::vector<T> m_items;
 };
 
@@ -90,13 +93,16 @@ int random_test() {
 		seek_start,
 		get_offset,
 		get_size,
-		can_read
+		can_read,
+		open_file,
+		close_file
 	};
 
 
 	file<int> f1;
 	f1.open("/tmp/hello.tst");
-	
+	bool open = true;
+
 	internal_file<int> f2;
 	
 	std::vector<stream<int>> s1;
@@ -107,16 +113,22 @@ int random_test() {
 	while (true) {
 		std::vector<std::pair<task, size_t> > tasks;
 
-		if (s1.size() < 5)
-			tasks.emplace_back(task::create_stream, 5 - s1.size());
-		if (s1.size()) {
-			tasks.emplace_back(task::destroy_stream, s1.size());
-			tasks.emplace_back(task::write_end, 20);
-			tasks.emplace_back(task::read, 20);
-			tasks.emplace_back(task::seek_start, 6);
-			tasks.emplace_back(task::get_offset, 20);
-			tasks.emplace_back(task::can_read, 20);
-			tasks.emplace_back(task::get_size, 20);
+		if (!open) {
+			//tasks.emplace_back(task::open_file, 1);
+		} else {
+			if (s1.size() < 5)
+				tasks.emplace_back(task::create_stream, 5 - s1.size());
+			if (s1.size()) {
+				tasks.emplace_back(task::destroy_stream, s1.size());
+				tasks.emplace_back(task::write_end, 20);
+				tasks.emplace_back(task::read, 20);
+				tasks.emplace_back(task::seek_start, 6);
+				tasks.emplace_back(task::get_offset, 20);
+				tasks.emplace_back(task::can_read, 20);
+				tasks.emplace_back(task::get_size, 20);
+			} else {
+				//tasks.emplace_back(task::close_file, 2);
+			}
 		}
 
 		const size_t sum = std::accumulate(tasks.begin(), tasks.end(), 0, [](size_t a, std::pair<task, size_t> b) {return a+b.second;});
@@ -128,6 +140,18 @@ int random_test() {
 			}
 			const size_t s = std::uniform_int_distribution<size_t>(0, std::max<size_t>(1, s1.size()) -1)(rng);
 			switch (t.first) {
+			case task::close_file:
+				log_info() << "Close file" << std::endl;
+				f1.close();
+				f2.close();
+				open = false;
+				break;
+			case task::open_file:
+				log_info() << "Open file" << std::endl;
+				f1.open("/tmp/hello.tst");
+				f2.open();
+				open = true;
+				break;
 			case task::create_stream:
 				log_info() << "Create stream" << std::endl;
 				s1.push_back(f1.stream());
