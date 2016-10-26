@@ -198,8 +198,8 @@ void file_impl::free_block(lock_t &, block * t) {
 	if (t == nullptr) return;
 	--t->m_usage;
 
-	if (t->m_usage != 0) return;
-	
+	// Even if t->m_usage > 1, we need to write the block if it's dirty
+	// This is not a problem as we only support appending to a file
 	if (t->m_dirty) {
 
 		//TODO check that we are allowed to write to this block
@@ -220,7 +220,13 @@ void file_impl::free_block(lock_t &, block * t) {
 		//log_info() << "write block " << *t << std::endl;
 		jobs.push(j);
 		job_cond.notify_all();
-	} else if (t->m_physical_offset != no_block_offset) {
+
+		return;
+	}
+
+	if (t->m_usage != 0) return;
+
+	if (t->m_physical_offset != no_block_offset) {
 		log_info() << "      free block " << *t << " avail" << std::endl;
 		//log_info() << "avail block " << *t << std::endl;
 		push_available_block(t);

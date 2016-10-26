@@ -46,6 +46,7 @@ void process_run() {
 	while (true) {
 		while (jobs.empty()) job_cond.wait(l);
 		auto j = jobs.front();
+		// Don't pop the job as all threads should terminate
 		if (j.type == job_type::term) break;
 		jobs.pop();
 		l.unlock();
@@ -203,10 +204,6 @@ void process_run() {
 			file_lock.lock();
 			file->update_physical_size(file_lock, j.buff->m_block, bs);
 			file->free_block(file_lock, j.buff);
-			if (nb && nb->m_usage == 0) {
-				nb->m_usage = 1;
-				file->free_block(file_lock, nb);
-			}
 		}
 		break;
 		case job_type::trunc:
