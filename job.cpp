@@ -78,7 +78,7 @@ void process_run() {
 			if (physical_size == no_block_size) {
 				block_header h;
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
-				assert(r >= 0);
+				assert(r == sizeof(block_header));
 				physical_size = h.physical_size;
 			}
 	
@@ -100,7 +100,7 @@ void process_run() {
 
 			auto r = _pread(file->m_fd, data, size, off);
 
-			assert(r >= 0);
+			assert(r == size);
 
 			if (block != 0 && prev_physical_size == no_block_size) {
 				//log_info() << id << "read prev header" << std::endl;
@@ -197,7 +197,7 @@ void process_run() {
 			file_lock.unlock();
 
 			auto r = _pwrite(file->m_fd, data2, bs, off);
-			assert(r >= 0);
+			assert(r == bs);
 			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " physical_size " << std::endl;
 			
 			file_lock.lock();
