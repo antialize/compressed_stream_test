@@ -62,6 +62,10 @@ void process_run() {
 		}
 		case job_type::read:
 		{
+			while (j.buff->m_physical_offset == no_block_offset) {
+				j.buff->m_cond.wait(file_lock);
+			}
+
 			block_idx_t block = j.buff->m_block;
 			block_offset_t physical_offset = j.buff->m_physical_offset;
 			block_offset_t logical_offset = j.buff->m_logical_offset;
@@ -74,8 +78,7 @@ void process_run() {
 			file_lock.unlock();
 			
 			assert(block != no_block_idx);
-			assert(physical_offset != no_block_offset);
-	
+
 			if (physical_size == no_block_size) {
 				block_header h;
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
