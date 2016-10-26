@@ -191,7 +191,7 @@ void process_run() {
 		}
 
 		file->m_job_count--;
-
+		file->m_job_cond.notify_one();
 		l.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;

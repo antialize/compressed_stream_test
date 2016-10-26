@@ -55,22 +55,19 @@ void file_base_base::open(const std::string & path) {
 }
 
 void file_base_base::close() {
+	lock_t l(m_impl->m_mut);
+
 	// Wait for all jobs to be completed for this file
-	while (m_impl->m_job_count) {}
+	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
-	// Free all blocks
-	{
-		lock_t l(m_impl->m_mut);
-
-		// Mark the blocks as not being owned by this file anymore
-		for (auto p : m_impl->m_block_map) {
-			block *b = p.second;
-			m_impl->free_block(l, b);
-		}
+	// Free all blocks, possibly creating some write jobs
+	for (auto p : m_impl->m_block_map) {
+		block *b = p.second;
+		m_impl->free_block(l, b);
 	}
 
 	// Wait for all freed dirty blocks to be written
-	while (m_impl->m_job_count) {}
+	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
 	// Set the owner of the blocks to nullptr
 	for (auto p : m_impl->m_block_map) {

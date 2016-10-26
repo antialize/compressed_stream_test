@@ -62,9 +62,10 @@ public:
 	
 	uint64_t m_blocks; //The number of blocks in the file
 
-	// Signals whether the file is closed and no jobs remain to be performed on the file.
-	// This ensures that we don't deallocate a file_base_base and file_impl when more jobs needs to done on it.
+	// Tells how many jobs remain to be performed on the file.
+	// We can only close a file when the job count is 0.
 	uint32_t m_job_count;
+	cond_t m_job_cond;
 
 	uint32_t m_first_physical_size;
 	uint32_t m_last_physical_size;
