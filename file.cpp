@@ -119,7 +119,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 	
 	buff->m_file = this;
 	buff->m_dirty = false;
-	buff->m_block = p.m_block;;
+	buff->m_block = p.m_block;
 	buff->m_physical_offset = p.m_physical_offset;
 	buff->m_logical_offset = p.m_logical_offset;
 	buff->m_successor = nullptr;

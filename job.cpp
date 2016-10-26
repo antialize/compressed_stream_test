@@ -15,6 +15,27 @@ std::condition_variable job_cond;
 
 std::atomic_uint tid;
 
+ssize_t _pread(int fd, void *buf, size_t count, off_t offset) {
+	char * cbuf = static_cast<char *>(buf);
+	ssize_t i = 0;
+	do {
+		ssize_t r = ::pread(fd, cbuf + i, count - i, offset + i);
+		if (r <= 0) return r;
+		i += r;
+	} while(i < count);
+	return i;
+}
+
+ssize_t _pwrite(int fd, const void *buf, size_t count, off_t offset) {
+	const char * cbuf = static_cast<const char *>(buf);
+	ssize_t i = 0;
+	do {
+		ssize_t r = ::pwrite(fd, cbuf + i, count - i, offset + i);
+		if (r <= 0) return r;
+		i += r;
+	} while(i < count);
+	return i;
+}
 
 void process_run() {
 	auto id = tid.fetch_add(1);
@@ -56,7 +77,8 @@ void process_run() {
 	
 			if (physical_size == no_block_size) {
 				block_header h;
-				::pread(file->m_fd, &h, sizeof(block_header), physical_offset);
+				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
+				assert(r >= 0);
 				physical_size = h.physical_size;
 			}
 	
@@ -75,11 +97,11 @@ void process_run() {
 			char * data = data1;
 
 			log_info() << "JOB " << id << " pread      " << *j.buff << " " << off << " " << size << " " << physical_size << std::endl;
-			
-			auto r = ::pread(file->m_fd, data, size, off);
-			
-			assert(r == size);			
-			
+
+			auto r = _pread(file->m_fd, data, size, off);
+
+			assert(r >= 0);
+
 			if (block != 0 && prev_physical_size == no_block_size) {
 				//log_info() << id << "read prev header" << std::endl;
 				block_header h;
@@ -174,7 +196,8 @@ void process_run() {
 
 			file_lock.unlock();
 
-			::pwrite(file->m_fd, data2, bs, off);
+			auto r = _pwrite(file->m_fd, data2, bs, off);
+			assert(r >= 0);
 			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " physical_size " << std::endl;
 			
 			file_lock.lock();
