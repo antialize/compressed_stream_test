@@ -84,6 +84,10 @@ int flush_test() {
 	return EXIT_SUCCESS;
 }
 
+void task_title(std::string title) {
+	log_info() << "\n==> " << title << '\n' << std::endl;
+}
+
 int random_test() {
 	enum class task {
 		create_stream,
@@ -141,29 +145,29 @@ int random_test() {
 			const size_t s = std::uniform_int_distribution<size_t>(0, std::max<size_t>(1, s1.size()) -1)(rng);
 			switch (t.first) {
 			case task::close_file:
-				log_info() << "Close file" << std::endl;
+				task_title("Close file");
 				f1.close();
 				f2.close();
 				open = false;
 				break;
 			case task::open_file:
-				log_info() << "Open file" << std::endl;
+				task_title("Open file");
 				f1.open("/tmp/hello.tst");
 				f2.open();
 				open = true;
 				break;
 			case task::create_stream:
-				log_info() << "Create stream" << std::endl;
+				task_title("Create stream");
 				s1.push_back(f1.stream());
 				s2.push_back(f2.stream());
 				break;
 			case task::destroy_stream:
-				log_info() << "Destroy stream" << std::endl;
+				task_title("Destroy stream");
 				s1.erase(s1.begin() + s);
 				s2.erase(s2.begin() + s);
 				break;
 			case task::can_read:
-				log_info() << "Can read" << std::endl;
+				task_title("Can read");
 				ensure(s1[s].can_read(), s2[s].can_read(), "can_read");
 				break;
 			case task::read: {
@@ -176,13 +180,13 @@ int random_test() {
 				break;
 			}
 			case task::seek_start:
-				log_info() << "seek start" << std::endl;
+				task_title("Seek start");
 				s1[s].seek(0, whence::set);
 				s2[s].seek(0, whence::set);
 				break;
 			case task::write_end: {
 				auto count = std::uniform_int_distribution<size_t>(1, 1024)(rng);
-				log_info() << "write end " << count << std::endl;
+				task_title("Write end " + std::to_string(count));
 				s1[s].seek(0, whence::end);
 				s2[s].seek(0, whence::end);
 				std::uniform_int_distribution<int> d;
@@ -194,10 +198,10 @@ int random_test() {
 				break;
 			}
 			case task::get_offset:
-				log_info() << "offset" << std::endl;
+				task_title("Get offset");
 				ensure(s1[s].offset(), s2[s].offset(), "offset");
 			case task::get_size: break;
-				log_info() << "size" << std::endl;
+				task_title("Get size");
 				ensure(f1.size(), f2.size(), "size");
 			}
 			break;
