@@ -18,8 +18,8 @@ std::atomic_uint tid;
 
 void process_run() {
 	auto id = tid.fetch_add(1);
-	char * data1 = new char[1024*1024];
-	char * data2 = new char[1024*1024];
+	thread_local char data1[1024*1024];
+	thread_local char data2[1024*1024];
 	lock_t l(job_mutex);
 	log_info() << "JOB " << id << " start" << std::endl;
 	while (true) {
@@ -63,12 +63,12 @@ void process_run() {
 
 			block_offset_t off = physical_offset;
 			block_offset_t size = physical_size;
-			if (block != 0 && prev_physical_size == no_block_size) {
+			if (block != 0 && prev_physical_size == no_block_size) { // NOT THE FIRST BLOCK
 				off -= sizeof(block_header);
 				size += sizeof(block_header);
 			}
 	
-			if (block + 1  != blocks && next_physical_size == no_block_size) { //NOT THE LAST BLOCK
+			if (block + 1 != blocks && next_physical_size == no_block_size) { //NOT THE LAST BLOCK
 				size += sizeof(block_header);
 			} 
 
@@ -195,7 +195,4 @@ void process_run() {
 		l.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;
-
-	delete[] data1;
-	delete[] data2;
 }
