@@ -88,6 +88,29 @@ void file_base_base::close() {
 	m_logical_size = 0;
 }
 
+block_offset_t file_impl::get_physical_block_offset(lock_t & lock, block * block) {
+	block_idx_t idx = block->m_block;
+
+	if (idx == 0) return 0;
+
+	if (block->m_physical_offset != no_block_offset)
+		return block->m_physical_offset;
+
+	auto it = m_block_map.find(idx - 1);
+	if (it != m_block_map.end() && it->second->m_physical_offset != no_block_offset && it->second->m_physical_size != no_block_size)
+		return it->second->m_physical_offset + it->second->m_physical_size;
+
+	it = m_block_map.find(idx + 1);
+	if (it != m_block_map.end() && it->second->m_physical_offset != no_block_offset && it->second->m_prev_physical_size != no_block_size)
+		return it->second->m_physical_offset - it->second->m_prev_physical_size;
+
+	while (block->m_physical_offset == no_block_offset) {
+		block->m_cond.wait(lock);
+	}
+
+	return block->m_physical_offset;
+}
+
 void file_impl::update_physical_size(lock_t & lock, uint64_t block, uint32_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {

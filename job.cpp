@@ -62,9 +62,7 @@ void process_run() {
 		}
 		case job_type::read:
 		{
-			while (j.buff->m_physical_offset == no_block_offset) {
-				j.buff->m_cond.wait(file_lock);
-			}
+			j.buff->m_physical_offset = file->get_physical_block_offset(file_lock, j.buff);
 
 			block_idx_t block = j.buff->m_block;
 			block_offset_t physical_offset = j.buff->m_physical_offset;
@@ -93,10 +91,19 @@ void process_run() {
 				off -= sizeof(block_header);
 				size += sizeof(block_header);
 			}
-	
-			if (block + 1 != blocks && next_physical_size == no_block_size) { //NOT THE LAST BLOCK
-				size += sizeof(block_header);
-			} 
+
+			// If the next block has never been written out to disk
+			// we can't find its physical size
+			bool should_read_next_physical_size = true;
+			if (block + 1 != blocks && next_physical_size == no_block_size) { // NOT THE LAST BLOCK
+				auto it = file->m_block_map.find(block + 1);
+				if (it != file->m_block_map.end()) {
+					next_physical_size = it->second->m_physical_size;
+					should_read_next_physical_size = false;
+				} else {
+					size += sizeof(block_header);
+				}
+			}
 
 			char * data = data1;
 
@@ -133,7 +140,7 @@ void process_run() {
 					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
 			
 			data += physical_size - sizeof(block_header); //Skip next block header
-			if (block + 1 != j.buff->m_file->m_blocks && next_physical_size == no_block_size) {
+			if (should_read_next_physical_size) {
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
 				data += sizeof(block_header);
@@ -141,6 +148,12 @@ void process_run() {
 			}
 
 			file_lock.lock();
+
+			auto nb = j.buff->m_successor;
+			if (nb) {
+				nb->m_physical_offset = off + size;
+				nb->m_cond.notify_all();
+			}
 
 			j.buff->m_prev_physical_size = prev_physical_size;
 			j.buff->m_next_physical_size = next_physical_size;
@@ -188,14 +201,14 @@ void process_run() {
 			
 			if (off == no_block_offset) {
 				log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
-				while (j.buff->m_physical_offset == no_block_offset) j.buff->m_cond.wait(file_lock);
+				j.buff->m_physical_offset = file->get_physical_block_offset(file_lock, j.buff);
 				off = j.buff->m_physical_offset;
 			}
 	
 			auto nb = j.buff->m_successor;
 			if (nb) {
 			  nb->m_physical_offset = off + bs;
-			  nb->m_cond.notify_one();
+			  nb->m_cond.notify_all();
 			}
 
 			file_lock.unlock();
@@ -205,6 +218,7 @@ void process_run() {
 			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " physical_size " << std::endl;
 			
 			file_lock.lock();
+			j.buff->m_physical_size = bs;
 			file->update_physical_size(file_lock, j.buff->m_block, bs);
 			file->free_block(file_lock, j.buff);
 		}

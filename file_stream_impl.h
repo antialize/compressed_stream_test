@@ -102,7 +102,8 @@ public:
 	void free_block(lock_t & lock, block * block);
 	void kill_block(lock_t & lock, block * block);
 
-	void update_physical_size(lock_t &, uint64_t block, uint32_t size);	
+	block_offset_t get_physical_block_offset(lock_t & lock, block * block);
+	void update_physical_size(lock_t &, uint64_t block, uint32_t size);
 };
 
 class stream_impl {

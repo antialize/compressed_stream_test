@@ -249,7 +249,7 @@ int main(int argc, char ** argv) {
   else if (test == "write_fail")
 	  ans = write_fail();
   else {
-	  std::cerr << "Usage: .t flush | write_read | write_fail | random" << std::endl;
+	  log_info() << "Usage: .t flush | write_read | write_fail | random" << std::endl;
 	  ans = EXIT_FAILURE;
   }
   
