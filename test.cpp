@@ -1,10 +1,11 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 #include <file_stream.h>
-#include <cassert>
 #include <iostream>
 #include <log.h>
 #include <random>
+
+#define TMP_FILE "/tmp/hello.tst"
 
 template <typename T>
 class internal_stream;
@@ -68,7 +69,7 @@ void ensure(T expect, T got, const char * name) {
 
 int flush_test() {
 	file<int> f;
-	f.open("/tmp/hello.tst");
+	f.open(TMP_FILE);
 
 	auto s1 = f.stream(); 
 	auto s2 = f.stream();
@@ -104,7 +105,7 @@ int random_test() {
 
 
 	file<int> f1;
-	f1.open("/tmp/hello.tst");
+	f1.open(TMP_FILE);
 	bool open = true;
 
 	internal_file<int> f2;
@@ -152,7 +153,7 @@ int random_test() {
 				break;
 			case task::open_file:
 				task_title("Open file");
-				f1.open("/tmp/hello.tst");
+				f1.open(TMP_FILE);
 				f2.open();
 				open = true;
 				break;
@@ -212,7 +213,7 @@ int random_test() {
 
 int write_read() {
 	file<int> f;
-	f.open("/tmp/hello.tst");
+	f.open(TMP_FILE);
 	stream<int> s=f.stream();
 	for (int i=0; i < 10000; ++i) s.write(i);
 	s.seek(0);
@@ -222,7 +223,7 @@ int write_read() {
 
 int write_fail() {
 	file<int> f;
-	f.open("/tmp/hello.tst");
+	f.open(TMP_FILE);
 	auto s1 = f.stream();
 	auto s2 = f.stream();
 
