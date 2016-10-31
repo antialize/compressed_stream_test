@@ -139,6 +139,7 @@ struct block_header {
 
 void create_available_block();
 block * pop_available_block();
+void make_block_unavailable(block * b);
 void destroy_available_block();
 void push_available_block(block * b);
 block * pop_available_block();

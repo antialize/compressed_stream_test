@@ -2,21 +2,13 @@
 // vi:set ts=4 sts=4 sw=4 noet :
 
 #include <file_stream_impl.h>
-#include <queue>
+#include <unordered_set>
 #include <cassert>
-
-#ifndef NDEBUG
-struct queue_t : public std::queue<block *> {
-	container_type container() { return c; }
-};
-#else
-typedef std::queue<block *> queue_t;
-#endif
 
 namespace {
 mutex_t available_blocks_mutex;
 std::condition_variable available_block_cond;
-queue_t available_blocks;
+std::unordered_set<block *> available_blocks;
 }
 
 size_t ctr = 0;
@@ -25,7 +17,7 @@ void create_available_block() {
 	auto b = new block();
 	b->m_idx = ctr++;
 	b->m_file = nullptr;
-	available_blocks.push(b);
+	available_blocks.insert(b);
 	available_block_cond.notify_one();
 
 
@@ -44,16 +36,18 @@ void push_available_block(block * b) {
 	lock_t l(available_blocks_mutex);
 
 #ifndef NDEBUG
-	for (block * bb : available_blocks.container()) {
-		assert(bb != b);
-	}
+	assert(available_blocks.count(b) == 0);
 #endif
 
-	available_blocks.push(b);
+	available_blocks.insert(b);
 	available_block_cond.notify_one();
 	log_info() << "AVAIL push       " << *b << std::endl;
 }
 
+void make_block_unavailable(block * b) {
+	lock_t l(available_blocks_mutex);
+	assert(available_blocks.erase(b) == 1);
+}
 
 block * pop_available_block() {
 	while (true) {
@@ -61,8 +55,9 @@ block * pop_available_block() {
 		{
 			lock_t l(available_blocks_mutex);
 			while (available_blocks.empty()) available_block_cond.wait(l);
-			b = available_blocks.front();
-			available_blocks.pop();
+			auto it = available_blocks.begin();
+			b = *it;
+			available_blocks.erase(it);
 		}
 		if (b->m_file) {
 			//log_info() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
