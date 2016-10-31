@@ -94,14 +94,14 @@ void process_run() {
 
 			// If the next block has never been written out to disk
 			// we can't find its physical size
-			bool should_read_next_physical_size = true;
+			bool should_read_next_physical_size = false;
 			if (block + 1 != blocks && next_physical_size == no_block_size) { // NOT THE LAST BLOCK
 				auto it = file->m_block_map.find(block + 1);
 				if (it != file->m_block_map.end()) {
 					next_physical_size = it->second->m_physical_size;
-					should_read_next_physical_size = false;
 				} else {
 					size += sizeof(block_header);
+					should_read_next_physical_size = true;
 				}
 			}
 
