@@ -8,11 +8,18 @@ struct crapper {
 	static std::mutex m;
 	std::unique_lock<std::mutex> l;
 	crapper(): l(m) {}
+
+	const crapper & operator <<(std::ostream & (*f)(std::ostream &)) const {
+		std::cout << f;
+		return *this;
+	}
 };
 
+
 template <typename T>
-std::ostream & operator <<(const crapper & c, const T & t) {
-	return std::cout << t;
+const crapper & operator <<(const crapper & c, const T & t) {
+	std::cout << t;
+	return c;
 }
 
 inline crapper log_info() {
