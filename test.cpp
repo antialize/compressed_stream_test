@@ -4,6 +4,7 @@
 #include <iostream>
 #include <log.h>
 #include <random>
+#include <map>
 
 #define TMP_FILE "/tmp/hello.tst"
 
@@ -28,7 +29,7 @@ template <typename T>
 struct internal_stream {
 	internal_stream(internal_file<T> * file, uint64_t offset)
 		: m_offset(offset), m_file(file) {}
-	
+
 	const T & peak() const noexcept {return m_file->m_items[m_offset];}
 	const T & read() noexcept {return m_file->m_items[m_offset++];}
 	const T & peak_back() const noexcept {return m_file->m_items[m_offset-1];}
@@ -36,7 +37,7 @@ struct internal_stream {
 	bool can_read() const noexcept {return m_offset != m_file->m_items.size();}
 	bool can_read_back() const noexcept {return m_offset != 0;}
 	uint64_t offset() const noexcept {return m_offset;}
-	
+
 	void write(const T & t) {
 		if (m_offset == m_file->m_items.size())	m_file->m_items.push_back(t);
 		else m_file->m_items[m_offset] = t;
@@ -71,7 +72,7 @@ int flush_test() {
 	file<int> f;
 	f.open(TMP_FILE);
 
-	auto s1 = f.stream(); 
+	auto s1 = f.stream();
 	auto s2 = f.stream();
 	s1.write(42);
 	ensure(42, s2.read(), "read");
@@ -81,7 +82,7 @@ int flush_test() {
 
 	for (int i=0; i < 10000; ++i)
 		ensure(i, s1.read(), "read");
-	
+
 	return EXIT_SUCCESS;
 }
 
@@ -109,12 +110,12 @@ int random_test() {
 	bool open = true;
 
 	internal_file<int> f2;
-	
+
 	std::vector<stream<int>> s1;
 	std::vector<internal_stream<int>> s2;
 
 	std::default_random_engine rng;
-  
+
 	while (true) {
 		std::vector<std::pair<task, size_t> > tasks;
 
@@ -195,7 +196,7 @@ int random_test() {
 					auto v = d(rng);
 					s1[s].write(v);
 					s2[s].write(v);
-				}				  
+				}
 				break;
 			}
 			case task::get_offset:
@@ -235,24 +236,35 @@ int write_fail() {
 	return EXIT_SUCCESS;
 }
 
-int main(int argc, char ** argv) {
-  file_stream_init(4);
+typedef int(*test_fun_t)();
 
-  std::string test = argc > 1 ? argv[1] : "";
-  int ans = 0;
-  if (test == "flush")
-	  ans = flush_test();
-  else if (test == "write_read")
-	  ans = write_read();
-  else if (test == "random")
-	  ans = random_test();
-  else if (test == "write_fail")
-	  ans = write_fail();
-  else {
-	  log_info() << "Usage: .t flush | write_read | write_fail | random" << std::endl;
-	  ans = EXIT_FAILURE;
-  }
-  
-  file_stream_term();
-  return ans;
+int main(int argc, char ** argv) {
+	std::map<std::string, test_fun_t> tests = {
+		{"flush", flush_test},
+		{"random", random_test},
+		{"write_read", write_read},
+		{"write_fail", write_fail},
+	};
+
+	file_stream_init(4);
+
+	std::string test = argc > 1 ? argv[1] : "";
+	auto it = tests.find(test);
+
+	int ans;
+	if (it == tests.end()) {
+		auto l = log_info();
+		l << std::endl;
+		l << "Available tests:" << std::endl;
+		for (auto p : tests) {
+			l << "\t" << p.first << std::endl;
+		}
+		l << std::endl;
+		ans = EXIT_FAILURE;
+	} else {
+		ans = it->second();
+	}
+
+	file_stream_term();
+	return ans;
 }
