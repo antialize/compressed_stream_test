@@ -82,8 +82,9 @@ public:
 		return stream_position{0, 0, 0, 0};
 	}
 
-	stream_position end_position(lock_t &) const noexcept {
+	stream_position end_position(lock_t & l) const noexcept {
 		if (m_last_block) {
+			while (m_last_block->io) m_last_block->m_cond.wait(l);
 			stream_position p;
 			p.m_block = m_last_block->m_block;
 			p.m_index = m_last_block->m_logical_size;
