@@ -130,6 +130,7 @@ void stream_impl::seek(uint64_t offset, whence w) {
 		p.m_logical_offset = 0;
 		p.m_physical_offset = 0;
 	} else if (m_file->m_last_block) {
+		while (m_file->m_last_block->io) m_file->m_last_block->m_cond.wait(lock);
 		p.m_block = m_file->m_last_block->m_block;
 		p.m_index = m_file->m_last_block->m_logical_size;
 		p.m_logical_offset = m_file->m_last_block->m_logical_offset;

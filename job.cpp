@@ -54,6 +54,8 @@ void process_run() {
 		auto file = j.file;
 		lock_t file_lock(file->m_mut);
 
+		j.buff->io = true;
+
 		switch (j.type) {
 		case job_type::term:
 		{
@@ -229,6 +231,8 @@ void process_run() {
 
 		file->m_job_count--;
 		file->m_job_cond.notify_one();
+		j.buff->io = false;
+		j.buff->m_cond.notify_all();
 		l.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;
