@@ -94,8 +94,11 @@ int flush_test() {
 	return EXIT_SUCCESS;
 }
 
-void task_title(std::string title) {
-	log_info() << "\n==> " << title << '\n' << std::endl;
+void task_title(std::string title, size_t stream = (size_t)-1) {
+	auto l = log_info();
+	l << "\n==> " << title;
+	if (stream != -1) l << " (" << stream << ")";
+	l << "\n" << std::endl;
 }
 
 int random_test() {
@@ -166,48 +169,50 @@ int random_test() {
 				open = true;
 				break;
 			case task::create_stream:
-				task_title("Create stream");
+				task_title("Create stream", s1.size());
 				s1.push_back(f1.stream());
 				s2.push_back(f2.stream());
 				break;
 			case task::destroy_stream:
-				task_title("Destroy stream");
+				task_title("Destroy stream", s);
 				s1.erase(s1.begin() + s);
 				s2.erase(s2.begin() + s);
 				break;
 			case task::can_read:
-				task_title("Can read");
+				task_title("Can read", s);
 				ensure(s1[s].can_read(), s2[s].can_read(), "can_read");
 				break;
 			case task::read: {
 				if (s2[s].offset() == f2.size()) break;
 				auto count = std::uniform_int_distribution<size_t>(1, std::min(uint64_t(1024), f2.size() - s2[s].offset()))(rng);
-				task_title("Read " + std::to_string(count));
+				task_title("Read " + std::to_string(count) + " at " + std::to_string(s1[s].offset()), s);
 				for (size_t i=0; i < count; ++i) {
 					ensure(s1[s].read(), s2[s].read(), "read");
 				}
 				break;
 			}
 			case task::seek_start:
-				task_title("Seek start");
+				task_title("Seek start", s);
 				s1[s].seek(0, whence::set);
 				s2[s].seek(0, whence::set);
 				break;
 			case task::write_end: {
 				auto count = std::uniform_int_distribution<size_t>(1, 1024)(rng);
-				task_title("Write end " + std::to_string(count));
+				task_title("Write end " + std::to_string(count), s);
 				s1[s].seek(0, whence::end);
 				s2[s].seek(0, whence::end);
 				std::uniform_int_distribution<int> d;
+				size_t fs = f1.size();
 				for (size_t i=0; i < count; ++i) {
 					auto v = d(rng);
 					s1[s].write(v);
 					s2[s].write(v);
 				}
+				ensure(fs + count, f1.size(), "fsize");
 				break;
 			}
 			case task::get_offset:
-				task_title("Get offset");
+				task_title("Get offset", s);
 				ensure(s1[s].offset(), s2[s].offset(), "offset");
 				break;
 			case task::get_size:
