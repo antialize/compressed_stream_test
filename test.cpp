@@ -175,7 +175,7 @@ int random_test() {
 			case task::read: {
 				if (s2[s].offset() == f2.size()) break;
 				auto count = std::uniform_int_distribution<size_t>(1, std::min(uint64_t(1024), f2.size() - s2[s].offset()))(rng);
-				log_info() << "read " << count << std::endl;
+				task_title("Read " + std::to_string(count));
 				for (size_t i=0; i < count; ++i) {
 					ensure(s1[s].read(), s2[s].read(), "read");
 				}
