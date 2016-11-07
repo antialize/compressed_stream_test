@@ -192,6 +192,7 @@ public:
 
 #ifndef NDEBUG
 		assert(get_last_block() == m_block);
+		assert(m_block->m_logical_size == m_cur_index);
 #endif
 
 		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);
