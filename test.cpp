@@ -27,24 +27,31 @@ struct internal_file {
 
 template <typename T>
 struct internal_stream {
-	internal_stream(internal_file<T> * file, uint64_t offset)
-		: m_offset(offset), m_file(file) {}
+	internal_stream(internal_file<T> * file, uint64_t offset, bool direct = false)
+		: m_offset(offset), m_file(file), m_direct(direct) {}
 
-	const T & peak() const noexcept {return m_file->m_items[m_offset];}
-	const T & read() noexcept {return m_file->m_items[m_offset++];}
-	const T & peak_back() const noexcept {return m_file->m_items[m_offset-1];}
-	const T & back() noexcept {return m_file->m_items[--m_offset];}
+	const T & peak() const noexcept {assert(can_read()); return m_file->m_items[m_offset];}
+	const T & read() noexcept {assert(can_read()); return m_file->m_items[m_offset++];}
+	const T & peak_back() const noexcept {assert(can_read_back()); return m_file->m_items[m_offset-1];}
+	const T & back() noexcept {assert(can_read_back()); return m_file->m_items[--m_offset];}
 	bool can_read() const noexcept {return m_offset != m_file->m_items.size();}
 	bool can_read_back() const noexcept {return m_offset != 0;}
 	uint64_t offset() const noexcept {return m_offset;}
 
 	void write(const T & t) {
-		if (m_offset == m_file->m_items.size())	m_file->m_items.push_back(t);
-		else m_file->m_items[m_offset] = t;
+		if (m_offset == m_file->m_items.size())	{
+			m_file->m_items.push_back(t);
+		} else {
+			assert(m_direct);
+			m_file->m_items[m_offset] = t;
+		}
 		m_offset++;
 	}
 
 	void seek(uint64_t offset, whence w) {
+		if (offset != 0 || (w != whence::set && w != whence::end)) {
+			assert(m_direct);
+		}
 		switch (w) {
 		case whence::set: m_offset = offset; break;
 		case whence::cur: m_offset += offset; break;
@@ -54,6 +61,7 @@ struct internal_stream {
 
 	uint64_t m_offset;
 	internal_file<T> * m_file;
+	bool m_direct;
 };
 
 template <typename T>
