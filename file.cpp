@@ -257,6 +257,7 @@ void file_impl::free_block(lock_t &, block * t) {
 }
 
 void file_impl::kill_block(lock_t & l, block * t) {
+	log_info() << "      kill block " << *t << std::endl;
 	assert(t->m_file == this);
 	assert(t->m_logical_offset != no_block_offset);
 	assert(t->m_physical_offset != no_block_offset);
@@ -270,5 +271,6 @@ void file_impl::kill_block(lock_t & l, block * t) {
 		m_end_position.m_block = t->m_block;
 		m_end_position.m_index = t->m_logical_size;
 		m_outer->m_logical_size = t->m_logical_offset + t->m_logical_size;
+		m_outer->m_last_block = m_last_block = nullptr;
 	}
 }

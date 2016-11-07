@@ -104,7 +104,6 @@ int random_test() {
 		close_file
 	};
 
-
 	file<int> f1;
 	f1.open(TMP_FILE);
 	bool open = true;
@@ -202,9 +201,11 @@ int random_test() {
 			case task::get_offset:
 				task_title("Get offset");
 				ensure(s1[s].offset(), s2[s].offset(), "offset");
-			case task::get_size: break;
+				break;
+			case task::get_size:
 				task_title("Get size");
 				ensure(f1.size(), f2.size(), "size");
+				break;
 			}
 			break;
 		}
@@ -236,6 +237,33 @@ int write_fail() {
 	return EXIT_SUCCESS;
 }
 
+int size_test() {
+	file<uint8_t> f;
+	f.open(TMP_FILE);
+	auto s = f.stream();
+
+	uint64_t B = block_size();
+
+	for(int i = 0; i < 10 * B; i++)
+		s.write((uint8_t)i);
+
+	ensure(10 * B, f.size(), "size");
+
+	s.seek(0, whence::set);
+	for(int i = 0; i < 9 * B; i++)
+		ensure((uint8_t)i, s.read(), "read");
+
+	ensure(10 * B, f.size(), "size");
+
+	s.seek(0, whence::end);
+	for(int i = 0; i < B; i++)
+		s.write((uint8_t)i);
+
+	ensure(11 * B, f.size(), "size");
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 int main(int argc, char ** argv) {
@@ -244,6 +272,7 @@ int main(int argc, char ** argv) {
 		{"random", random_test},
 		{"write_read", write_read},
 		{"write_fail", write_fail},
+		{"size", size_test},
 	};
 
 	file_stream_init(4);
