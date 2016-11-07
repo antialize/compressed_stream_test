@@ -85,8 +85,8 @@ public:
 	}
 
 	uint64_t size() const noexcept {
-		if (m_last_block == nullptr || *m_last_block == nullptr) return m_logical_size;
-		return (*m_last_block)->m_logical_offset + (*m_last_block)->m_logical_size;
+		if (m_last_block == nullptr) return m_logical_size;
+		return m_last_block->m_logical_offset + m_last_block->m_logical_size;
 	}
 
 protected:
@@ -97,7 +97,7 @@ private:
 	virtual void do_destruct(char * data, uint32_t size) = 0;
 	
 	file_impl * m_impl;
-	block_base ** m_last_block;
+	block_base * m_last_block;
 	uint64_t m_logical_size;	
 };
 
@@ -134,7 +134,7 @@ public:
 	}
 
 #ifndef NDEBUG
-	block_base * * get_last_block() {
+	block_base * get_last_block() {
 		return m_file_base->m_last_block;
 	}
 #endif
@@ -191,9 +191,7 @@ public:
 		if (m_cur_index == m_block->m_maximal_logical_size) next_block();
 
 #ifndef NDEBUG
-		auto last_block = get_last_block();
-		assert(last_block != nullptr);
-		assert(*last_block == m_block);
+		assert(get_last_block() == m_block);
 #endif
 
 		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);

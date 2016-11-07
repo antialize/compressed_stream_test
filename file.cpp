@@ -26,7 +26,6 @@ file_base_base::file_base_base(bool serialized, uint32_t item_size)
 {
 	auto impl = new file_impl();
 	m_impl = impl;
-	m_last_block = reinterpret_cast<block_base **>(&m_impl->m_last_block);
 	impl->m_outer = this;
 	impl->m_item_size = item_size;
 	impl->m_serialized = serialized;
@@ -80,7 +79,7 @@ void file_base_base::close() {
 	::close(m_impl->m_fd);
 
 	m_impl->m_fd = -1;
-	m_impl->m_last_block = nullptr;
+	m_last_block = m_impl->m_last_block = nullptr;
 	m_impl->m_blocks = 0;
 	m_impl->m_first_physical_size = no_block_size;
 	m_impl->m_last_physical_size = no_block_size;
@@ -187,7 +186,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
   
 	if (p.m_block+ 1 == m_blocks) {
 		//log_info() << "Setting last block to " << buff << std::endl;
-		m_last_block = buff;
+		m_outer->m_last_block = m_last_block = buff;
 	}
    
 	//log_info() << "get succ " << *buff << std::endl;
