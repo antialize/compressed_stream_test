@@ -20,7 +20,13 @@ ssize_t _pread(int fd, void *buf, size_t count, off_t offset) {
 	ssize_t i = 0;
 	do {
 		ssize_t r = ::pread(fd, cbuf + i, count - i, offset + i);
-		if (r <= 0) return r;
+		// EOF
+		if (r == 0) return i;
+		// Error
+		if (r < 0) {
+			perror("pread");
+			return r;
+		}
 		i += r;
 	} while(i < count);
 	return i;
@@ -31,7 +37,13 @@ ssize_t _pwrite(int fd, const void *buf, size_t count, off_t offset) {
 	ssize_t i = 0;
 	do {
 		ssize_t r = ::pwrite(fd, cbuf + i, count - i, offset + i);
-		if (r <= 0) return r;
+		// EOF
+		if (r == 0) return i;
+		// Error
+		if (r < 0) {
+			perror("pwrite");
+			return r;
+		}
 		i += r;
 	} while(i < count);
 	return i;
