@@ -21,11 +21,11 @@ for l in c.split('\n'):
 		continue
 	l = l[1].strip()
 	ns = re.findall(r'\d+', l)
-	code += '\n// %s\n' % l;
+	code += '\n// %s\n' % l
 	s = ns[-1]
 	if l.startswith('Create stream '):
-		code += 's1.push_back(f1.stream());\n';
-		code += 's2.push_back(f2.stream());\n';
+		code += 's1.push_back(f1.stream());\n'
+		code += 's2.push_back(f2.stream());\n'
 	elif l.startswith('Write end '):
 		code += 's1[%s].seek(0, whence::end);\n' % s
 		code += 's2[%s].seek(0, whence::end);\n' % s
