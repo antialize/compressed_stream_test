@@ -121,7 +121,7 @@ void process_run() {
 
 			char * data = data1;
 
-			log_info() << "JOB " << id << " pread      " << *j.buff << " " << off << " " << size << " " << physical_size << std::endl;
+			log_info() << "JOB " << id << " pread      " << *j.buff << " from " << off << " - " << (off + size - 1) << std::endl;
 
 			auto r = _pread(file->m_fd, data, size, off);
 
@@ -229,7 +229,7 @@ void process_run() {
 
 			auto r = _pwrite(file->m_fd, data2, bs, off);
 			assert(r == bs);
-			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " physical_size " << std::endl;
+			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 			
 			file_lock.lock();
 			j.buff->m_physical_size = bs;
