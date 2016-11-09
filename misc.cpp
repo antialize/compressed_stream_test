@@ -40,6 +40,9 @@ void file_stream_term() {
 		destroy_available_block();
 	
 	process_threads.clear();
+
+	jobs.pop();
+	assert(jobs.size() == 0);
 }
 
 mutex_t crapper::m;
