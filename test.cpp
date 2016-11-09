@@ -131,7 +131,7 @@ int random_test() {
 		std::vector<std::pair<task, size_t> > tasks;
 
 		if (!open) {
-			//tasks.emplace_back(task::open_file, 1);
+			tasks.emplace_back(task::open_file, 1);
 		} else {
 			if (s1.size() < 5)
 				tasks.emplace_back(task::create_stream, 5 - s1.size());
@@ -144,7 +144,7 @@ int random_test() {
 				tasks.emplace_back(task::can_read, 20);
 				tasks.emplace_back(task::get_size, 20);
 			} else {
-				//tasks.emplace_back(task::close_file, 2);
+				tasks.emplace_back(task::close_file, 2);
 			}
 		}
 
