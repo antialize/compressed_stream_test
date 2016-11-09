@@ -317,8 +317,6 @@ int main(int argc, char ** argv) {
 		{"write_seek_write_read", write_seek_write_read},
 	};
 
-	file_stream_init(4);
-
 	std::string test = argc > 1 ? argv[1] : "";
 	auto it = tests.find(test);
 
@@ -331,11 +329,14 @@ int main(int argc, char ** argv) {
 			l << "\t" << p.first << std::endl;
 		}
 		l << std::endl;
-		ans = EXIT_FAILURE;
-	} else {
-		ans = it->second();
+		return EXIT_FAILURE;
 	}
 
+	file_stream_init(4);
+
+	ans = it->second();
+
 	file_stream_term();
+
 	return ans;
 }
