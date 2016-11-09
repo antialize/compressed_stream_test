@@ -320,19 +320,21 @@ int main(int argc, char ** argv) {
 	std::string test = argc > 1 ? argv[1] : "";
 	auto it = tests.find(test);
 
+	int default_job_threads = 4;
+
 	int ans;
-	if (it == tests.end()) {
-		auto l = log_info();
-		l << std::endl;
-		l << "Available tests:" << std::endl;
+	if (it == tests.end() || argc > 3) {
+		std::cerr << "Usage: t testname [job_threads (default " << default_job_threads << ")]\n\n"
+				  << "Available tests:\n";
 		for (auto p : tests) {
-			l << "\t" << p.first << std::endl;
+			std::cerr << "\t" << p.first << "\n";
 		}
-		l << std::endl;
 		return EXIT_FAILURE;
 	}
 
-	file_stream_init(4);
+	int job_threads = argc > 2 ? std::stoi(argv[2]) : default_job_threads;
+
+	file_stream_init(job_threads);
 
 	ans = it->second();
 
