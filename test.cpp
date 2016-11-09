@@ -5,6 +5,7 @@
 #include <log.h>
 #include <random>
 #include <map>
+#include <set>
 
 #define TMP_FILE "/tmp/hello.tst"
 
