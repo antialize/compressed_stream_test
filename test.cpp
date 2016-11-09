@@ -305,7 +305,54 @@ int write_seek_write_read() {
 	return EXIT_SUCCESS;
 }
 
+int open_close() {
+	file<int> f;
+	f.open(TMP_FILE);
+	{
+		auto s = f.stream();
+		auto b = s.logical_block_size();
+		for (int i = 0; i < 100 * b; i++)
+			s.write(i);
+	}
+
+	f.close();
+	f.open(TMP_FILE);
+
+	auto s = f.stream();
+	s.seek(0, whence::end);
+	s.write(1337);
+	s.seek(0, whence::set);
+	ensure(1337, s.read(), "read");
+
+	return EXIT_SUCCESS;
+}
+
+int seek_start_seek_end() {
+	file<int> f;
+	f.open(TMP_FILE);
+	{
+		auto s = f.stream();
+		s.seek(0, whence::set);
+	}
+	{
+		auto s = f.stream();
+		s.seek(0, whence::end);
+	}
+	return EXIT_SUCCESS;
+}
+
+
 typedef int(*test_fun_t)();
+
+int run_test(test_fun_t fun, int job_threads) {
+	file_stream_init(job_threads);
+
+	int ans = fun();
+
+	file_stream_term();
+
+	return ans;
+}
 
 int main(int argc, char ** argv) {
 	std::map<std::string, test_fun_t> tests = {
@@ -315,30 +362,48 @@ int main(int argc, char ** argv) {
 		{"write_fail", write_fail},
 		{"size", size_test},
 		{"write_seek_write_read", write_seek_write_read},
+		{"open_close", open_close},
+		{"seek_start_seek_end", seek_start_seek_end},
 	};
+
+	std::set<std::string> excluded_in_all = {"random", "write_fail"};
 
 	std::string test = argc > 1 ? argv[1] : "";
 	auto it = tests.find(test);
 
 	int default_job_threads = 4;
 
-	int ans;
-	if (it == tests.end() || argc > 3) {
+	std::vector<std::pair<std::string, test_fun_t>> tests_to_run;
+	if (it != tests.end()) {
+		tests_to_run = {*it};
+	} else {
+		if (test == "all") {
+			for (auto p : tests) {
+				if (!excluded_in_all.count(p.first))
+					tests_to_run.push_back(p);
+			}
+		}
+	}
+
+	if (tests_to_run.empty() || argc > 3) {
 		std::cerr << "Usage: t testname [job_threads (default " << default_job_threads << ")]\n\n"
 				  << "Available tests:\n";
+		std::cerr << "\t" << "all - Runs all tests with a *\n";
 		for (auto p : tests) {
-			std::cerr << "\t" << p.first << "\n";
+			std::cerr << "\t" << p.first << (excluded_in_all.count(p.first)? "": " *")<< "\n";
 		}
 		return EXIT_FAILURE;
 	}
 
 	int job_threads = argc > 2 ? std::stoi(argv[2]) : default_job_threads;
 
-	file_stream_init(job_threads);
+	for (auto p : tests_to_run) {
+		int ans = run_test(p.second, job_threads);
+		if (ans != EXIT_SUCCESS) {
+			std::cerr << "Test " << p.first << " failed\n";
+			return ans;
+		}
+	}
 
-	ans = it->second();
-
-	file_stream_term();
-
-	return ans;
+	return EXIT_SUCCESS;
 }
