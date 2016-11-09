@@ -277,6 +277,34 @@ int size_test() {
 	return EXIT_SUCCESS;
 }
 
+int write_seek_write_read() {
+	file<int> f;
+	f.open(TMP_FILE);
+
+	auto s = f.stream();
+
+	int cnt = 0;
+
+	for (int i = 0; i < 1500; i++) {
+		s.write(cnt++);
+	}
+
+	s.seek(0, whence::set);
+	s.seek(0, whence::end);
+
+	for (int i = 0; i < 1000; i++) {
+		s.write(cnt++);
+	}
+
+	s.seek(0, whence::set);
+
+	for (int i = 0; i < 2500; i++) {
+		ensure(i, s.read(), "read");
+	}
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 int main(int argc, char ** argv) {
@@ -286,6 +314,7 @@ int main(int argc, char ** argv) {
 		{"write_read", write_read},
 		{"write_fail", write_fail},
 		{"size", size_test},
+		{"write_seek_write_read", write_seek_write_read},
 	};
 
 	file_stream_init(4);
