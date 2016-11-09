@@ -76,11 +76,11 @@ void process_run() {
 		}
 		case job_type::read:
 		{
-			j.buff->m_physical_offset = file->get_physical_block_offset(file_lock, j.buff);
+			j.buff->m_physical_offset = file->get_physical_file_size(file_lock, j.buff);
 
 			block_idx_t block = j.buff->m_block;
-			block_offset_t physical_offset = j.buff->m_physical_offset;
-			block_offset_t logical_offset = j.buff->m_logical_offset;
+			file_size_t physical_offset = j.buff->m_physical_offset;
+			file_size_t logical_offset = j.buff->m_logical_offset;
 			block_size_t physical_size = j.buff->m_physical_size;
 			block_size_t logical_size = j.buff->m_logical_size;
 			block_size_t prev_physical_size = j.buff->m_prev_physical_size;
@@ -99,8 +99,8 @@ void process_run() {
 			}
 	
 
-			block_offset_t off = physical_offset;
-			block_offset_t size = physical_size;
+			file_size_t off = physical_offset;
+			file_size_t size = physical_size;
 			if (block != 0 && prev_physical_size == no_block_size) { // NOT THE FIRST BLOCK
 				off -= sizeof(block_header);
 				size += sizeof(block_header);
@@ -213,9 +213,9 @@ void process_run() {
 			file_lock.lock();
 			log_info() << "JOB " << id << " compressed " << *j.buff << " size " << bs << std::endl;
 			
-			if (off == no_block_offset) {
+			if (off == no_file_size) {
 				log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
-				j.buff->m_physical_offset = file->get_physical_block_offset(file_lock, j.buff);
+				j.buff->m_physical_offset = file->get_physical_file_size(file_lock, j.buff);
 				off = j.buff->m_physical_offset;
 			}
 	

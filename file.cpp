@@ -87,23 +87,23 @@ void file_base_base::close() {
 	m_logical_size = 0;
 }
 
-block_offset_t file_impl::get_physical_block_offset(lock_t & lock, block * block) {
+file_size_t file_impl::get_physical_file_size(lock_t & lock, block * block) {
 	block_idx_t idx = block->m_block;
 
 	if (idx == 0) return 0;
 
-	if (block->m_physical_offset != no_block_offset)
+	if (block->m_physical_offset != no_file_size)
 		return block->m_physical_offset;
 
 	auto it = m_block_map.find(idx - 1);
-	if (it != m_block_map.end() && it->second->m_physical_offset != no_block_offset && it->second->m_physical_size != no_block_size)
+	if (it != m_block_map.end() && it->second->m_physical_offset != no_file_size && it->second->m_physical_size != no_block_size)
 		return it->second->m_physical_offset + it->second->m_physical_size;
 
 	it = m_block_map.find(idx + 1);
-	if (it != m_block_map.end() && it->second->m_physical_offset != no_block_offset && it->second->m_prev_physical_size != no_block_size)
+	if (it != m_block_map.end() && it->second->m_physical_offset != no_file_size && it->second->m_prev_physical_size != no_block_size)
 		return it->second->m_physical_offset - it->second->m_prev_physical_size;
 
-	while (block->m_physical_offset == no_block_offset) {
+	while (block->m_physical_offset == no_file_size) {
 		block->m_cond.wait(lock);
 	}
 
@@ -152,7 +152,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 	buff->m_maximal_logical_size = block_size() / buff->m_file->m_item_size;
 	m_block_map.emplace(buff->m_block, buff);
 	
-	if (p.m_physical_offset == no_block_offset) {
+	if (p.m_physical_offset == no_file_size) {
 		assert(predecessor != nullptr);
 		//log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " delayed" << "\033[0m" << std::endl;
 		predecessor->m_successor = buff;
@@ -199,9 +199,9 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 	p.m_block = t->m_block + 1;
 	p.m_index = 0;
 	p.m_logical_offset = t->m_logical_offset + t->m_logical_size;
-	p.m_physical_offset = (t->m_physical_size != no_block_size && t->m_physical_offset != no_block_offset)
+	p.m_physical_offset = (t->m_physical_size != no_block_size && t->m_physical_offset != no_file_size)
 		? t->m_physical_size + t->m_physical_offset
-		: no_block_offset;
+		: no_file_size;
 	return get_block(l, p, t);
 }
 
@@ -209,10 +209,10 @@ block * file_impl::get_predecessor_block(lock_t & l, block * t) {
 	stream_position p;
 	p.m_block = t->m_block - 1;
 	p.m_index = 0;
-	p.m_logical_offset = no_block_offset;
+	p.m_logical_offset = no_file_size;
 	p.m_physical_offset = (t->m_physical_offset != no_block_size && t->m_prev_physical_size != no_block_size)
 		? t->m_physical_offset - t->m_prev_physical_size
-		: no_block_offset;
+		: no_file_size;
 	return get_block(l, p, nullptr);
 }
 
@@ -249,7 +249,7 @@ void file_impl::free_block(lock_t &, block * t) {
 
 	if (t->m_usage != 0) return;
 
-	if (t->m_physical_offset != no_block_offset) {
+	if (t->m_physical_offset != no_file_size) {
 		log_info() << "      free block " << *t << " avail" << std::endl;
 		//log_info() << "avail block " << *t << std::endl;
 		push_available_block(t);
@@ -259,8 +259,8 @@ void file_impl::free_block(lock_t &, block * t) {
 void file_impl::kill_block(lock_t & l, block * t) {
 	log_info() << "      kill block " << *t << std::endl;
 	assert(t->m_file == this);
-	assert(t->m_logical_offset != no_block_offset);
-	assert(t->m_physical_offset != no_block_offset);
+	assert(t->m_logical_offset != no_file_size);
+	assert(t->m_physical_offset != no_file_size);
 	assert(t->m_logical_size != no_block_size);
 	size_t c = m_block_map.erase(t->m_block);
 	assert(c == 1);

@@ -14,7 +14,7 @@ typedef std::unique_lock<mutex_t> lock_t;
 typedef std::condition_variable cond_t;
 
 constexpr block_idx_t no_block_idx = std::numeric_limits<block_idx_t>::max();
-constexpr block_offset_t no_block_offset = std::numeric_limits<block_offset_t>::max();
+constexpr file_size_t no_file_size = std::numeric_limits<file_size_t>::max();
 constexpr block_size_t no_block_size = std::numeric_limits<block_size_t>::max();
 
 /**
@@ -35,7 +35,7 @@ public:
 	bool io; // false = owned by main thread, true = owned by job thread
 
 	block_size_t m_prev_physical_size, m_next_physical_size, m_physical_size;
-	block_offset_t m_physical_offset;
+	file_size_t m_physical_offset;
 	
 	friend std::ostream & operator << (std::ostream & o, const block & b) {
 		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage;
@@ -44,7 +44,7 @@ public:
 	}
 
 	bool is_available(lock_t & file_lock) const noexcept {
-		return m_usage == 0 && m_physical_offset != no_block_offset;
+		return m_usage == 0 && m_physical_offset != no_file_size;
 	}
 };
 
@@ -103,7 +103,7 @@ public:
 	void free_block(lock_t & lock, block * block);
 	void kill_block(lock_t & lock, block * block);
 
-	block_offset_t get_physical_block_offset(lock_t & lock, block * block);
+	file_size_t get_physical_file_size(lock_t & lock, block * block);
 	void update_physical_size(lock_t &, uint64_t block, uint32_t size);
 };
 
@@ -133,7 +133,7 @@ public:
 
 
 struct block_header {
-	block_offset_t logical_offset;
+	file_size_t logical_offset;
 	block_size_t physical_size;
 	block_size_t logical_size;
 };

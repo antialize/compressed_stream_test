@@ -14,9 +14,9 @@ class stream_impl;
 class stream_base_base;
 class stream_position;
 
-typedef uint64_t block_idx_t;
-typedef uint64_t block_offset_t;
-typedef uint32_t block_size_t;
+typedef uint64_t block_idx_t; // Used for numbering blocks from 0 to n-1
+typedef uint64_t file_size_t; // Used for absolute physical and logical sizes and offsets from the beginning of the file
+typedef uint32_t block_size_t; // Used for relative physical and logical sizes and offsets from the start of a block
 
 template <typename T, bool serialized>
 class file_base;
@@ -44,8 +44,8 @@ public:
 struct stream_position {
 	block_idx_t m_block;
 	block_size_t m_index;
-	block_offset_t m_logical_offset;
-	block_offset_t m_physical_offset;
+	file_size_t m_logical_offset;
+	file_size_t m_physical_offset;
 };
 
 class file_base_base {
