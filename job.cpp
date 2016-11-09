@@ -188,7 +188,7 @@ void process_run() {
 			block_header h;
 			h.logical_size = j.buff->m_logical_size;
 			h.logical_offset = j.buff->m_logical_offset;
-			uint64_t off = j.buff->m_physical_offset;
+			file_size_t off = j.buff->m_physical_offset;
 			log_info() << "JOB " << id << " compress   " << *j.buff << " size " << bytes << '\n'
 					   << "First data " << reinterpret_cast<int*>(j.buff->m_data)[0]
 					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;

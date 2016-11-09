@@ -110,7 +110,7 @@ file_size_t file_impl::get_physical_file_size(lock_t & lock, block * block) {
 	return block->m_physical_offset;
 }
 
-void file_impl::update_physical_size(lock_t & lock, uint64_t block, uint32_t size) {
+void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {
 		auto it = m_block_map.find(block -1);

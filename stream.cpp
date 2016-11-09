@@ -73,7 +73,7 @@ void stream_base_base::next_block() {
 	m_impl->next_block();
 }
 
-void stream_base_base::seek(uint64_t off, whence w) {
+void stream_base_base::seek(file_size_t off, whence w) {
 	m_impl->seek(off, w);
 }
 
@@ -101,14 +101,14 @@ void stream_impl::set_position(lock_t & l, stream_position p) {
 	m_outer->m_block = m_cur_block;
 }
 
-void stream_impl::seek(uint64_t offset, whence w) {
+void stream_impl::seek(file_size_t offset, whence w) {
 	log_info() << "STREM seek       " << offset << std::endl;
 	lock_t lock(m_file->m_mut);
 	
 	stream_position p;
 
 	if (m_file->m_direct) {
-		uint64_t loc = 0;
+		file_size_t loc = 0;
 		switch (w) {
 		case whence::set:
 			loc = offset;

@@ -16,7 +16,7 @@ template <typename T>
 struct internal_file {
 	internal_stream<T> stream();
 
-	uint64_t size() const noexcept {return m_items.size();}
+	file_size_t size() const noexcept {return m_items.size();}
 
 	void open() {}
 	void close() { m_items.clear(); }
@@ -27,7 +27,7 @@ struct internal_file {
 
 template <typename T>
 struct internal_stream {
-	internal_stream(internal_file<T> * file, uint64_t offset, bool direct = false)
+	internal_stream(internal_file<T> * file, file_size_t offset, bool direct = false)
 		: m_offset(offset), m_file(file), m_direct(direct) {}
 
 	const T & peak() const noexcept {assert(can_read()); return m_file->m_items[m_offset];}
@@ -36,7 +36,7 @@ struct internal_stream {
 	const T & back() noexcept {assert(can_read_back()); return m_file->m_items[--m_offset];}
 	bool can_read() const noexcept {return m_offset != m_file->m_items.size();}
 	bool can_read_back() const noexcept {return m_offset != 0;}
-	uint64_t offset() const noexcept {return m_offset;}
+	file_size_t offset() const noexcept {return m_offset;}
 
 	void write(const T & t) {
 		if (m_offset == m_file->m_items.size())	{
@@ -48,7 +48,7 @@ struct internal_stream {
 		m_offset++;
 	}
 
-	void seek(uint64_t offset, whence w) {
+	void seek(file_size_t offset, whence w) {
 		if (offset != 0 || (w != whence::set && w != whence::end)) {
 			assert(m_direct);
 		}
@@ -59,7 +59,7 @@ struct internal_stream {
 		}
 	}
 
-	uint64_t m_offset;
+	file_size_t m_offset;
 	internal_file<T> * m_file;
 	bool m_direct;
 };
@@ -184,7 +184,7 @@ int random_test() {
 				break;
 			case task::read: {
 				if (s2[s].offset() == f2.size()) break;
-				auto count = std::uniform_int_distribution<size_t>(1, std::min(uint64_t(1024), f2.size() - s2[s].offset()))(rng);
+				auto count = std::uniform_int_distribution<size_t>(1, std::min(file_size_t(1024), f2.size() - s2[s].offset()))(rng);
 				task_title("Read " + std::to_string(count) + " at " + std::to_string(s1[s].offset()), s);
 				for (size_t i=0; i < count; ++i) {
 					ensure(s1[s].read(), s2[s].read(), "read");
@@ -255,7 +255,7 @@ int size_test() {
 	f.open(TMP_FILE);
 	auto s = f.stream();
 
-	uint64_t B = block_size();
+	file_size_t B = block_size();
 
 	for(int i = 0; i < 10 * B; i++)
 		s.write((uint8_t)i);

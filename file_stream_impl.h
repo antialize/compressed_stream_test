@@ -60,19 +60,19 @@ public:
 	block * m_last_block; // A pointer to the last active block
 	stream_position m_end_position;
 	
-	uint64_t m_blocks; //The number of blocks in the file
+	block_idx_t m_blocks; //The number of blocks in the file
 
 	// Tells how many jobs remain to be performed on the file.
 	// We can only close a file when the job count is 0.
 	uint32_t m_job_count;
 	cond_t m_job_cond;
 
-	uint32_t m_first_physical_size;
-	uint32_t m_last_physical_size;
+	block_size_t m_first_physical_size;
+	block_size_t m_last_physical_size;
 	uint32_t m_item_size;
 	bool m_serialized;
 	bool m_direct;
-	std::map<uint64_t, block *> m_block_map;
+	std::map<block_idx_t, block *> m_block_map;
 
 	file_impl();
 
@@ -104,7 +104,7 @@ public:
 	void kill_block(lock_t & lock, block * block);
 
 	file_size_t get_physical_file_size(lock_t & lock, block * block);
-	void update_physical_size(lock_t &, uint64_t block, uint32_t size);
+	void update_physical_size(lock_t &, block_idx_t block, block_size_t size);
 };
 
 class stream_impl {
@@ -116,7 +116,7 @@ public:
 
 	
 	void next_block();
-	void seek(uint64_t offset, whence w);
+	void seek(file_size_t offset, whence w);
 	void set_position(lock_t & l, stream_position p);
 };
 

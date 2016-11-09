@@ -25,7 +25,7 @@ template <typename T, bool serialized>
 class stream_base;
 
 // Constexpr methods
-constexpr uint32_t block_size() {return 1024;}
+constexpr block_size_t block_size() {return 1024;}
 
 // Some free standing methods
 void file_stream_init(size_t threads);
@@ -34,9 +34,9 @@ void file_stream_term();
 // Give implementations of needed types
 class block_base {
 public:
-	uint64_t m_logical_offset;
-	uint32_t m_logical_size;
-	uint32_t m_maximal_logical_size;
+	file_size_t m_logical_offset;
+	block_size_t m_logical_size;
+	block_size_t m_maximal_logical_size;
 	bool m_dirty;
 	char m_data[block_size()];
 };
@@ -84,7 +84,7 @@ public:
 		write_user_data(&data, sizeof(TT));
 	}
 
-	uint64_t size() const noexcept {
+	file_size_t size() const noexcept {
 		if (m_last_block == nullptr) return m_logical_size;
 		return m_last_block->m_logical_offset + m_last_block->m_logical_size;
 	}
@@ -98,7 +98,7 @@ private:
 	
 	file_impl * m_impl;
 	block_base * m_last_block;
-	uint64_t m_logical_size;	
+	file_size_t m_logical_size;
 };
 
 enum class whence {set, cur, end};
@@ -127,9 +127,9 @@ public:
 		#warning "Implement skip back"
 	}
 
-	void seek(uint64_t offset, whence w = whence::set);
+	void seek(file_size_t offset, whence w = whence::set);
 	
-	uint64_t offset() const noexcept {
+	file_size_t offset() const noexcept {
 		return m_block->m_logical_offset + m_cur_index;
 	}
 
@@ -139,7 +139,7 @@ public:
 	}
 #endif
 
-	void truncate(uint64_t offset);
+	void truncate(file_size_t offset);
 	void truncate(stream_position pos);	
 	
 	stream_position get_position();
@@ -154,13 +154,13 @@ protected:
 	block_base * m_block;
 	file_base_base * m_file_base;
 	stream_impl * m_impl;
-	uint32_t m_cur_index;
+	block_size_t m_cur_index;
 };
 
 template <typename T, bool serialized>
 class stream_base: public stream_base_base {
 protected:
-	constexpr uint32_t logical_block_size() const {return block_size() / sizeof(T);}
+	constexpr block_size_t logical_block_size() const {return block_size() / sizeof(T);}
 	stream_base(file_base_base * imp): stream_base_base(imp) {}
 	
 	friend class file_base<T, serialized>;
