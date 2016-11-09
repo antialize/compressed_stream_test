@@ -76,7 +76,7 @@ void process_run() {
 		}
 		case job_type::read:
 		{
-			j.buff->m_physical_offset = file->get_physical_file_size(file_lock, j.buff);
+			j.buff->m_physical_offset = file->get_physical_file_offset(file_lock, j.buff);
 
 			block_idx_t block = j.buff->m_block;
 			file_size_t physical_offset = j.buff->m_physical_offset;
@@ -215,7 +215,7 @@ void process_run() {
 			
 			if (off == no_file_size) {
 				log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
-				j.buff->m_physical_offset = file->get_physical_file_size(file_lock, j.buff);
+				j.buff->m_physical_offset = file->get_physical_file_offset(file_lock, j.buff);
 				off = j.buff->m_physical_offset;
 			}
 

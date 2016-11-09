@@ -108,7 +108,7 @@ public:
 	void free_block(lock_t & lock, block * block);
 	void kill_block(lock_t & lock, block * block);
 
-	file_size_t get_physical_file_size(lock_t & lock, block * block);
+	file_size_t get_physical_file_offset(lock_t & lock, block * block);
 	void update_physical_size(lock_t &, block_idx_t block, block_size_t size);
 };
 

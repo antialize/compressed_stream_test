@@ -87,7 +87,7 @@ void file_base_base::close() {
 	m_logical_size = 0;
 }
 
-file_size_t file_impl::get_physical_file_size(lock_t & lock, block * block) {
+file_size_t file_impl::get_physical_file_offset(lock_t & lock, block * block) {
 	block_idx_t idx = block->m_block;
 
 	if (idx == 0) return 0;
