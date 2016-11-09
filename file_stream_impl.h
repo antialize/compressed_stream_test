@@ -30,7 +30,6 @@ public:
 	file_impl * m_file;
 	bool m_read;
 	uint32_t m_usage;
-	block * m_successor;
 	cond_t m_cond;
 	bool io; // false = owned by main thread, true = owned by job thread
 
@@ -75,6 +74,12 @@ public:
 	std::map<block_idx_t, block *> m_block_map;
 
 	file_impl();
+
+	block * get_available_block(lock_t & lock, block_idx_t block) {
+		auto it = m_block_map.find(block);
+		if (it == m_block_map.end()) return nullptr;
+		return it->second;
+	}
 
 	block * get_block(lock_t & lock, stream_position p, block * predecessor = nullptr);
 	

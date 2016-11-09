@@ -163,7 +163,7 @@ void process_run() {
 
 			file_lock.lock();
 
-			auto nb = j.buff->m_successor;
+			auto nb = file->get_available_block(l, block + 1);
 			if (nb) {
 				nb->m_physical_offset = off + size;
 				nb->m_cond.notify_all();
@@ -218,8 +218,8 @@ void process_run() {
 				j.buff->m_physical_offset = file->get_physical_file_size(file_lock, j.buff);
 				off = j.buff->m_physical_offset;
 			}
-	
-			auto nb = j.buff->m_successor;
+
+			auto nb = file->get_available_block(l, j.buff->m_block + 1);
 			if (nb) {
 			  nb->m_physical_offset = off + bs;
 			  nb->m_cond.notify_all();

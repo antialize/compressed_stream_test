@@ -125,15 +125,16 @@ void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_siz
 
 block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor) {
 	log_info() << "FILE  get_block   " << p.m_block << std::endl;
-	auto it = m_block_map.find(p.m_block);
-	if (it != m_block_map.end()) {
+
+	block * b = get_available_block(l, p.m_block);
+	if (b) {
 		//log_info() << "\033[0;34mfetch " << it->second->m_idx << " " << block_number << "\033[0m" << std::endl;
-		if (it->second->m_block != p.m_block) {
+		if (b->m_block != p.m_block) {
 			throw std::runtime_error("Logic error");
 		}
-		if (it->second->m_usage == 0) make_block_unavailable(it->second);
-		it->second->m_usage++;
-		return it->second;
+		if (b->m_usage == 0) make_block_unavailable(b);
+		b->m_usage++;
+		return b;
 	}
 	
 	l.unlock();
@@ -145,7 +146,6 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 	buff->m_block = p.m_block;
 	buff->m_physical_offset = p.m_physical_offset;
 	buff->m_logical_offset = p.m_logical_offset;
-	buff->m_successor = nullptr;
 	buff->m_logical_size = no_block_size;
 	buff->m_usage = 1;
 	buff->m_read = false;
@@ -155,7 +155,6 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 	if (p.m_physical_offset == no_file_size) {
 		assert(predecessor != nullptr);
 		//log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " delayed" << "\033[0m" << std::endl;
-		predecessor->m_successor = buff;
 	} else {
 		//log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m" << std::endl;
 	}

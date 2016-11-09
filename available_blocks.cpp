@@ -76,7 +76,6 @@ block * pop_available_block() {
 		b->m_prev_physical_size = no_block_size;
 		b->m_logical_offset = no_file_size;
 		b->m_logical_size = no_block_size;
-		b->m_successor = nullptr;
 		log_info() << "AVAIL pop        " << *b << std::endl;
 		return b;
 	}
