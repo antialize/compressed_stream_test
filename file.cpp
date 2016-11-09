@@ -81,6 +81,7 @@ void file_base_base::close() {
 	m_impl->m_fd = -1;
 	m_last_block = m_impl->m_last_block = nullptr;
 	m_impl->m_blocks = 0;
+	m_impl->m_end_position = {0};
 	m_impl->m_first_physical_size = no_block_size;
 	m_impl->m_last_physical_size = no_block_size;
 
