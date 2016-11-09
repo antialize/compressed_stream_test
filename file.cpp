@@ -252,6 +252,13 @@ void file_impl::free_block(lock_t &, block * t) {
 	if (t->m_physical_offset != no_file_size) {
 		log_info() << "      free block " << *t << " avail" << std::endl;
 		//log_info() << "avail block " << *t << std::endl;
+
+		// If this is the last block and it's size is 0
+		// We shouldn't count this block
+		if (t->m_file->m_last_block == t && t->m_logical_size == 0) {
+			t->m_file->m_blocks--;
+		}
+
 		push_available_block(t);
 	}
 }
