@@ -76,8 +76,6 @@ void process_run() {
 		}
 		case job_type::read:
 		{
-			j.buff->m_physical_offset = file->get_physical_file_offset(file_lock, j.buff);
-
 			block_idx_t block = j.buff->m_block;
 			file_size_t physical_offset = j.buff->m_physical_offset;
 			file_size_t logical_offset = j.buff->m_logical_offset;
@@ -90,6 +88,7 @@ void process_run() {
 			file_lock.unlock();
 			
 			assert(block != no_block_idx);
+			assert(physical_offset != no_file_size);
 
 			if (physical_size == no_block_size) {
 				block_header h;
