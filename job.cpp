@@ -167,6 +167,8 @@ void process_run() {
 			if (nb) {
 				nb->m_physical_offset = off + size;
 				nb->m_cond.notify_all();
+			} else {
+				log_info() << "JOB " << id << " rd no next " << *j.buff << std::endl;
 			}
 
 			j.buff->m_prev_physical_size = prev_physical_size;
@@ -221,8 +223,10 @@ void process_run() {
 
 			auto nb = file->get_available_block(l, j.buff->m_block + 1);
 			if (nb) {
-			  nb->m_physical_offset = off + bs;
-			  nb->m_cond.notify_all();
+				nb->m_physical_offset = off + bs;
+				nb->m_cond.notify_all();
+			} else {
+				log_info() << "JOB " << id << " wr no next " << *j.buff << std::endl;
 			}
 
 			file_lock.unlock();
