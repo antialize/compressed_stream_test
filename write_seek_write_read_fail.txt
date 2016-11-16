@@ -1,0 +1,192 @@
+Running test write_seek_write_read failed
+AVAIL create     b(0; block: 0; usage: 0*)
+AVAIL create     b(1; block: 0; usage: 0*)
+AVAIL create     b(2; block: 0; usage: 0*)
+JOB 0 start
+JOB 1 start
+AVAIL create     b(3; block: 0; usage: 0*)
+FILE  get_block   0
+AVAIL pop        b(3; block: 0; usage: 0)
+FILE  get_block   1
+AVAIL pop        b(1; block: 0; usage: 0)
+      free block b(3; block: 0; usage: 0*) write
+FILE  get_block   2
+AVAIL pop        b(2; block: 0; usage: 0)
+      free block b(1; block: 1; usage: 0) write
+FILE  get_block   3
+AVAIL pop        b(0; block: 0; usage: 0)
+      free block b(2; block: 2; usage: 0) write
+JOB 0 compress   b(3; block: 0; usage: 1*) size 1024
+First data 0 1
+FILE  get_block   4
+JOB 1 compress   b(1; block: 1; usage: 1) size 1024
+First data 256 257
+JOB 1 compressed b(1; block: 1; usage: 1) size 1061
+JOB 1 waitfor    b(1; block: 1; usage: 1)
+JOB 0 compressed b(3; block: 0; usage: 1*) size 1061
+JOB 0 written    b(3; block: 0; usage: 1*) at 0 - 1060 physical_size 
+      free block b(3; block: 0; usage: 0*) avail
+AVAIL push       b(3; block: 0; usage: 0*)
+JOB 0 compress   b(2; block: 2; usage: 1) size 1024
+First data 512 513
+      kill block b(3; block: 0; usage: 0*)
+AVAIL pop        b(3; block: 0; usage: 0)
+      free block b(0; block: 3; usage: 0) write
+JOB 1 written    b(1; block: 1; usage: 1) at 1061 - 2121 physical_size 
+JOB 0 compressed b(2; block: 2; usage: 1) size 1061
+JOB 0 waitfor    b(2; block: 2; usage: 1)
+JOB 0 written    b(2; block: 2; usage: 1) at 2122 - 3182 physical_size 
+      free block b(2; block: 2; usage: 0) avail
+AVAIL push       b(2; block: 2; usage: 0)
+FILE  get_block   5
+      free block b(1; block: 1; usage: 0) avail
+AVAIL push       b(1; block: 1; usage: 0)
+      kill block b(2; block: 2; usage: 0)
+AVAIL pop        b(2; block: 0; usage: 0)
+JOB 0 compress   b(0; block: 3; usage: 1) size 1024
+First data 768 769
+JOB 0 compressed b(0; block: 3; usage: 1) size 1061
+      free block b(3; block: 4; usage: 0) write
+JOB 0 written    b(0; block: 3; usage: 1) at 3183 - 4243 physical_size 
+      free block b(0; block: 3; usage: 0) avail
+AVAIL push       b(0; block: 3; usage: 0)
+JOB 1 compress   b(3; block: 4; usage: 1) size 1024
+First data 1024 1025
+JOB 1 compressed b(3; block: 4; usage: 1) size 1061
+JOB 1 written    b(3; block: 4; usage: 1) at 4244 - 5304 physical_size 
+      free block b(3; block: 4; usage: 0) avail
+AVAIL push       b(3; block: 4; usage: 0)
+STREM seek       0
+      free block b(2; block: 5; usage: 0) write
+FILE  get_block   0
+JOB 0 compress   b(2; block: 5; usage: 1) size 880
+First data 1280 1281
+JOB 0 compressed b(2; block: 5; usage: 1) size 917
+JOB 0 wr no next b(2; block: 5; usage: 1)
+JOB 0 written    b(2; block: 5; usage: 1) at 5305 - 6221 physical_size 
+      kill block b(3; block: 4; usage: 0)
+AVAIL pop        b(3; block: 0; usage: 0)
+FILE  read       b(3; block: 0; usage: 1*)
+      free block b(2; block: 5; usage: 0) avail
+AVAIL push       b(2; block: 5; usage: 0)
+JOB 0 pread      b(3; block: 0; usage: 2*) from 0 - 1060
+Read b(3; block: 0; usage: 2*)
+Logical size 256
+First data 0 1
+STREM seek       0
+      free block b(3; block: 0; usage: 0*) avail
+AVAIL push       b(3; block: 0; usage: 0*)
+FILE  get_block   5
+FILE  get_block   6
+      kill block b(3; block: 0; usage: 0*)
+AVAIL pop        b(3; block: 0; usage: 0)
+      free block b(2; block: 5; usage: 0) write
+FILE  get_block   7
+      kill block b(0; block: 3; usage: 0)
+AVAIL pop        b(0; block: 0; usage: 0)
+      free block b(3; block: 6; usage: 0) write
+JOB 0 compress   b(3; block: 6; usage: 1) size 1024
+First data 1536 1537
+JOB 1 compress   b(2; block: 5; usage: 1) size 1024
+First data 1280 1281
+JOB 1 compressed b(2; block: 5; usage: 1) size 1061
+JOB 1 written    b(2; block: 5; usage: 1) at 5305 - 6365 physical_size 
+FILE  get_block   8
+      kill block b(1; block: 1; usage: 0)
+AVAIL pop        b(1; block: 0; usage: 0)
+JOB 0 compressed b(3; block: 6; usage: 1) size 1061
+JOB 0 written    b(3; block: 6; usage: 1) at 6222 - 7282 physical_size 
+      free block b(3; block: 6; usage: 0) avail
+AVAIL push       b(3; block: 6; usage: 0)
+      free block b(2; block: 5; usage: 0) avail
+AVAIL push       b(2; block: 5; usage: 0)
+      free block b(0; block: 7; usage: 0) write
+FILE  get_block   9
+      kill block b(2; block: 5; usage: 0)
+AVAIL pop        b(2; block: 0; usage: 0)
+JOB 0 compress   b(0; block: 7; usage: 1) size 1024
+First data 1792 1793
+JOB 0 compressed b(0; block: 7; usage: 1) size 1061
+      free block b(1; block: 8; usage: 0) write
+JOB 0 written    b(0; block: 7; usage: 1) at 7283 - 8343 physical_size 
+      free block b(0; block: 7; usage: 0) avail
+AVAIL push       b(0; block: 7; usage: 0)
+STREM seek       0
+JOB 1 compress   b(1; block: 8; usage: 1) size 1024
+First data 2048 2049
+JOB 1 compressed b(1; block: 8; usage: 1) size 1061
+JOB 1 written    b(1; block: 8; usage: 1) at 8344 - 9404 physical_size 
+      free block b(2; block: 9; usage: 0) write
+FILE  get_block   0
+JOB 0 compress   b(2; block: 9; usage: 1) size 784
+First data 2304 2305
+JOB 0 compressed b(2; block: 9; usage: 1) size 821
+JOB 0 wr no next b(2; block: 9; usage: 1)
+JOB 0 written    b(2; block: 9; usage: 1) at 9405 - 10225 physical_size 
+      free block b(1; block: 8; usage: 0) avail
+AVAIL push       b(1; block: 8; usage: 0)
+      kill block b(0; block: 7; usage: 0)
+AVAIL pop        b(0; block: 0; usage: 0)
+FILE  read       b(0; block: 0; usage: 1*)
+      free block b(2; block: 9; usage: 0) avail
+AVAIL push       b(2; block: 9; usage: 0)
+JOB 1 pread      b(0; block: 0; usage: 2*) from 0 - 1076
+Read b(0; block: 0; usage: 2*)
+Logical size 256
+First data 0 1
+JOB 1 rd no next b(0; block: 0; usage: 2*)
+FILE  get_block   1
+      kill block b(2; block: 9; usage: 0)
+AVAIL pop        b(2; block: 0; usage: 0)
+FILE  read       b(2; block: 1; usage: 1)
+JOB 0 pread      b(2; block: 1; usage: 2) from 1045 - 2137
+Read b(2; block: 1; usage: 2)
+Logical size 256
+First data 256 257
+JOB 0 rd no next b(2; block: 1; usage: 2)
+      free block b(0; block: 0; usage: 0*) avail
+AVAIL push       b(0; block: 0; usage: 0*)
+FILE  get_block   2
+      kill block b(0; block: 0; usage: 0*)
+AVAIL pop        b(0; block: 0; usage: 0)
+FILE  read       b(0; block: 2; usage: 1)
+JOB 1 pread      b(0; block: 2; usage: 2) from 2106 - 3198
+Read b(0; block: 2; usage: 2)
+Logical size 256
+First data 512 513
+JOB 1 rd no next b(0; block: 2; usage: 2)
+      free block b(2; block: 1; usage: 0) avail
+AVAIL push       b(2; block: 1; usage: 0)
+FILE  get_block   3
+      kill block b(2; block: 1; usage: 0)
+AVAIL pop        b(2; block: 0; usage: 0)
+FILE  read       b(2; block: 3; usage: 1)
+JOB 0 pread      b(2; block: 3; usage: 2) from 3167 - 4259
+Read b(2; block: 3; usage: 2)
+Logical size 256
+First data 768 769
+JOB 0 rd no next b(2; block: 3; usage: 2)
+      free block b(0; block: 2; usage: 0) avail
+AVAIL push       b(0; block: 2; usage: 0)
+FILE  get_block   4
+      kill block b(0; block: 2; usage: 0)
+AVAIL pop        b(0; block: 0; usage: 0)
+FILE  read       b(0; block: 4; usage: 1)
+JOB 1 pread      b(0; block: 4; usage: 2) from 4228 - 5320
+Read b(0; block: 4; usage: 2)
+Logical size 256
+First data 1024 1025
+JOB 1 rd no next b(0; block: 4; usage: 2)
+      free block b(2; block: 3; usage: 0) avail
+AVAIL push       b(2; block: 3; usage: 0)
+FILE  get_block   5
+      kill block b(2; block: 3; usage: 0)
+AVAIL pop        b(2; block: 0; usage: 0)
+FILE  read       b(2; block: 5; usage: 1)
+JOB 0 pread      b(2; block: 5; usage: 2) from 5289 - 6365
+Read b(2; block: 5; usage: 2)
+Logical size 256
+First data 1280 1281
+      free block b(0; block: 4; usage: 0) avail
+AVAIL push       b(0; block: 4; usage: 0)
+Expected 1504 but got 1536 in read

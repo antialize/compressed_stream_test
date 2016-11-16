@@ -12,6 +12,16 @@ std::unordered_set<block *> available_blocks;
 }
 
 size_t ctr = 0;
+void print_available_blocks() {
+	log_info() << "Total number of blocks: " << ctr << "\n"
+			   << "free: " << available_blocks.size() << ", "
+			   << "non-free: " << (ctr - available_blocks.size()) << "\n";
+
+	for (block * b : available_blocks) {
+		log_info() << *b << "\n";
+	}
+}
+
 void create_available_block() {
 	lock_t l(available_blocks_mutex);
 	auto b = new block();
