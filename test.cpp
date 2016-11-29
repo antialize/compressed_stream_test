@@ -399,7 +399,7 @@ int main(int argc, char ** argv) {
 	int job_threads = argc > 2 ? std::stoi(argv[2]) : default_job_threads;
 
 	for (auto p : tests_to_run) {
-		std::cout << "Running test " << p.first << " failed\n";
+		std::cout << "Running test " << p.first << "\n";
 		int ans = run_test(p.second, job_threads);
 		if (ans != EXIT_SUCCESS) {
 			std::cerr << "Test " << p.first << " failed\n";
