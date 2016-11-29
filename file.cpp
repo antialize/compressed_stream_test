@@ -127,6 +127,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 	buff->m_logical_size = no_block_size;
 	buff->m_usage = 1;
 	buff->m_read = false;
+	buff->m_io = false;
 	buff->m_maximal_logical_size = block_size() / buff->m_file->m_item_size;
 	m_block_map.emplace(buff->m_block, buff);
 	
