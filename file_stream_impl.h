@@ -17,6 +17,14 @@ constexpr block_idx_t no_block_idx = std::numeric_limits<block_idx_t>::max();
 constexpr file_size_t no_file_size = std::numeric_limits<file_size_t>::max();
 constexpr block_size_t no_block_size = std::numeric_limits<block_size_t>::max();
 
+class block;
+void create_available_block();
+block * pop_available_block();
+void make_block_unavailable(block * b);
+void destroy_available_block();
+void push_available_block(block * b);
+block * pop_available_block();
+
 /**
  * Class representing a block in a file
  * if a block as attacted to a file all members except
@@ -31,7 +39,8 @@ public:
 	bool m_read;
 	uint32_t m_usage;
 	cond_t m_cond;
-	bool io; // false = owned by main thread, true = owned by job thread
+	// Must have file_lock to use
+	bool m_io; // false = owned by main thread, true = owned by job thread
 
 	block_size_t m_prev_physical_size, m_next_physical_size, m_physical_size;
 	file_size_t m_physical_offset;
@@ -40,10 +49,6 @@ public:
 		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage;
 		if (b.m_physical_offset == 0) o << "*";
 		return o << ")";
-	}
-
-	bool is_available(lock_t & file_lock) const noexcept {
-		return m_usage == 0 && m_physical_offset != no_file_size;
 	}
 };
 
@@ -75,9 +80,12 @@ public:
 
 	file_impl();
 
+	// Note: if you want to keep this block alive after unlocking the lock,
+	// you have to increment its m_usage
 	block * get_available_block(lock_t & lock, block_idx_t block) {
 		auto it = m_block_map.find(block);
 		if (it == m_block_map.end()) return nullptr;
+		assert(it->second->m_block == block);
 		return it->second;
 	}
 
@@ -89,12 +97,20 @@ public:
 
 	stream_position end_position(lock_t & l) const noexcept {
 		if (m_last_block) {
-			while (m_last_block->io) m_last_block->m_cond.wait(l);
+			// Make sure m_last_block is not repurposed before, we can get its info
+			if (m_last_block->m_usage == 0) make_block_unavailable(m_last_block);
+			m_last_block->m_usage++;
+			while (m_last_block->m_io) m_last_block->m_cond.wait(l);
+
 			stream_position p;
 			p.m_block = m_last_block->m_block;
 			p.m_index = m_last_block->m_logical_size;
 			p.m_logical_offset = m_last_block->m_logical_offset;
 			p.m_physical_offset = m_last_block->m_physical_offset;
+
+			// Decrement m_last_block's usage
+			m_last_block->m_file->free_block(l, m_last_block);
+
 			return p;
 		} else {
 			return m_end_position;
@@ -108,7 +124,6 @@ public:
 	void free_block(lock_t & lock, block * block);
 	void kill_block(lock_t & lock, block * block);
 
-	file_size_t get_physical_file_offset(lock_t & lock, block * block);
 	void update_physical_size(lock_t &, block_idx_t block, block_size_t size);
 };
 
@@ -142,13 +157,6 @@ struct block_header {
 	block_size_t physical_size;
 	block_size_t logical_size;
 };
-
-void create_available_block();
-block * pop_available_block();
-void make_block_unavailable(block * b);
-void destroy_available_block();
-void push_available_block(block * b);
-block * pop_available_block();
 
 void process_run();
 

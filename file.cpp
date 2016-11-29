@@ -88,29 +88,6 @@ void file_base_base::close() {
 	m_logical_size = 0;
 }
 
-file_size_t file_impl::get_physical_file_offset(lock_t & lock, block * block) {
-	block_idx_t idx = block->m_block;
-
-	if (idx == 0) return 0;
-
-	if (block->m_physical_offset != no_file_size)
-		return block->m_physical_offset;
-
-	auto it = m_block_map.find(idx - 1);
-	if (it != m_block_map.end() && it->second->m_physical_offset != no_file_size && it->second->m_physical_size != no_block_size)
-		return it->second->m_physical_offset + it->second->m_physical_size;
-
-	it = m_block_map.find(idx + 1);
-	if (it != m_block_map.end() && it->second->m_physical_offset != no_file_size && it->second->m_prev_physical_size != no_block_size)
-		return it->second->m_physical_offset - it->second->m_prev_physical_size;
-
-	while (block->m_physical_offset == no_file_size) {
-		block->m_cond.wait(lock);
-	}
-
-	return block->m_physical_offset;
-}
-
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {
@@ -176,6 +153,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 			j.buff = buff;
 			j.file = this;
 			buff->m_usage++;
+			buff->m_io = true;
 			//log_info() << "read block " << *buff << std::endl;
 			jobs.push(j);
 			job_cond.notify_all();
@@ -233,13 +211,14 @@ void file_impl::free_block(lock_t &, block * t) {
 
 		// Write dirty block
 		lock_t l2(job_mutex);
-	  
+
 		job j;
 		j.type = job_type::write;
 		j.buff = t;
 		j.file = this;
 		t->m_usage++;
 		t->m_dirty = false;
+		t->m_io = true;
 		//log_info() << "write block " << *t << std::endl;
 		jobs.push(j);
 		job_cond.notify_all();

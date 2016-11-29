@@ -30,6 +30,7 @@ void file_stream_term() {
 		job j;
 		j.type = job_type::term;
 		j.file = nullptr;
+		j.buff = nullptr;
 		jobs.push(j);
 		job_cond.notify_all();
 	}

@@ -11,8 +11,6 @@ std::queue<job> jobs;
 mutex_t job_mutex;
 std::condition_variable job_cond;
 
-
-
 std::atomic_uint tid;
 
 ssize_t _pread(int fd, void *buf, size_t count, off_t offset) {
@@ -49,24 +47,51 @@ ssize_t _pwrite(int fd, const void *buf, size_t count, off_t offset) {
 	return i;
 }
 
+std::ostream & operator <<(std::ostream & o, const job_type t) {
+	const char *s;
+	switch (t) {
+	case job_type::write:
+		s = "write";
+		break;
+	case job_type::read:
+		s = "read";
+		break;
+	case job_type::trunc:
+		s = "trunc";
+		break;
+	case job_type::term:
+		s = "term";
+		break;
+	}
+	return o << s;
+}
+
+std::ostream & operator <<(std::ostream & o, const block * b) {
+	if (b) {
+		return o << *b;
+	} else {
+		return o;
+	}
+}
+
 void process_run() {
 	auto id = tid.fetch_add(1);
 	thread_local char data1[1024*1024];
 	thread_local char data2[1024*1024];
-	lock_t l(job_mutex);
+	lock_t job_lock(job_mutex);
 	log_info() << "JOB " << id << " start" << std::endl;
 	while (true) {
-		while (jobs.empty()) job_cond.wait(l);
+		while (jobs.empty()) job_cond.wait(job_lock);
 		auto j = jobs.front();
+		//log_info() << "JOB " << id << " pop job    " << j.buff << " " << j.type << '\n';
 		// Don't pop the job as all threads should terminate
 		if (j.type == job_type::term) break;
+
 		jobs.pop();
-		l.unlock();
-		
+		job_lock.unlock();
+
 		auto file = j.file;
 		lock_t file_lock(file->m_mut);
-
-		j.buff->io = true;
 
 		switch (j.type) {
 		case job_type::term:
@@ -162,13 +187,15 @@ void process_run() {
 
 			file_lock.lock();
 
-			auto nb = file->get_available_block(l, block + 1);
+			auto nb = file->get_available_block(file_lock, block + 1);
 			if (nb) {
 				nb->m_physical_offset = off + size;
 				nb->m_cond.notify_all();
 			} else {
 				log_info() << "JOB " << id << " rd no next " << *j.buff << std::endl;
 			}
+
+			j.buff->m_io = false;
 
 			j.buff->m_prev_physical_size = prev_physical_size;
 			j.buff->m_next_physical_size = next_physical_size;
@@ -189,7 +216,6 @@ void process_run() {
 			block_header h;
 			h.logical_size = j.buff->m_logical_size;
 			h.logical_offset = j.buff->m_logical_offset;
-			file_size_t off = j.buff->m_physical_offset;
 			log_info() << "JOB " << id << " compress   " << *j.buff << " size " << bytes << '\n'
 					   << "First data " << reinterpret_cast<int*>(j.buff->m_data)[0]
 					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
@@ -206,27 +232,42 @@ void process_run() {
 			size_t s2 = 1024*1024;
 			snappy::RawCompress(data1, bytes , data2+sizeof(block_header), &s2);
 			size_t bs = 2*sizeof(block_header) + s2;
-						
+
 			h.physical_size = bs;
 			memcpy(data2, &h, sizeof(block_header));
 			memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
 			
 			file_lock.lock();
 			log_info() << "JOB " << id << " compressed " << *j.buff << " size " << bs << std::endl;
-			
-			if (off == no_file_size) {
-				log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
-				j.buff->m_physical_offset = file->get_physical_file_offset(file_lock, j.buff);
-				off = j.buff->m_physical_offset;
+
+			if (j.buff->m_block != 0) {
+				// If the previous block is doing io,
+				// we have to wait for it to finish and update our blocks physical offset.
+				// Even if we have a physical offset, the io operation from the previous block,
+				// might change it.
+				auto pb = file->get_available_block(file_lock, j.buff->m_block - 1);
+				if (pb && pb->m_io) {
+					log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
+					j.buff->m_physical_offset = no_file_size;
+					// We can't use pb anymore as when unlocking the file lock,
+					// it might be repurposed for another block id
+					while (j.buff->m_physical_offset == no_file_size)
+						j.buff->m_cond.wait(file_lock);
+				}
 			}
 
-			auto nb = file->get_available_block(l, j.buff->m_block + 1);
+			file_size_t off = j.buff->m_physical_offset;
+			assert(off != no_file_size);
+
+			auto nb = file->get_available_block(file_lock, j.buff->m_block + 1);
 			if (nb) {
 				nb->m_physical_offset = off + bs;
 				nb->m_cond.notify_all();
 			} else {
 				log_info() << "JOB " << id << " wr no next " << *j.buff << std::endl;
 			}
+
+			j.buff->m_io = false;
 
 			file_lock.unlock();
 
@@ -246,9 +287,8 @@ void process_run() {
 
 		file->m_job_count--;
 		file->m_job_cond.notify_one();
-		j.buff->io = false;
 		j.buff->m_cond.notify_all();
-		l.lock();
+		job_lock.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;
 }
