@@ -6,6 +6,7 @@
 #include <random>
 #include <map>
 #include <set>
+#include <csignal>
 
 #define TMP_FILE "/tmp/hello.tst"
 
@@ -368,6 +369,8 @@ int write_end() {
 
 typedef int(*test_fun_t)();
 
+std::string current_test;
+
 int run_test(test_fun_t fun, int job_threads) {
 	file_stream_init(job_threads);
 
@@ -378,7 +381,14 @@ int run_test(test_fun_t fun, int job_threads) {
 	return ans;
 }
 
+void signal_handler(int signal) {
+	psignal(signal, ("\n >>> Caught signal during run of test " + current_test).c_str());
+}
+
 int main(int argc, char ** argv) {
+	std::signal(SIGABRT, signal_handler);
+	std::signal(SIGINT, signal_handler);
+
 	std::map<std::string, test_fun_t> tests = {
 		{"flush", flush_test},
 		{"random", random_test},
@@ -423,7 +433,8 @@ int main(int argc, char ** argv) {
 	int job_threads = argc > 2 ? std::stoi(argv[2]) : default_job_threads;
 
 	for (auto p : tests_to_run) {
-		std::cout << "Running test " << p.first << "\n";
+		std::cout << "\n>>> Running test " << p.first << "\n\n";
+		current_test = p.first;
 		int ans = run_test(p.second, job_threads);
 		if (ans != EXIT_SUCCESS) {
 			std::cerr << "Test " << p.first << " failed\n";
