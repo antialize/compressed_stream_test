@@ -205,7 +205,7 @@ int random_test() {
 				s1[s].seek(0, whence::end);
 				s2[s].seek(0, whence::end);
 				std::uniform_int_distribution<int> d;
-				size_t fs = f1.size();
+				auto fs = f1.size();
 				for (size_t i=0; i < count; ++i) {
 					auto v = d(rng);
 					s1[s].write(v);
