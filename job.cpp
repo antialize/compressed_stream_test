@@ -74,6 +74,16 @@ std::ostream & operator <<(std::ostream & o, const block * b) {
 	}
 }
 
+void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_size_t physical_offset) {
+	if (j.buff->m_logical_size < j.buff->m_maximal_logical_size) return;
+	auto nb = j.file->get_available_block(file_lock, j.buff->m_block + 1);
+	if (nb) {
+		log_info() << "JOB " << id << " update nb  " << *j.buff << std::endl;
+		nb->m_physical_offset = physical_offset;
+		nb->m_cond.notify_all();
+	}
+}
+
 void process_run() {
 	auto id = tid.fetch_add(1);
 	thread_local char data1[1024*1024];
@@ -111,7 +121,7 @@ void process_run() {
 			auto blocks = file->m_blocks;
 
 			file_lock.unlock();
-			
+
 			assert(block != no_block_idx);
 			assert(physical_offset != no_file_size);
 
@@ -121,7 +131,7 @@ void process_run() {
 				assert(r == sizeof(block_header));
 				physical_size = h.physical_size;
 			}
-	
+
 
 			file_size_t off = physical_offset;
 			file_size_t size = physical_size;
@@ -163,7 +173,7 @@ void process_run() {
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
 				//log_info() << id << "Read current header " << physical_size << " " << h.physical_size << std::endl;
-								
+
 				data += sizeof(block_header);
 				assert(physical_size == h.physical_size);
 				logical_size = h.logical_size;
@@ -176,7 +186,7 @@ void process_run() {
 			 		   << "Logical size " << logical_size << '\n'
 					   << "First data " << reinterpret_cast<int*>(j.buff->m_data)[0]
 					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
-			
+
 			data += physical_size - sizeof(block_header); //Skip next block header
 			if (should_read_next_physical_size) {
 				block_header h;
@@ -187,13 +197,7 @@ void process_run() {
 
 			file_lock.lock();
 
-			auto nb = file->get_available_block(file_lock, block + 1);
-			if (nb) {
-				nb->m_physical_offset = off + size;
-				nb->m_cond.notify_all();
-			} else {
-				log_info() << "JOB " << id << " rd no next " << *j.buff << std::endl;
-			}
+			update_next_block(file_lock, id, j, off + size);
 
 			j.buff->m_io = false;
 
@@ -205,7 +209,7 @@ void process_run() {
 
 			j.buff->m_read = true;
 			j.buff->m_cond.notify_all();
-			
+
 			file->free_block(file_lock, j.buff);
 		}
 		break;
@@ -221,14 +225,14 @@ void process_run() {
 					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
 
 			file_lock.unlock();
-			
+
 			// TODO check if it is undefined behaiviure to change data underneeth snappy
 			// TODO only used bytes here
 			memcpy(data1, j.buff->m_data, bytes);
 
 			// TODO free the block here
-	
-			
+
+
 			size_t s2 = 1024*1024;
 			snappy::RawCompress(data1, bytes , data2+sizeof(block_header), &s2);
 			size_t bs = 2*sizeof(block_header) + s2;
@@ -236,7 +240,7 @@ void process_run() {
 			h.physical_size = bs;
 			memcpy(data2, &h, sizeof(block_header));
 			memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
-			
+
 			file_lock.lock();
 			log_info() << "JOB " << id << " compressed " << *j.buff << " size " << bs << std::endl;
 
@@ -259,13 +263,7 @@ void process_run() {
 			file_size_t off = j.buff->m_physical_offset;
 			assert(off != no_file_size);
 
-			auto nb = file->get_available_block(file_lock, j.buff->m_block + 1);
-			if (nb) {
-				nb->m_physical_offset = off + bs;
-				nb->m_cond.notify_all();
-			} else {
-				log_info() << "JOB " << id << " wr no next " << *j.buff << std::endl;
-			}
+			update_next_block(file_lock, id, j, off + bs);
 
 			j.buff->m_io = false;
 
@@ -274,7 +272,7 @@ void process_run() {
 			auto r = _pwrite(file->m_fd, data2, bs, off);
 			assert(r == bs);
 			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
-			
+
 			file_lock.lock();
 			j.buff->m_physical_size = bs;
 			file->update_physical_size(file_lock, j.buff->m_block, bs);
