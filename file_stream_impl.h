@@ -129,6 +129,7 @@ public:
 	// Doesn't block
 	file_size_t get_next_physical_offset(lock_t & l, block * b) {
 		if (!b->m_io &&
+			!b->m_dirty &&
 			is_known(b->m_physical_size) &&
 			is_known(b->m_physical_offset) &&
 			b->m_logical_size == b->m_maximal_logical_size) {

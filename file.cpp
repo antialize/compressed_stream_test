@@ -106,10 +106,8 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 
 	block * b = get_available_block(l, p.m_block);
 	if (b) {
-		//log_info() << "\033[0;34mfetch " << it->second->m_idx << " " << block_number << "\033[0m" << std::endl;
-		if (b->m_block != p.m_block) {
-			throw std::runtime_error("Logic error");
-		}
+		log_info() << "FILE fetch       " << b << std::endl;
+		assert(b->m_block == p.m_block);
 		block_ref_inc(l, b);
 		return b;
 	}
@@ -183,7 +181,7 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 	stream_position p;
 	p.m_block = t->m_block + 1;
 	p.m_index = 0;
-	p.m_logical_offset = t->m_logical_offset + t->m_logical_size;
+	p.m_logical_offset = t->m_logical_offset + t->m_maximal_logical_size;
 	p.m_physical_offset = get_next_physical_offset(l, t);
 	return get_block(l, p, t);
 }

@@ -70,14 +70,6 @@ std::ostream & operator <<(std::ostream & o, const job_type t) {
 	return o << s;
 }
 
-std::ostream & operator <<(std::ostream & o, const block * b) {
-	if (b) {
-		return o << *b;
-	} else {
-		return o;
-	}
-}
-
 void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_size_t physical_offset) {
 	if (j.buff->m_logical_size != j.buff->m_maximal_logical_size) return;
 	auto nb = j.file->get_available_block(file_lock, j.buff->m_block + 1);
@@ -97,9 +89,12 @@ void process_run() {
 	while (true) {
 		while (jobs.empty()) job_cond.wait(job_lock);
 		auto j = jobs.front();
-		//log_info() << "JOB " << id << " pop job    " << j.buff << " " << j.type << '\n';
 		// Don't pop the job as all threads should terminate
-		if (j.type == job_type::term) break;
+		if (j.type == job_type::term) {
+			log_info() << "JOB " << id << " pop job    TERM\n";
+			break;
+		}
+		log_info() << "JOB " << id << " pop job    " << *j.buff << " " << j.type << " " << j.buff->m_logical_size << '\n';
 
 		jobs.pop();
 		job_lock.unlock();
@@ -266,11 +261,6 @@ void process_run() {
 			file_size_t off = j.buff->m_physical_offset;
 			assert(is_known(off));
 
-			update_next_block(file_lock, id, j, off + bs);
-
-			j.buff->m_physical_size = bs;
-			j.buff->m_io = false;
-
 #ifndef NDEBUG
 			{
 				auto & S = written_blocks[j.file];
@@ -286,6 +276,12 @@ void process_run() {
 			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 
 			file_lock.lock();
+
+			update_next_block(file_lock, id, j, off + bs);
+
+			j.buff->m_physical_size = bs;
+			j.buff->m_io = false;
+
 			file->update_physical_size(file_lock, j.buff->m_block, bs);
 			file->free_block(file_lock, j.buff);
 		}
