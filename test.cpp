@@ -290,20 +290,18 @@ int write_seek_write_read() {
 
 	int cnt = 0;
 
-	for (int i = 0; i < 1500; i++) {
-		s.write(cnt++);
+	for (int j = 0; j < 100; j++) {
+		for (int i = 0; i < 1500; i++) {
+			s.write(cnt++);
+		}
+
+		s.seek(0, whence::set);
+		s.seek(0, whence::end);
 	}
 
 	s.seek(0, whence::set);
-	s.seek(0, whence::end);
 
-	for (int i = 0; i < 1000; i++) {
-		s.write(cnt++);
-	}
-
-	s.seek(0, whence::set);
-
-	for (int i = 0; i < 2500; i++) {
+	for (int i = 0; i < 1500 * 100; i++) {
 		ensure(i, s.read(), "read");
 	}
 
