@@ -17,6 +17,11 @@ constexpr block_idx_t no_block_idx = std::numeric_limits<block_idx_t>::max();
 constexpr file_size_t no_file_size = std::numeric_limits<file_size_t>::max();
 constexpr block_size_t no_block_size = std::numeric_limits<block_size_t>::max();
 
+template <typename T>
+bool is_known(T val) {
+	return val != std::numeric_limits<T>::max();
+}
+
 class block;
 void create_available_block();
 block * pop_available_block();

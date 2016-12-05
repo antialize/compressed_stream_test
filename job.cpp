@@ -122,10 +122,10 @@ void process_run() {
 
 			file_lock.unlock();
 
-			assert(block != no_block_idx);
-			assert(physical_offset != no_file_size);
+			assert(is_known(block));
+			assert(is_known(physical_offset));
 
-			if (physical_size == no_block_size) {
+			if (!is_known(physical_size)) {
 				block_header h;
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 				assert(r == sizeof(block_header));
@@ -135,7 +135,7 @@ void process_run() {
 
 			file_size_t off = physical_offset;
 			file_size_t size = physical_size;
-			if (block != 0 && prev_physical_size == no_block_size) { // NOT THE FIRST BLOCK
+			if (block != 0 && !is_known(prev_physical_size)) { // NOT THE FIRST BLOCK
 				off -= sizeof(block_header);
 				size += sizeof(block_header);
 			}
@@ -143,7 +143,7 @@ void process_run() {
 			// If the next block has never been written out to disk
 			// we can't find its physical size
 			bool should_read_next_physical_size = false;
-			if (block + 1 != blocks && next_physical_size == no_block_size) { // NOT THE LAST BLOCK
+			if (block + 1 != blocks && !is_known(next_physical_size)) { // NOT THE LAST BLOCK
 				auto it = file->m_block_map.find(block + 1);
 				if (it != file->m_block_map.end()) {
 					next_physical_size = it->second->m_physical_size;
@@ -161,7 +161,7 @@ void process_run() {
 
 			assert(r == size);
 
-			if (block != 0 && prev_physical_size == no_block_size) {
+			if (block != 0 && !is_known(prev_physical_size)) {
 				//log_info() << id << "read prev header" << std::endl;
 				block_header h;
 				memcpy(&h, data, sizeof(block_header));
@@ -255,13 +255,13 @@ void process_run() {
 					j.buff->m_physical_offset = no_file_size;
 					// We can't use pb anymore as when unlocking the file lock,
 					// it might be repurposed for another block id
-					while (j.buff->m_physical_offset == no_file_size)
+					while (!is_known(j.buff->m_physical_offset))
 						j.buff->m_cond.wait(file_lock);
 				}
 			}
 
 			file_size_t off = j.buff->m_physical_offset;
-			assert(off != no_file_size);
+			assert(is_known(off));
 
 			update_next_block(file_lock, id, j, off + bs);
 
