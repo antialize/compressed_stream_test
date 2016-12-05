@@ -110,8 +110,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 		if (b->m_block != p.m_block) {
 			throw std::runtime_error("Logic error");
 		}
-		if (b->m_usage == 0) make_block_unavailable(b);
-		b->m_usage++;
+		block_ref_inc(l, b);
 		return b;
 	}
 	

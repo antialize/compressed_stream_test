@@ -44,7 +44,6 @@ public:
 	bool m_read;
 	uint32_t m_usage;
 	cond_t m_cond;
-	// Must have file_lock to use
 	bool m_io; // false = owned by main thread, true = owned by job thread
 
 	block_size_t m_prev_physical_size, m_next_physical_size, m_physical_size;
@@ -100,11 +99,15 @@ public:
 		return stream_position{0, 0, 0, 0};
 	}
 
-	stream_position end_position(lock_t & l) const noexcept {
+	void block_ref_inc(lock_t & l, block * b) const noexcept {
+		if (b->m_usage == 0) make_block_unavailable(b);
+		b->m_usage++;
+	}
+
+	stream_position end_position(lock_t & l) noexcept {
 		if (m_last_block) {
 			// Make sure m_last_block is not repurposed before, we can get its info
-			if (m_last_block->m_usage == 0) make_block_unavailable(m_last_block);
-			m_last_block->m_usage++;
+			block_ref_inc(l, m_last_block);
 			while (m_last_block->m_io) m_last_block->m_cond.wait(l);
 
 			stream_position p;
@@ -114,7 +117,7 @@ public:
 			p.m_physical_offset = m_last_block->m_physical_offset;
 
 			// Decrement m_last_block's usage
-			m_last_block->m_file->free_block(l, m_last_block);
+			free_block(l, m_last_block);
 
 			return p;
 		} else {
