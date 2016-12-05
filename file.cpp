@@ -129,12 +129,19 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
 	buff->m_io = false;
 	buff->m_maximal_logical_size = block_size() / buff->m_file->m_item_size;
 	m_block_map.emplace(buff->m_block, buff);
-	
-	if (!is_known(p.m_physical_offset)) {
+
+	// If we don't know this blocks offset,
+	// the previous block must exist.
+	// When we popped the available block, we had to unlock the file lock,
+	// so the predecessor block might be done now, without having updated this blocks offset,
+	// as this block was only just added to the block_map.
+	if (!is_known(buff->m_physical_offset)) {
 		assert(predecessor != nullptr);
-		//log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " delayed" << "\033[0m" << std::endl;
-	} else {
-		//log_info() << "\033[0;31massign " << buff->m_idx << " " << buff->m_block << " " << buff->m_physical_offset << "\033[0m" << std::endl;
+
+		buff->m_physical_offset = get_next_physical_offset(l, predecessor);
+		if (is_known(buff->m_physical_offset)) {
+			log_info() << "\nUPDATED " << p.m_block << "\n\n";
+		}
 	}
 
 	if (p.m_block == m_blocks) {
@@ -177,9 +184,7 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 	p.m_block = t->m_block + 1;
 	p.m_index = 0;
 	p.m_logical_offset = t->m_logical_offset + t->m_logical_size;
-	p.m_physical_offset = (is_known(t->m_physical_size) && is_known(t->m_physical_offset))
-		? t->m_physical_size + t->m_physical_offset
-		: no_file_size;
+	p.m_physical_offset = get_next_physical_offset(l, t);
 	return get_block(l, p, t);
 }
 

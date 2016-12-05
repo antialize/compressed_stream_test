@@ -136,6 +136,7 @@ void stream_impl::seek(file_size_t offset, whence w) {
 		p.m_physical_offset = 0;
 	} else {
 		p = m_file->end_position(lock);
+		log_info() << "STREM Seeked to end at offset " << p.m_physical_offset << std::endl;
 	}
 	set_position(lock, p);
 }

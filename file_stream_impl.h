@@ -124,7 +124,17 @@ public:
 			return m_end_position;
 		}
 	}
-	
+
+	// Returns the offset of the successor block to b if known
+	file_size_t get_next_physical_offset(lock_t & l, block * b) {
+		if (is_known(b->m_physical_size) &&
+			is_known(b->m_physical_offset) &&
+			b->m_logical_size == b->m_maximal_logical_size) {
+			return b->m_physical_size + b->m_physical_offset;
+		}
+		return no_file_size;
+	}
+
 	block * get_first_block(lock_t & lock) {return get_block(lock, start_position());}
 	block * get_last_block(lock_t & lock) {return get_block(lock, end_position(lock));}
 	block * get_successor_block(lock_t & lock, block * block);

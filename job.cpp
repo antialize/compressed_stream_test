@@ -244,20 +244,19 @@ void process_run() {
 			file_lock.lock();
 			log_info() << "JOB " << id << " compressed " << *j.buff << " size " << bs << std::endl;
 
-			if (j.buff->m_block != 0) {
+			if (!is_known(j.buff->m_physical_offset)) {
 				// If the previous block is doing io,
 				// we have to wait for it to finish and update our blocks physical offset.
 				// Even if we have a physical offset, the io operation from the previous block,
 				// might change it.
 				auto pb = file->get_available_block(file_lock, j.buff->m_block - 1);
-				if (pb && pb->m_io) {
-					log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
-					j.buff->m_physical_offset = no_file_size;
-					// We can't use pb anymore as when unlocking the file lock,
-					// it might be repurposed for another block id
-					while (!is_known(j.buff->m_physical_offset))
-						j.buff->m_cond.wait(file_lock);
-				}
+				assert(pb != nullptr);
+				assert(pb->m_io);
+				log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
+				// We can't use pb anymore as when unlocking the file lock,
+				// it might be repurposed for another block id
+				while (!is_known(j.buff->m_physical_offset))
+					j.buff->m_cond.wait(file_lock);
 			}
 
 			file_size_t off = j.buff->m_physical_offset;
@@ -265,6 +264,7 @@ void process_run() {
 
 			update_next_block(file_lock, id, j, off + bs);
 
+			j.buff->m_physical_size = bs;
 			j.buff->m_io = false;
 
 			file_lock.unlock();
@@ -274,7 +274,6 @@ void process_run() {
 			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 
 			file_lock.lock();
-			j.buff->m_physical_size = bs;
 			file->update_physical_size(file_lock, j.buff->m_block, bs);
 			file->free_block(file_lock, j.buff);
 		}
