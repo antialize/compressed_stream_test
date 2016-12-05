@@ -1,11 +1,15 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 #include <file_stream_impl.h>
-#include <queue>
 #include <cassert>
 #include <unistd.h>
 #include <snappy.h>
 #include <atomic>
+
+#ifndef NDEBUG
+#include <set>
+std::map<void *, std::set<block_idx_t>> written_blocks;
+#endif
 
 std::queue<job> jobs;
 mutex_t job_mutex;
@@ -266,6 +270,14 @@ void process_run() {
 
 			j.buff->m_physical_size = bs;
 			j.buff->m_io = false;
+
+#ifndef NDEBUG
+			{
+				auto & S = written_blocks[j.file];
+				auto p = S.insert(j.buff->m_block);
+				assert(std::next(p.first) == S.end());
+			}
+#endif
 
 			file_lock.unlock();
 
