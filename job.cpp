@@ -75,7 +75,7 @@ std::ostream & operator <<(std::ostream & o, const block * b) {
 }
 
 void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_size_t physical_offset) {
-	if (j.buff->m_logical_size < j.buff->m_maximal_logical_size) return;
+	if (j.buff->m_logical_size != j.buff->m_maximal_logical_size) return;
 	auto nb = j.file->get_available_block(file_lock, j.buff->m_block + 1);
 	if (nb) {
 		log_info() << "JOB " << id << " update nb  " << *j.buff << std::endl;

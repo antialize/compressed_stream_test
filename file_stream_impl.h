@@ -126,8 +126,10 @@ public:
 	}
 
 	// Returns the offset of the successor block to b if known
+	// Doesn't block
 	file_size_t get_next_physical_offset(lock_t & l, block * b) {
-		if (is_known(b->m_physical_size) &&
+		if (!b->m_io &&
+			is_known(b->m_physical_size) &&
 			is_known(b->m_physical_offset) &&
 			b->m_logical_size == b->m_maximal_logical_size) {
 			return b->m_physical_size + b->m_physical_offset;
