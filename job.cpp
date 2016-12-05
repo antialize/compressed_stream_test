@@ -7,8 +7,8 @@
 #include <atomic>
 
 #ifndef NDEBUG
-#include <set>
-std::map<void *, std::set<block_idx_t>> written_blocks;
+#include <tuple>
+std::map<std::tuple<file_impl *, int, block_idx_t>, std::pair<file_size_t, file_size_t>> block_offsets;
 #endif
 
 std::queue<job> jobs;
@@ -236,7 +236,7 @@ void process_run() {
 			snappy::RawCompress(data1, bytes , data2+sizeof(block_header), &s2);
 			size_t bs = 2*sizeof(block_header) + s2;
 
-			h.physical_size = bs;
+			h.physical_size = (block_size_t)bs;
 			memcpy(data2, &h, sizeof(block_header));
 			memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
 
@@ -261,14 +261,6 @@ void process_run() {
 			file_size_t off = j.buff->m_physical_offset;
 			assert(is_known(off));
 
-#ifndef NDEBUG
-			{
-				auto & S = written_blocks[j.file];
-				auto p = S.insert(j.buff->m_block);
-				assert(std::next(p.first) == S.end());
-			}
-#endif
-
 			file_lock.unlock();
 
 			auto r = _pwrite(file->m_fd, data2, bs, off);
@@ -276,6 +268,23 @@ void process_run() {
 			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 
 			file_lock.lock();
+
+#ifndef NDEBUG
+			{
+				if (j.buff->m_block + 1 != file->m_blocks) {
+					auto it = block_offsets.find(std::make_tuple(file, file->m_fd, j.buff->m_block + 1));
+					if (it != block_offsets.end()) {
+						assert(it->second.first == off + bs);
+					}
+				}
+				auto it = block_offsets.find(std::make_tuple(file, file->m_fd, j.buff->m_block - 1));
+				if (it != block_offsets.end()) {
+					assert(it->second.second == off);
+				}
+
+				block_offsets[std::make_tuple(file, file->m_fd, j.buff->m_block)] = {off, off + bs};
+			}
+#endif
 
 			update_next_block(file_lock, id, j, off + bs);
 
