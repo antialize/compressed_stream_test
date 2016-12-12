@@ -324,6 +324,12 @@ int open_close() {
 	s.seek(0, whence::set);
 	ensure(1337, s.read(), "read");
 
+	f.close();
+	for(int i = 0; i < 10; i++) {
+		f.open(TMP_FILE);
+		f.close();
+	}
+
 	return EXIT_SUCCESS;
 }
 
@@ -361,6 +367,19 @@ int write_end() {
 	return EXIT_SUCCESS;
 }
 
+int open_close_dead_stream() {
+	file<int> f;
+	f.open(TMP_FILE);
+	{
+		auto s = f.stream();
+		f.close();
+		f.open(TMP_FILE);
+	}
+	auto s = f.stream();
+	for (int i = 0; i < 10000; i++)
+		s.write(i);
+}
+
 
 typedef int(*test_fun_t)();
 
@@ -395,6 +414,7 @@ int main(int argc, char ** argv) {
 		{"open_close", open_close},
 		{"seek_start_seek_end", seek_start_seek_end},
 		{"write_end", write_end},
+		{"open_close_dead_stream", open_close_dead_stream},
 	};
 
 	std::set<std::string> excluded_in_all = {"random", "write_fail"};
