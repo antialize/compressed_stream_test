@@ -12,15 +12,20 @@ std::unordered_set<block *> available_blocks;
 }
 
 size_t ctr = 0;
-void print_available_blocks() {
-	log_info() << "Total number of blocks: " << ctr << "\n"
-			   << "free: " << available_blocks.size() << ", "
-			   << "non-free: " << (ctr - available_blocks.size()) << "\n";
 
-	for (block * b : available_blocks) {
+#ifndef NDEBUG
+#include <set>
+std::set<block *> all_blocks;
+void print_available_blocks() {
+	log_info() << "Total number of blocks: " << all_blocks.size() << "\n"
+			   << "free: " << available_blocks.size() << ", "
+			   << "non-free: " << (all_blocks.size() - available_blocks.size()) << "\n";
+
+	for (block * b : all_blocks) {
 		log_info() << *b << "\n";
 	}
 }
+#endif
 
 void create_available_block() {
 	lock_t l(available_blocks_mutex);
@@ -29,7 +34,9 @@ void create_available_block() {
 	b->m_file = nullptr;
 	available_blocks.insert(b);
 	available_block_cond.notify_one();
-
+#ifndef NDEBUG
+	all_blocks.insert(b);
+#endif
 
 	log_info() << "AVAIL create     " << *b << std::endl;
 }
@@ -40,6 +47,9 @@ void destroy_available_block() {
 	auto b = pop_available_block();
 	assert(b->m_usage == 0);
 	log_info() << "AVAIL destroy    " << *b << std::endl;
+#ifndef NDEBUG
+	all_blocks.erase(b);
+#endif
 	delete b;
 }
 
