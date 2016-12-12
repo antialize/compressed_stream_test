@@ -62,7 +62,8 @@ void file_base_base::close() {
 	// Free all blocks, possibly creating some write jobs
 	for (auto p : m_impl->m_block_map) {
 		block *b = p.second;
-		m_impl->free_block(l, b);
+		if (b->m_usage != 0)
+			m_impl->free_block(l, b);
 	}
 
 	// Wait for all freed dirty blocks to be written
@@ -200,6 +201,7 @@ block * file_impl::get_predecessor_block(lock_t & l, block * t) {
 
 void file_impl::free_block(lock_t &, block * t) {
 	if (t == nullptr) return;
+	assert(t->m_usage != 0);
 	--t->m_usage;
 
 	// Even if t->m_usage > 1, we need to write the block if it's dirty
