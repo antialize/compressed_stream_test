@@ -30,6 +30,16 @@ void destroy_available_block();
 void push_available_block(block * b);
 block * pop_available_block();
 
+struct file_header {
+	static const uint64_t magicConst = 8480736970737669ull;
+	static const uint64_t versionConst = 1;
+
+	uint64_t magic;
+	uint64_t version;
+	bool isCompressed : 1;
+	bool isSerialized : 1;
+};
+
 /**
  * Class representing a block in a file
  * if a block as attacted to a file all members except
@@ -101,7 +111,7 @@ public:
 	block * get_block(lock_t & lock, stream_position p, block * predecessor = nullptr);
 	
 	static constexpr stream_position start_position() noexcept {
-		return stream_position{0, 0, 0, 0};
+		return stream_position{0, 0, 0, sizeof(file_header)};
 	}
 
 	void block_ref_inc(lock_t & l, block * b) const noexcept {

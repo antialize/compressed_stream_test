@@ -60,8 +60,14 @@ void file_base_base::open(const std::string & path) {
 
 	auto p = m_impl->end_position(l);
 	m_last_block = m_impl->m_last_block = m_impl->get_block(l, p);
-	
-	::write(m_impl->m_fd, "head", 4);
+
+	file_header header;
+	::memset(&header, 0, sizeof header);
+	header.magic = file_header::magicConst;
+	header.version = file_header::versionConst;
+	header.isCompressed = true;
+	header.isSerialized = false;
+	::write(m_impl->m_fd, &header, sizeof header);
 }
 
 void file_base_base::close() {

@@ -76,6 +76,16 @@ void dump_file(const char * fname, bool dumpcontents) {
 
 	ssize_t off = 0;
 
+	file_header h;
+	off += _read(fd, &h, sizeof h);
+
+	std::cout << "File header:\n"
+			  << "\tMagic: " << h.magic << (h.magic == file_header::magicConst? " (ok)": " (wrong)") << "\n"
+			  << "\tVersion: " << h.version << (h.version == file_header::versionConst? " (ok)": " (wrong)") << "\n"
+			  << "\tCompressed: " << h.isCompressed << "\n"
+		      << "\tSerialized: " << h.isSerialized << "\n"
+	          << "\n";
+
 	block_header h1, h2;
 	size_t header_size = sizeof(block_header);
 

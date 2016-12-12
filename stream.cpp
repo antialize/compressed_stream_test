@@ -133,10 +133,7 @@ void stream_impl::seek(file_size_t offset, whence w) {
 	} else if (offset != 0 || (w != whence::set && w != whence::end)) {
 		throw std::runtime_error("Arbetrery seek not supported for compressed or serialized files");
 	} else if (w == whence::set) {
-		p.m_block = 0;
-		p.m_index = 0;
-		p.m_logical_offset = 0;
-		p.m_physical_offset = 0;
+		p = m_file->start_position();
 	} else {
 		p = m_file->end_position(lock);
 		log_info() << "STREM Seeked to end at offset " << p.m_physical_offset << std::endl;
