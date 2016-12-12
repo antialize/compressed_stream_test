@@ -1,4 +1,7 @@
 #include <iostream>
+#include <iomanip>
+#include <cctype>
+#include <cstring>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -36,7 +39,31 @@ block_header read_and_print_header(int fd, size_t i, bool head) {
 	return header;
 }
 
-void dump_file(const char * fname) {
+void hexdump(unsigned char * buf, size_t n) {
+	auto f = std::cout.flags();
+	std::cout << std::hex << std::setfill('0');
+
+	int cols = 8;
+	int grouped = 2;
+	for (size_t i = 0; i < n; i += cols * grouped) {
+		for (int j = 0; j < cols; j++) {
+			for (int k = 0; k < grouped; k++) {
+				std::cout << std::setw(2) << int(buf[i + j + k]);
+			}
+			std::cout << ' ';
+		}
+		std::cout << ' ';
+		for (int j = 0; j < cols * grouped; j++) {
+			unsigned char c = buf[i + j];
+			std::cout << (unsigned char)(std::isprint(c)? c: '.');
+		}
+		std::cout << '\n';
+	}
+
+	std::cout.flags(f);
+}
+
+void dump_file(const char * fname, bool dumpcontents) {
 	int fd = ::open(fname, O_RDONLY, 00660);
 
 	if (fd == -1) {
@@ -60,13 +87,23 @@ void dump_file(const char * fname) {
 			std::cerr << "Wrong logical offset!\n";
 			exit(1);
 		}
-
+		
 		off += h1.physical_size - header_size;
 		if (off >= size) {
 			std::cerr << "Trying to seek beyond file!\n";
 			exit(1);
 		}
-		::lseek(fd, off, SEEK_SET);
+
+		if (dumpcontents) {
+			size_t s = h1.physical_size - 2 * header_size;
+			unsigned char buf[s];
+			_read(fd, buf, s);
+			hexdump(buf, s);
+			std::cout << '\n';
+		} else {
+			::lseek(fd, off, SEEK_SET);
+		}
+
 		h2 = read_and_print_header(fd, i, false);
 		off += header_size;
 
@@ -79,15 +116,26 @@ void dump_file(const char * fname) {
 	}
 
 	::close(fd);
+
+	std::cout << "Total logical size: " << logical_offset << '\n'
+              << "Total physical size: " << size << '\n';
 }
 
 int main(int argc, const char * argv[]) {
-	if (argc != 2) {
-		std::cerr << "Usage: dump_file filename\n";
+	const char ** fname = argv + 1;
+
+	bool dumpcontents = false;
+	if (strcmp(argv[1], "-h") == 0) {
+		dumpcontents = true;
+		fname++;
+	}
+
+	if (fname != argv + argc - 1) {
+		std::cerr << "Usage: dump_file [-h] filename\n";
 		return EXIT_FAILURE;
 	}
 
-	dump_file(argv[1]);
+	dump_file(*fname, dumpcontents);
 
 	return EXIT_SUCCESS;
 }
