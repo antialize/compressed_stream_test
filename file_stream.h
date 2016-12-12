@@ -175,14 +175,14 @@ public:
 	
 	const T & peek() {
 		if (m_cur_index == m_block->m_logical_size) next_block();
-		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index + 1];
+		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index];
 	}
 
 	const T & read_back() {
 		#warning "Implement read_back"
 	}
 
-	const T & peak_back() {
+	const T & peek_back() {
 		#warning "Implement peak_back"
 	}
 	

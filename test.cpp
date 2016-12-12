@@ -32,9 +32,9 @@ struct internal_stream {
 	internal_stream(internal_file<T> * file, file_size_t offset, bool direct = false)
 		: m_offset(offset), m_file(file), m_direct(direct) {}
 
-	const T & peak() const noexcept {assert(can_read()); return m_file->m_items[m_offset];}
+	const T & peek() const noexcept {assert(can_read()); return m_file->m_items[m_offset];}
 	const T & read() noexcept {assert(can_read()); return m_file->m_items[m_offset++];}
-	const T & peak_back() const noexcept {assert(can_read_back()); return m_file->m_items[m_offset-1];}
+	const T & peek_back() const noexcept {assert(can_read_back()); return m_file->m_items[m_offset-1];}
 	const T & back() noexcept {assert(can_read_back()); return m_file->m_items[--m_offset];}
 	bool can_read() const noexcept {return m_offset != m_file->m_items.size();}
 	bool can_read_back() const noexcept {return m_offset != 0;}
@@ -109,12 +109,13 @@ int random_test() {
 		destroy_stream,
 		write_end,
 		read,
+		peek,
 		seek_start,
 		get_offset,
 		get_size,
 		can_read,
 		open_file,
-		close_file
+		close_file,
 	};
 
 	file<int> f1;
@@ -140,6 +141,7 @@ int random_test() {
 				tasks.emplace_back(task::destroy_stream, s1.size());
 				tasks.emplace_back(task::write_end, 20);
 				tasks.emplace_back(task::read, 20);
+				tasks.emplace_back(task::peek, 20);
 				tasks.emplace_back(task::seek_start, 6);
 				tasks.emplace_back(task::get_offset, 20);
 				tasks.emplace_back(task::can_read, 20);
@@ -191,6 +193,12 @@ int random_test() {
 				for (size_t i=0; i < count; ++i) {
 					ensure(s1[s].read(), s2[s].read(), "read");
 				}
+				break;
+			}
+			case task::peek: {
+				if (s2[s].offset() == f2.size()) break;
+				task_title("Peek at " + std::to_string(s1[s].offset()), s);
+				ensure(s1[s].peek(), s2[s].peek(), "peek");
 				break;
 			}
 			case task::seek_start:
@@ -380,6 +388,22 @@ int open_close_dead_stream() {
 		s.write(i);
 }
 
+int peek_test() {
+	file<int> f;
+	f.open(TMP_FILE);
+	auto s = f.stream();
+
+	for (int i = 0; i < 10000; i++)
+		s.write(i);
+
+	s.seek(0, whence::set);
+	for (int i = 0; i < 10000; i++) {
+		ensure(s.peek(), i, "peek");
+		ensure(s.read(), i, "read");
+	}
+
+	return EXIT_SUCCESS;
+}
 
 typedef int(*test_fun_t)();
 
@@ -415,6 +439,7 @@ int main(int argc, char ** argv) {
 		{"seek_start_seek_end", seek_start_seek_end},
 		{"write_end", write_end},
 		{"open_close_dead_stream", open_close_dead_stream},
+		{"peek", peek_test},
 	};
 
 	std::set<std::string> excluded_in_all = {"random", "write_fail"};
