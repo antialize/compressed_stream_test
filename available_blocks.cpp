@@ -38,6 +38,7 @@ block * pop_available_block();
 
 void destroy_available_block() {
 	auto b = pop_available_block();
+	assert(b->m_usage == 0);
 	log_info() << "AVAIL destroy    " << *b << std::endl;
 	delete b;
 }
