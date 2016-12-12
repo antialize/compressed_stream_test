@@ -381,6 +381,7 @@ int run_test(test_fun_t fun, int job_threads) {
 
 void signal_handler(int signal) {
 	psignal(signal, ("\n >>> Caught signal during run of test " + current_test).c_str());
+	std::_Exit(EXIT_FAILURE);
 }
 
 int main(int argc, char ** argv) {
