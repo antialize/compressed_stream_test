@@ -85,7 +85,6 @@ public:
 	}
 
 	file_size_t size() const noexcept {
-		if (m_last_block == nullptr) return m_logical_size;
 		return m_last_block->m_logical_offset + m_last_block->m_logical_size;
 	}
 
@@ -98,7 +97,6 @@ private:
 	
 	file_impl * m_impl;
 	block_base * m_last_block;
-	file_size_t m_logical_size;
 };
 
 enum class whence {set, cur, end};

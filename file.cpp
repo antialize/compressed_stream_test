@@ -17,12 +17,17 @@ file_impl::file_impl()
 	, m_last_physical_size(no_block_size)
 	, m_item_size(no_block_size)
 	, m_serialized(false)
-	, m_direct(false) {}
+	, m_direct(false) {
+	create_available_block();
+}
+
+file_impl::~file_impl() {
+	destroy_available_block();
+}
 
 file_base_base::file_base_base(bool serialized, uint32_t item_size)
 	: m_impl(nullptr)
 	, m_last_block(nullptr)
-	, m_logical_size(0)
 {
 	auto impl = new file_impl();
 	m_impl = impl;
@@ -38,10 +43,9 @@ file_base_base::~file_base_base() {
 file_base_base::file_base_base(file_base_base &&o)
 	: m_impl(o.m_impl)
 	, m_last_block(o.m_last_block)
-	, m_logical_size(o.m_logical_size) {
+{
 	o.m_impl = nullptr;
 	o.m_last_block = nullptr;
-	o.m_logical_size = 0;
 	m_impl->m_outer = this;
 }
 
@@ -49,6 +53,10 @@ void file_base_base::open(const std::string & path) {
 	m_impl->m_fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 00660);
 	if (m_impl->m_fd == -1)
 		perror("open failed: ");
+
+	lock_t l(m_impl->m_mut);
+	auto p = m_impl->end_position(l);
+	m_last_block = m_impl->m_last_block = m_impl->get_block(l, p);
 	
 	::write(m_impl->m_fd, "head", 4);
 }
@@ -62,7 +70,7 @@ void file_base_base::close() {
 	// Free all blocks, possibly creating some write jobs
 	for (auto p : m_impl->m_block_map) {
 		block *b = p.second;
-		if (b->m_usage != 0)
+		while (b->m_usage != 0)
 			m_impl->free_block(l, b);
 	}
 
@@ -82,11 +90,8 @@ void file_base_base::close() {
 	m_impl->m_fd = -1;
 	m_last_block = m_impl->m_last_block = nullptr;
 	m_impl->m_blocks = 0;
-	m_impl->m_end_position = {0};
 	m_impl->m_first_physical_size = no_block_size;
 	m_impl->m_last_physical_size = no_block_size;
-
-	m_logical_size = 0;
 }
 
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
@@ -170,7 +175,11 @@ block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor)
   
 	if (p.m_block + 1 == m_blocks) {
 		//log_info() << "Setting last block to " << buff << std::endl;
+		if (m_last_block != buff) {
+			free_block(l, m_last_block);
+		}
 		m_outer->m_last_block = m_last_block = buff;
+		buff->m_usage++;
 	}
    
 	//log_info() << "get succ " << *buff << std::endl;
@@ -256,12 +265,7 @@ void file_impl::kill_block(lock_t & l, block * t) {
 	size_t c = m_block_map.erase(t->m_block);
 	assert(c == 1);
 	t->m_file = nullptr;
-	if (m_last_block == t) {
-		m_end_position.m_logical_offset = t->m_logical_offset;
-		m_end_position.m_physical_offset = t->m_physical_offset;
-		m_end_position.m_block = t->m_block;
-		m_end_position.m_index = t->m_logical_size;
-		m_outer->m_logical_size = t->m_logical_offset + t->m_logical_size;
-		m_outer->m_last_block = m_last_block = nullptr;
-	}
+	// We never kill a block not associated to a file,
+	// and the last block should always be associated to its file
+	assert(t != m_last_block);
 }

@@ -62,12 +62,8 @@ public:
 	file_base_base * m_outer;
 	int m_fd;
 
-	// The following to variabels maintain the end of the file
-	// if the last block is the file is loaded m_last_block will contain
-	// a pointer to it, otherwise m_end_position will point to the end of the file.
 	block * m_last_block; // A pointer to the last active block
-	stream_position m_end_position;
-	
+
 	block_idx_t m_blocks; //The number of blocks in the file
 
 	// Tells how many jobs remain to be performed on the file.
@@ -83,6 +79,7 @@ public:
 	std::map<block_idx_t, block *> m_block_map;
 
 	file_impl();
+	~file_impl();
 
 	// Note: if you want to keep this block alive after unlocking the lock,
 	// you have to increment its m_usage
@@ -104,25 +101,21 @@ public:
 		b->m_usage++;
 	}
 
-	stream_position end_position(lock_t & l) noexcept {
-		if (m_last_block) {
-			// Make sure m_last_block is not repurposed before, we can get its info
-			block_ref_inc(l, m_last_block);
-			while (m_last_block->m_io) m_last_block->m_cond.wait(l);
-
-			stream_position p;
-			p.m_block = m_last_block->m_block;
-			p.m_index = m_last_block->m_logical_size;
-			p.m_logical_offset = m_last_block->m_logical_offset;
-			p.m_physical_offset = m_last_block->m_physical_offset;
-
-			// Decrement m_last_block's usage
-			free_block(l, m_last_block);
-
-			return p;
-		} else {
-			return m_end_position;
+	stream_position end_position(lock_t & l) const noexcept {
+		if (!m_last_block) {
+			// This should only happen when we haven't got any blocks for a file
+			return start_position();
 		}
+		// Make sure m_last_block is not repurposed before, we can get its info
+		while (m_last_block->m_io) m_last_block->m_cond.wait(l);
+
+		stream_position p;
+		p.m_block = m_last_block->m_block;
+		p.m_index = m_last_block->m_logical_size;
+		p.m_logical_offset = m_last_block->m_logical_offset;
+		p.m_physical_offset = m_last_block->m_physical_offset;
+
+		return p;
 	}
 
 	// Returns the offset of the successor block to b if known

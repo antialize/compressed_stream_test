@@ -62,6 +62,8 @@ stream_base_base::~stream_base_base() {
 		if (m_impl->m_cur_block) {
 			lock_t lock(m_impl->m_file->m_mut);
 			// The file might have been closed before the stream is destructed
+			// TODO: what if file has been closed and opened?
+			// We can't free the block then
 			if (m_impl->m_file->m_fd != -1)
 				m_impl->m_file->free_block(lock, m_impl->m_cur_block);
 		}

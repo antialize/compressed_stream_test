@@ -96,6 +96,8 @@ void process_run() {
 		}
 		log_info() << "JOB " << id << " pop job    " << *j.buff << " " << j.type << " " << j.buff->m_logical_size << '\n';
 
+		assert(j.buff->m_usage != 0);
+
 		jobs.pop();
 		job_lock.unlock();
 
