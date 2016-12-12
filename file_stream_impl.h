@@ -56,11 +56,19 @@ public:
 	}
 };
 
+namespace {
+	size_t file_ctr = 0;
+};
+
 class file_impl {
 public:
 	mutex_t m_mut;
 	file_base_base * m_outer;
 	int m_fd;
+
+	// An unique id for the entire run of the program
+	// Should change when the file is closed/opened
+	size_t m_file_id;
 
 	block * m_last_block; // A pointer to the last active block
 
@@ -146,9 +154,9 @@ public:
 	stream_base_base * m_outer;
 	file_impl * m_file;
 	block * m_cur_block;
-	bool m_seek_end;
+	size_t m_file_id;
 
-	
+	void close();
 	void next_block();
 	void seek(file_size_t offset, whence w);
 	void set_position(lock_t & l, stream_position p);

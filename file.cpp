@@ -10,6 +10,7 @@
 file_impl::file_impl()
 	: m_outer(nullptr)
 	, m_fd(-1)
+	, m_file_id(file_ctr++)
 	, m_last_block(nullptr)
 	, m_blocks(0)
 	, m_job_count(0)
@@ -55,6 +56,8 @@ void file_base_base::open(const std::string & path) {
 		perror("open failed: ");
 
 	lock_t l(m_impl->m_mut);
+	m_impl->m_file_id = file_ctr++;
+
 	auto p = m_impl->end_position(l);
 	m_last_block = m_impl->m_last_block = m_impl->get_block(l, p);
 	
@@ -70,8 +73,11 @@ void file_base_base::close() {
 	// Free all blocks, possibly creating some write jobs
 	for (auto p : m_impl->m_block_map) {
 		block *b = p.second;
-		while (b->m_usage != 0)
+		if (b->m_usage != 0) {
+			// Make sure we make the block available
+			b->m_usage = 1;
 			m_impl->free_block(l, b);
+		}
 	}
 
 	// Wait for all freed dirty blocks to be written
@@ -80,6 +86,7 @@ void file_base_base::close() {
 	// Set the owner of the blocks to nullptr
 	for (auto p : m_impl->m_block_map) {
 		block *b = p.second;
+		assert(b->m_usage == 0);
 		b->m_file = nullptr;
 	}
 
@@ -92,6 +99,8 @@ void file_base_base::close() {
 	m_impl->m_blocks = 0;
 	m_impl->m_first_physical_size = no_block_size;
 	m_impl->m_last_physical_size = no_block_size;
+
+	m_impl->m_file_id = file_ctr++;
 }
 
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {

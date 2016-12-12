@@ -13,6 +13,7 @@ stream_base_base::stream_base_base(file_base_base * file_base)
 	m_impl = new stream_impl();
 	m_impl->m_outer = this;
 	m_impl->m_file = file_base->m_impl;
+	m_impl->m_file_id = m_impl->m_file->m_file_id;
 	m_block = &void_block;
 	create_available_block();
 }
@@ -34,11 +35,7 @@ stream_base_base::stream_base_base(stream_base_base && o)
 
 stream_base_base & stream_base_base::operator=(stream_base_base && o) {
 	if (m_impl) {
-		if (m_impl->m_cur_block) {
-			lock_t lock(m_impl->m_file->m_mut);
-			m_impl->m_file->free_block(lock, m_impl->m_cur_block);
-		}
-		destroy_available_block();
+		m_impl->close();
 		delete m_impl;
 	}
 
@@ -59,15 +56,7 @@ stream_base_base & stream_base_base::operator=(stream_base_base && o) {
 
 stream_base_base::~stream_base_base() {
 	if (m_impl) {
-		if (m_impl->m_cur_block) {
-			lock_t lock(m_impl->m_file->m_mut);
-			// The file might have been closed before the stream is destructed
-			// TODO: what if file has been closed and opened?
-			// We can't free the block then
-			if (m_impl->m_file->m_fd != -1)
-				m_impl->m_file->free_block(lock, m_impl->m_cur_block);
-		}
-		destroy_available_block();
+		m_impl->close();
 		delete m_impl;
 	}
 }
@@ -79,6 +68,16 @@ void stream_base_base::next_block() {
 
 void stream_base_base::seek(file_size_t off, whence w) {
 	m_impl->seek(off, w);
+}
+
+void stream_impl::close() {
+	if (m_cur_block) {
+		lock_t lock(m_file->m_mut);
+		// The file might have been closed (and even reopened) before the stream is destructed
+		if (m_file_id == m_file->m_file_id)
+			m_file->free_block(lock, m_cur_block);
+	}
+	destroy_available_block();
 }
 
 void stream_impl::next_block() {
