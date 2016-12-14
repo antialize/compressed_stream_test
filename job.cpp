@@ -37,10 +37,11 @@ std::ostream & operator <<(std::ostream & o, const job_type t) {
 }
 
 void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_size_t physical_offset) {
-	if (j.buff->m_logical_size != j.buff->m_maximal_logical_size) return;
-	auto nb = j.file->get_available_block(file_lock, j.buff->m_block + 1);
+	block * b = j.buff;
+	if (b->m_logical_size != b->m_maximal_logical_size) return;
+	auto nb = j.file->get_available_block(file_lock, b->m_block + 1);
 	if (nb) {
-		log_info() << "JOB " << id << " update nb  " << *j.buff << std::endl;
+		log_info() << "JOB " << id << " update nb  " << *b << std::endl;
 		nb->m_physical_offset = physical_offset;
 		nb->m_cond.notify_all();
 	}
@@ -60,7 +61,8 @@ void process_run() {
 			log_info() << "JOB " << id << " pop job    TERM\n";
 			break;
 		}
-		log_info() << "JOB " << id << " pop job    " << *j.buff << " " << j.type << " " << j.buff->m_logical_size << '\n';
+		block * b = j.buff;
+		log_info() << "JOB " << id << " pop job    " << *b << " " << j.type << " " << b->m_logical_size << '\n';
 
 		jobs.pop();
 		job_lock.unlock();
@@ -68,7 +70,7 @@ void process_run() {
 		auto file = j.file;
 		lock_t file_lock(file->m_mut);
 
-		assert(j.buff->m_usage != 0);
+		assert(b->m_usage != 0);
 
 		switch (j.type) {
 		case job_type::term:
@@ -78,13 +80,13 @@ void process_run() {
 		}
 		case job_type::read:
 		{
-			block_idx_t block = j.buff->m_block;
-			file_size_t physical_offset = j.buff->m_physical_offset;
-			file_size_t logical_offset = j.buff->m_logical_offset;
-			block_size_t physical_size = j.buff->m_physical_size;
-			block_size_t logical_size = j.buff->m_logical_size;
-			block_size_t prev_physical_size = j.buff->m_prev_physical_size;
-			block_size_t next_physical_size = j.buff->m_next_physical_size;
+			block_idx_t block = b->m_block;
+			file_size_t physical_offset = b->m_physical_offset;
+			file_size_t logical_offset = b->m_logical_offset;
+			block_size_t physical_size = b->m_physical_size;
+			block_size_t logical_size = b->m_logical_size;
+			block_size_t prev_physical_size = b->m_prev_physical_size;
+			block_size_t next_physical_size = b->m_next_physical_size;
 			auto blocks = file->m_blocks;
 
 			file_lock.unlock();
@@ -122,7 +124,7 @@ void process_run() {
 
 			char * data = data1;
 
-			log_info() << "JOB " << id << " pread      " << *j.buff << " from " << off << " - " << (off + size - 1) << std::endl;
+			log_info() << "JOB " << id << " pread      " << *b << " from " << off << " - " << (off + size - 1) << std::endl;
 
 			auto r = _pread(file->m_fd, data, size, off);
 
@@ -146,13 +148,13 @@ void process_run() {
 				logical_size = h.logical_size;
 			}
 
-			bool ok = snappy::RawUncompress(data, physical_size - 2*sizeof(block_header), (char *)j.buff->m_data);
+			bool ok = snappy::RawUncompress(data, physical_size - 2*sizeof(block_header), (char *)b->m_data);
 			assert(ok);
 
-			log_info() << "Read " << *j.buff << '\n'
+			log_info() << "Read " << *b << '\n'
 			 		   << "Logical size " << logical_size << '\n'
-					   << "First data " << reinterpret_cast<int*>(j.buff->m_data)[0]
-					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
+					   << "First data " << reinterpret_cast<int*>(b->m_data)[0]
+					   << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
 
 			data += physical_size - sizeof(block_header); //Skip next block header
 			if (should_read_next_physical_size) {
@@ -166,101 +168,101 @@ void process_run() {
 
 			update_next_block(file_lock, id, j, off + size);
 
-			j.buff->m_io = false;
+			b->m_io = false;
 
-			j.buff->m_prev_physical_size = prev_physical_size;
-			j.buff->m_next_physical_size = next_physical_size;
-			j.buff->m_logical_size = logical_size;
-			j.buff->m_physical_size = physical_size;
-			j.buff->m_logical_offset = logical_offset;
+			b->m_prev_physical_size = prev_physical_size;
+			b->m_next_physical_size = next_physical_size;
+			b->m_logical_size = logical_size;
+			b->m_physical_size = physical_size;
+			b->m_logical_offset = logical_offset;
 
-			j.buff->m_read = true;
-			j.buff->m_cond.notify_all();
+			b->m_read = true;
+			b->m_cond.notify_all();
 
-			file->free_block(file_lock, j.buff);
+			file->free_block(file_lock, b);
 		}
 		break;
 		case job_type::write:
 		{
-			const auto bytes = j.buff->m_logical_size * file->m_item_size;
+			const auto bytes = b->m_logical_size * file->m_item_size;
 
 			block_header h;
-			h.logical_size = j.buff->m_logical_size;
-			h.logical_offset = j.buff->m_logical_offset;
-			log_info() << "JOB " << id << " compress   " << *j.buff << " size " << bytes << '\n'
-					   << "First data " << reinterpret_cast<int*>(j.buff->m_data)[0]
-					   << " " << reinterpret_cast<int*>(j.buff->m_data)[1] << std::endl;
+			h.logical_size = b->m_logical_size;
+			h.logical_offset = b->m_logical_offset;
+			log_info() << "JOB " << id << " compress   " << *b << " size " << bytes << '\n'
+					   << "First data " << reinterpret_cast<int*>(b->m_data)[0]
+					   << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
 
 			file_lock.unlock();
 
 			// TODO check if it is undefined behaiviure to change data underneeth snappy
 			// TODO only used bytes here
-			memcpy(data1, j.buff->m_data, bytes);
+			memcpy(data1, b->m_data, bytes);
 
 			// TODO free the block here
 
 
 			size_t s2 = 1024*1024;
 			snappy::RawCompress(data1, bytes , data2+sizeof(block_header), &s2);
-			size_t bs = 2*sizeof(block_header) + s2;
+			block_size_t bs = 2*sizeof(block_header) + s2;
 
 			h.physical_size = (block_size_t)bs;
 			memcpy(data2, &h, sizeof(block_header));
 			memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
 
 			file_lock.lock();
-			log_info() << "JOB " << id << " compressed " << *j.buff << " size " << bs << std::endl;
+			log_info() << "JOB " << id << " compressed " << *b << " size " << bs << std::endl;
 
-			if (!is_known(j.buff->m_physical_offset)) {
+			if (!is_known(b->m_physical_offset)) {
 				// If the previous block is doing io,
 				// we have to wait for it to finish and update our blocks physical offset.
 				// Even if we have a physical offset, the io operation from the previous block,
 				// might change it.
-				auto pb = file->get_available_block(file_lock, j.buff->m_block - 1);
+				auto pb = file->get_available_block(file_lock, b->m_block - 1);
 				assert(pb != nullptr);
 				assert(pb->m_io);
-				log_info() << "JOB " << id << " waitfor    " << *j.buff << std::endl;
+				log_info() << "JOB " << id << " waitfor    " << *b << std::endl;
 				// We can't use pb anymore as when unlocking the file lock,
 				// it might be repurposed for another block id
-				while (!is_known(j.buff->m_physical_offset))
-					j.buff->m_cond.wait(file_lock);
+				while (!is_known(b->m_physical_offset))
+					b->m_cond.wait(file_lock);
 			}
 
-			file_size_t off = j.buff->m_physical_offset;
+			file_size_t off = b->m_physical_offset;
 			assert(is_known(off));
 
 			file_lock.unlock();
 
 			auto r = _pwrite(file->m_fd, data2, bs, off);
 			assert(r == bs);
-			log_info() << "JOB " << id << " written    " << *j.buff << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
+			log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 
 			file_lock.lock();
 
 #ifndef NDEBUG
 			{
-				if (j.buff->m_block + 1 != file->m_blocks) {
-					auto it = block_offsets.find({file->m_file_id, j.buff->m_block + 1});
+				if (b->m_block + 1 != file->m_blocks) {
+					auto it = block_offsets.find({file->m_file_id, b->m_block + 1});
 					if (it != block_offsets.end()) {
 						assert(it->second.first == off + bs);
 					}
 				}
-				auto it = block_offsets.find({file->m_file_id, j.buff->m_block - 1});
+				auto it = block_offsets.find({file->m_file_id, b->m_block - 1});
 				if (it != block_offsets.end()) {
 					assert(it->second.second == off);
 				}
 
-				block_offsets[{file->m_file_id, j.buff->m_block}] = {off, off + bs};
+				block_offsets[{file->m_file_id, b->m_block}] = {off, off + bs};
 			}
 #endif
 
 			update_next_block(file_lock, id, j, off + bs);
 
-			j.buff->m_physical_size = bs;
-			j.buff->m_io = false;
+			b->m_physical_size = bs;
+			b->m_io = false;
 
-			file->update_physical_size(file_lock, j.buff->m_block, bs);
-			file->free_block(file_lock, j.buff);
+			file->update_physical_size(file_lock, b->m_block, bs);
+			file->free_block(file_lock, b);
 		}
 		break;
 		case job_type::trunc:
@@ -269,7 +271,7 @@ void process_run() {
 
 		file->m_job_count--;
 		file->m_job_cond.notify_one();
-		j.buff->m_cond.notify_all();
+		b->m_cond.notify_all();
 		job_lock.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;
