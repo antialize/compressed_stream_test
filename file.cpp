@@ -118,10 +118,13 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 			p.m_index = last_header.logical_size;
 			p.m_logical_offset = last_header.logical_offset;
 			p.m_physical_offset = fsize - last_header.physical_size;
-			m_last_block = m_impl->m_last_block = m_impl->get_block(l, p);
+
+			// This call sets m_last_block
+			m_impl->get_block(l, p);
 		} else {
 			assert(fsize == sizeof(file_header));
-			m_last_block = m_impl->m_last_block = m_impl->get_first_block(l);
+			// This call sets m_last_block
+			m_impl->get_first_block(l);
 		}
 	} else {
 		assert(!(flags & open_flags::read_only));
@@ -132,9 +135,12 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 		header.blocks = 0;
 		header.isCompressed = m_impl->m_compressed;
 		header.isSerialized = m_impl->m_serialized;
+		// This isn't really needed, because the header will be written when we close the file.
+		// However if the file gets in an invalid state and we crash, it is nice to have a valid header.
 		_pwrite(fd, &header, sizeof header, 0);
 
-		m_last_block = m_impl->m_last_block = m_impl->get_first_block(l);
+		// This call sets m_last_block
+		m_impl->get_first_block(l);
 	}
 }
 
