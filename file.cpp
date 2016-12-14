@@ -41,7 +41,8 @@ file_base_base::file_base_base(bool serialized, uint32_t item_size)
 }
 
 file_base_base::~file_base_base() {
-	close();
+	if (is_open())
+		close();
 }
 
 file_base_base::file_base_base(file_base_base &&o)
@@ -54,6 +55,7 @@ file_base_base::file_base_base(file_base_base &&o)
 }
 
 void file_base_base::open(const std::string & path, open_flags::open_flags flags) {
+	assert(!is_open());
 	assert(!(flags & open_flags::read_only && flags & open_flags::truncate));
 
 	int posix_flags = 0;
@@ -136,6 +138,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 }
 
 void file_base_base::close() {
+	assert(is_open());
 	lock_t l(m_impl->m_mut);
 
 	// Wait for all jobs to be completed for this file
