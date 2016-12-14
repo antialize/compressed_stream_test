@@ -82,6 +82,7 @@ void dump_file(const char * fname, bool dumpcontents) {
 	std::cout << "File header:\n"
 			  << "\tMagic: " << h.magic << (h.magic == file_header::magicConst? " (ok)": " (wrong)") << "\n"
 			  << "\tVersion: " << h.version << (h.version == file_header::versionConst? " (ok)": " (wrong)") << "\n"
+		      << "\tBlocks: " << h.blocks << "\n"
 			  << "\tCompressed: " << h.isCompressed << "\n"
 		      << "\tSerialized: " << h.isSerialized << "\n"
 	          << "\n";
@@ -91,7 +92,8 @@ void dump_file(const char * fname, bool dumpcontents) {
 
 	file_size_t logical_offset = 0;
 
-	for (size_t i = 0; off != size; i++) {
+	size_t i;
+	for (i = 0; off != size; i++) {
 		h1 = read_and_print_header(fd, i, true);
 		if (h1.logical_offset != logical_offset) {
 			std::cerr << "Wrong logical offset!\n";
@@ -126,6 +128,11 @@ void dump_file(const char * fname, bool dumpcontents) {
 	}
 
 	::close(fd);
+
+	if (h.blocks != i) {
+		std::cerr << "File containts " << i << " blocks, but file header specifies " << h.blocks << "\n";
+		exit(1);
+	}
 
 	std::cout << "Total logical size: " << logical_offset << '\n'
               << "Total physical size: " << size << '\n';
