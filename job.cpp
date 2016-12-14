@@ -1,14 +1,14 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
+#include <file_utils.h>
 #include <file_stream_impl.h>
 #include <cassert>
-#include <unistd.h>
 #include <snappy.h>
 #include <atomic>
 
 #ifndef NDEBUG
 #include <tuple>
-std::map<std::tuple<file_impl *, int, block_idx_t>, std::pair<file_size_t, file_size_t>> block_offsets;
+std::map<std::pair<size_t, block_idx_t>, std::pair<file_size_t, file_size_t>> block_offsets;
 #endif
 
 std::queue<job> jobs;
@@ -16,40 +16,6 @@ mutex_t job_mutex;
 std::condition_variable job_cond;
 
 std::atomic_uint tid;
-
-ssize_t _pread(int fd, void *buf, size_t count, off_t offset) {
-	char * cbuf = static_cast<char *>(buf);
-	ssize_t i = 0;
-	do {
-		ssize_t r = ::pread(fd, cbuf + i, count - i, offset + i);
-		// EOF
-		if (r == 0) return i;
-		// Error
-		if (r < 0) {
-			perror("pread");
-			return r;
-		}
-		i += r;
-	} while(i < count);
-	return i;
-}
-
-ssize_t _pwrite(int fd, const void *buf, size_t count, off_t offset) {
-	const char * cbuf = static_cast<const char *>(buf);
-	ssize_t i = 0;
-	do {
-		ssize_t r = ::pwrite(fd, cbuf + i, count - i, offset + i);
-		// EOF
-		if (r == 0) return i;
-		// Error
-		if (r < 0) {
-			perror("pwrite");
-			return r;
-		}
-		i += r;
-	} while(i < count);
-	return i;
-}
 
 std::ostream & operator <<(std::ostream & o, const job_type t) {
 	const char *s;
@@ -274,17 +240,17 @@ void process_run() {
 #ifndef NDEBUG
 			{
 				if (j.buff->m_block + 1 != file->m_blocks) {
-					auto it = block_offsets.find(std::make_tuple(file, file->m_fd, j.buff->m_block + 1));
+					auto it = block_offsets.find({file->m_file_id, j.buff->m_block + 1});
 					if (it != block_offsets.end()) {
 						assert(it->second.first == off + bs);
 					}
 				}
-				auto it = block_offsets.find(std::make_tuple(file, file->m_fd, j.buff->m_block - 1));
+				auto it = block_offsets.find({file->m_file_id, j.buff->m_block - 1});
 				if (it != block_offsets.end()) {
 					assert(it->second.second == off);
 				}
 
-				block_offsets[std::make_tuple(file, file->m_fd, j.buff->m_block)] = {off, off + bs};
+				block_offsets[{file->m_file_id, j.buff->m_block}] = {off, off + bs};
 			}
 #endif
 

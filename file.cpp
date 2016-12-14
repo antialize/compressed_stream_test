@@ -1,11 +1,15 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 #include <file_stream_impl.h>
+#include <file_utils.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <cassert>
+
+const uint64_t file_header::magicConst;
+const uint64_t file_header::versionConst;
 
 file_impl::file_impl()
 	: m_outer(nullptr)
@@ -17,8 +21,7 @@ file_impl::file_impl()
 	, m_first_physical_size(no_block_size)
 	, m_last_physical_size(no_block_size)
 	, m_item_size(no_block_size)
-	, m_serialized(false)
-	, m_direct(false) {
+	, m_serialized(false) {
 	create_available_block();
 }
 
@@ -50,24 +53,86 @@ file_base_base::file_base_base(file_base_base &&o)
 	m_impl->m_outer = this;
 }
 
-void file_base_base::open(const std::string & path) {
-	m_impl->m_fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_RDWR, 00660);
-	if (m_impl->m_fd == -1)
+void file_base_base::open(const std::string & path, open_flags::open_flags flags) {
+	assert(!(flags & open_flags::read_only && flags & open_flags::truncate));
+
+	int posix_flags = 0;
+	if (flags & open_flags::read_only) {
+		posix_flags |= O_RDONLY;
+	} else if (flags & open_flags::truncate) {
+		posix_flags |= O_CREAT | O_TRUNC | O_RDWR;
+	} else {
+		posix_flags |= O_CREAT | O_RDWR;
+	}
+
+	m_impl->m_readonly = flags & open_flags::read_only;
+	m_impl->m_compressed = flags & open_flags::compress;
+
+	int fd = ::open(path.c_str(), posix_flags, 00660);
+	if (fd == -1)
 		perror("open failed: ");
 
 	lock_t l(m_impl->m_mut);
+	m_impl->m_fd = fd;
 	m_impl->m_file_id = file_ctr++;
 
-	auto p = m_impl->end_position(l);
-	m_last_block = m_impl->m_last_block = m_impl->get_block(l, p);
+	file_size_t fsize = (file_size_t)lseek64(fd, 0, SEEK_END);
+	file_header & header = m_impl->m_header;
+	if (fsize > 0) {
+		assert(fsize >= sizeof(file_header));
+		_pread(fd, &header, sizeof header, 0);
+		if (header.magic != file_header::magicConst) {
+			std::cout << file_header::magicConst;
+			log_info() << "Header magic was wrong, expected " << file_header::magicConst
+					   << ", got " << header.magic << "\n";
+			abort();
+		}
+		if (header.version != file_header::versionConst) {
+			log_info() << "Header version was wrong, expected " << file_header::versionConst
+					   << ", got " << header.version << "\n";
+			abort();
+		}
+		if (header.isCompressed != m_impl->m_compressed) {
+			log_info() << "Opened file is " << (header.isCompressed? "": "not ") << "compressed"
+					   << ", but file was opened with" << (m_impl->m_compressed? "": "out") << " compression\n";
+			abort();
+		}
+		if (header.isSerialized != m_impl->m_serialized) {
+			log_info() << "Opened file is " << (header.isSerialized? "": "not ") << "serialized"
+					   << ", a " << (header.isSerialized? "": "non-") << "serialized file was required\n";
+			abort();
+		}
 
-	file_header header;
-	::memset(&header, 0, sizeof header);
-	header.magic = file_header::magicConst;
-	header.version = file_header::versionConst;
-	header.isCompressed = true;
-	header.isSerialized = false;
-	::write(m_impl->m_fd, &header, sizeof header);
+		m_impl->m_blocks = header.blocks;
+
+		if (header.blocks > 0) {
+			assert(fsize >= sizeof(file_header) + 2 * sizeof(block_header));
+			block_header last_header;
+			_pread(fd, &last_header, sizeof last_header, fsize - sizeof last_header);
+			last_header.physical_size;
+
+			stream_position p;
+			p.m_block = header.blocks - 1;
+			p.m_index = last_header.logical_size;
+			p.m_logical_offset = last_header.logical_offset;
+			p.m_physical_offset = fsize - last_header.physical_size;
+			m_last_block = m_impl->m_last_block = m_impl->get_block(l, p);
+		} else {
+			assert(fsize == sizeof(file_header));
+			m_last_block = m_impl->m_last_block = m_impl->get_first_block(l);
+		}
+	} else {
+		assert(!(flags & open_flags::read_only));
+
+		::memset(&header, 0, sizeof header);
+		header.magic = file_header::magicConst;
+		header.version = file_header::versionConst;
+		header.isCompressed = true;
+		header.isSerialized = false;
+		_pwrite(fd, &header, sizeof header, 0);
+
+		m_last_block = m_impl->m_last_block = m_impl->get_first_block(l);
+	}
 }
 
 void file_base_base::close() {
@@ -98,7 +163,13 @@ void file_base_base::close() {
 
 	m_impl->m_block_map.clear();
 
-	::close(m_impl->m_fd);
+	if (!m_impl->m_readonly) {
+		// Write out header
+		m_impl->m_header.blocks = m_impl->m_blocks;
+		_pwrite(m_impl->m_fd, &m_impl->m_header, sizeof(file_header), 0);
+
+		::close(m_impl->m_fd);
+	}
 
 	m_impl->m_fd = -1;
 	m_last_block = m_impl->m_last_block = nullptr;
@@ -107,6 +178,18 @@ void file_base_base::close() {
 	m_impl->m_last_physical_size = no_block_size;
 
 	m_impl->m_file_id = file_ctr++;
+}
+
+bool file_base_base::is_open() const noexcept {
+	return m_impl->m_fd != -1;
+}
+
+bool file_base_base::is_readable() const noexcept {
+	return true;
+}
+
+bool file_base_base::is_writable() const noexcept {
+	return !m_impl->m_readonly;
 }
 
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {

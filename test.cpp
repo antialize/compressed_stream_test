@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include <csignal>
+#include <unistd.h>
 
 #define TMP_FILE "/tmp/hello.tst"
 
@@ -20,8 +21,12 @@ struct internal_file {
 
 	file_size_t size() const noexcept {return m_items.size();}
 
-	void open() {}
-	void close() { m_items.clear(); }
+	void open(open_flags::open_flags flags = open_flags::compress) {
+		if (flags & open_flags::truncate) {
+			m_items.clear();
+		}
+	}
+	void close() {}
 
 	std::vector<T> m_items;
 };
@@ -315,22 +320,34 @@ int write_seek_write_read() {
 
 int open_close() {
 	file<int> f;
+	block_size_t b;
 	f.open(TMP_FILE);
 	{
 		auto s = f.stream();
-		auto b = s.logical_block_size();
+		b = s.logical_block_size();
 		for (int i = 0; i < 100 * b; i++)
 			s.write(i);
 	}
 
 	f.close();
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, open_flags::truncate);
 
 	auto s = f.stream();
 	s.seek(0, whence::end);
 	s.write(1337);
 	s.seek(0, whence::set);
 	ensure(1337, s.read(), "read");
+
+	for (int i = 0; i < 100 * b; i++)
+		s.write(i);
+
+	f.close();
+
+	f.open(TMP_FILE);
+	auto s2 = f.stream();
+	ensure(1337, s2.read(), "read");
+	for (int i = 0; i < 100 * b; i++)
+		ensure(s2.read(), i, "read");
 
 	f.close();
 	for(int i = 0; i < 10; i++) {
@@ -410,6 +427,8 @@ typedef int(*test_fun_t)();
 std::string current_test;
 
 int run_test(test_fun_t fun, int job_threads) {
+	unlink(TMP_FILE);
+
 	file_stream_init(job_threads);
 
 	int ans = fun();

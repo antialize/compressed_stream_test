@@ -48,6 +48,14 @@ struct stream_position {
 	file_size_t m_physical_offset;
 };
 
+namespace open_flags {
+enum open_flags {
+	read_only = 1 << 0,
+	truncate = 1 << 1,
+	compress = 1 << 2,
+};
+}
+
 class file_base_base {
 public:
 	friend class file_impl;
@@ -58,7 +66,7 @@ public:
 	~file_base_base();
 	
 	// TODO more magic open methods here
-	void open(const std::string & path);
+	void open(const std::string & path, open_flags::open_flags flags = open_flags::compress);
 	void close();
 
 	bool is_open() const noexcept;

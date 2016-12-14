@@ -36,6 +36,7 @@ struct file_header {
 
 	uint64_t magic;
 	uint64_t version;
+	block_idx_t blocks;
 	bool isCompressed : 1;
 	bool isSerialized : 1;
 };
@@ -92,12 +93,20 @@ public:
 	block_size_t m_first_physical_size;
 	block_size_t m_last_physical_size;
 	uint32_t m_item_size;
-	bool m_serialized;
-	bool m_direct;
 	std::map<block_idx_t, block *> m_block_map;
+
+	bool m_serialized;
+	bool m_compressed;
+
+	bool m_readonly;
+	file_header m_header;
 
 	file_impl();
 	~file_impl();
+
+	bool direct() {
+		return !m_compressed && !m_serialized;
+	}
 
 	// Note: if you want to keep this block alive after unlocking the lock,
 	// you have to increment its m_usage
@@ -120,10 +129,7 @@ public:
 	}
 
 	stream_position end_position(lock_t & l) const noexcept {
-		if (!m_last_block) {
-			// This should only happen when we haven't got any blocks for a file
-			return start_position();
-		}
+		assert(m_last_block);
 		// Make sure m_last_block is not repurposed before, we can get its info
 		while (m_last_block->m_io) m_last_block->m_cond.wait(l);
 

@@ -110,7 +110,7 @@ void stream_impl::seek(file_size_t offset, whence w) {
 	
 	stream_position p;
 
-	if (m_file->m_direct) {
+	if (m_file->direct()) {
 		file_size_t loc = 0;
 		switch (w) {
 		case whence::set:
