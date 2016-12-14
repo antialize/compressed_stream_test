@@ -31,7 +31,7 @@ void push_available_block(block * b);
 block * pop_available_block();
 
 struct file_header {
-	static const uint64_t magicConst = 8480736970737669ull;
+	static const uint64_t magicConst = 0x454c494645495054ull;
 	static const uint64_t versionConst = 1;
 
 	uint64_t magic;
