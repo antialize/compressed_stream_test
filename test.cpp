@@ -445,6 +445,30 @@ int peek_test() {
 	return EXIT_SUCCESS;
 }
 
+int uncompressed_test() {
+	{
+		file<uint8_t> f;
+		f.open(TMP_FILE, open_flags::no_compress);
+		auto s = f.stream();
+
+		for (int i = 0; i < 10000; i++)
+			s.write((uint8_t)i);
+
+		s.seek(0, whence::set);
+		for (int i = 0; i < 10000; i++)
+			ensure(s.read(), (uint8_t)i, "read");
+	}
+
+	{
+		file<uint8_t> f;
+		f.open(TMP_FILE, open_flags::no_compress);
+		auto s = f.stream();
+
+		for (int i = 0; i < 10000; i++)
+			ensure(s.read(), (uint8_t)i, "read");
+	}
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -482,6 +506,7 @@ int main(int argc, char ** argv) {
 		{"write_end", write_end},
 		{"open_close_dead_stream", open_close_dead_stream},
 		{"peek", peek_test},
+		{"uncompressed", uncompressed_test}
 	};
 
 	std::set<std::string> excluded_in_all = {"random", "write_fail"};

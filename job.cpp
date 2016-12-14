@@ -148,8 +148,12 @@ void process_run() {
 				logical_size = h.logical_size;
 			}
 
-			bool ok = snappy::RawUncompress(data, physical_size - 2*sizeof(block_header), (char *)b->m_data);
-			assert(ok);
+			if (file->m_compressed) {
+				bool ok = snappy::RawUncompress(data, physical_size - 2 * sizeof(block_header), (char *)b->m_data);
+				assert(ok);
+			} else {
+				memcpy(b->m_data, data, physical_size - 2 * sizeof(block_header));
+			}
 
 			log_info() << "Read " << *b << '\n'
 			 		   << "Logical size " << logical_size << '\n'
@@ -201,10 +205,15 @@ void process_run() {
 
 			// TODO free the block here
 
-
-			size_t s2 = 1024*1024;
-			snappy::RawCompress(data1, bytes , data2+sizeof(block_header), &s2);
-			block_size_t bs = 2*sizeof(block_header) + s2;
+			size_t s2;
+			if (file->m_compressed) {
+				s2 = 1024 * 1024;
+				snappy::RawCompress(data1, bytes, data2 + sizeof(block_header), &s2);
+			} else {
+				s2 = bytes;
+				memcpy(data2 + sizeof(block_header), data1, bytes);
+			}
+			block_size_t bs = 2 * sizeof(block_header) + s2;
 
 			h.physical_size = (block_size_t)bs;
 			memcpy(data2, &h, sizeof(block_header));
