@@ -21,7 +21,7 @@ struct internal_file {
 
 	file_size_t size() const noexcept {return m_items.size();}
 
-	void open(open_flags::open_flags flags = open_flags::compress) {
+	void open(open_flags::open_flags flags = open_flags::default_flags) {
 		if (flags & open_flags::truncate) {
 			m_items.clear();
 		}
@@ -119,13 +119,16 @@ int random_test() {
 		get_offset,
 		get_size,
 		can_read,
-		open_file,
+		open_default,
+		open_readonly,
+		open_truncate,
 		close_file,
 	};
 
 	file<int> f1;
 	f1.open(TMP_FILE);
 	bool open = true;
+	bool readonly = false;
 
 	internal_file<int> f2;
 
@@ -138,19 +141,24 @@ int random_test() {
 		std::vector<std::pair<task, size_t> > tasks;
 
 		if (!open) {
-			tasks.emplace_back(task::open_file, 1);
+			tasks.emplace_back(task::open_default, 10);
+			tasks.emplace_back(task::open_readonly, 2);
+			tasks.emplace_back(task::open_truncate, 10);
 		} else {
 			if (s1.size() < 5)
 				tasks.emplace_back(task::create_stream, 5 - s1.size());
 			if (s1.size()) {
 				tasks.emplace_back(task::destroy_stream, s1.size());
-				tasks.emplace_back(task::write_end, 20);
 				tasks.emplace_back(task::read, 20);
 				tasks.emplace_back(task::peek, 20);
 				tasks.emplace_back(task::seek_start, 6);
 				tasks.emplace_back(task::get_offset, 20);
 				tasks.emplace_back(task::can_read, 20);
 				tasks.emplace_back(task::get_size, 20);
+
+				if (!readonly) {
+					tasks.emplace_back(task::write_end, 20);
+				}
 			} else {
 				tasks.emplace_back(task::close_file, 2);
 			}
@@ -171,11 +179,26 @@ int random_test() {
 				f2.close();
 				open = false;
 				break;
-			case task::open_file:
-				task_title("Open file");
+			case task::open_default:
+				task_title("Open file default");
 				f1.open(TMP_FILE);
 				f2.open();
+				readonly = false;
 				open = true;
+				break;
+			case task::open_truncate:
+				task_title("Open file truncate");
+				f1.open(TMP_FILE, open_flags::truncate);
+				f2.open(open_flags::truncate);
+				readonly = false;
+				open = true;
+				break;
+			case task::open_readonly:
+				task_title("Open file readonly");
+				f1.open(TMP_FILE, open_flags::read_only);
+				f2.open(open_flags::read_only);
+				open = true;
+				readonly = true;
 				break;
 			case task::create_stream:
 				task_title("Create stream", s1.size());

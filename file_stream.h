@@ -50,9 +50,10 @@ struct stream_position {
 
 namespace open_flags {
 enum open_flags {
+	default_flags = 0,
 	read_only = 1 << 0,
 	truncate = 1 << 1,
-	compress = 1 << 2,
+	no_compress = 1 << 2,
 };
 }
 
@@ -66,7 +67,7 @@ public:
 	~file_base_base();
 	
 	// TODO more magic open methods here
-	void open(const std::string & path, open_flags::open_flags flags = open_flags::compress);
+	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags);
 	void close();
 
 	bool is_open() const noexcept;

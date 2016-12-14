@@ -66,7 +66,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	}
 
 	m_impl->m_readonly = flags & open_flags::read_only;
-	m_impl->m_compressed = flags & open_flags::compress;
+	m_impl->m_compressed = !(flags & open_flags::no_compress);
 
 	int fd = ::open(path.c_str(), posix_flags, 00660);
 	if (fd == -1)
