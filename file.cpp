@@ -308,7 +308,10 @@ block * file_impl::get_predecessor_block(lock_t & l, block * t) {
 	stream_position p;
 	p.m_block = t->m_block - 1;
 	p.m_index = 0;
-	p.m_logical_offset = no_file_size;
+	// TODO: Can we assume that all blocks have same max logical size?
+	p.m_logical_offset = t->m_logical_offset - t->m_maximal_logical_size;
+	assert(is_known(t->m_physical_offset));
+	assert(is_known(t->m_prev_physical_size));
 	p.m_physical_offset = (is_known(t->m_physical_offset) && is_known(t->m_prev_physical_size))
 		? t->m_physical_offset - t->m_prev_physical_size
 		: no_file_size;

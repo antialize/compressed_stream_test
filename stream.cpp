@@ -66,6 +66,10 @@ void stream_base_base::next_block() {
 	m_impl->next_block();
 }
 
+void stream_base_base::prev_block() {
+	m_impl->prev_block();
+}
+
 void stream_base_base::seek(file_size_t off, whence w) {
 	m_impl->seek(off, w);
 }
@@ -87,6 +91,16 @@ void stream_impl::next_block() {
 	else m_cur_block = m_file->get_successor_block(lock, buff);
 	m_file->free_block(lock, buff);
 	m_outer->m_cur_index = 0;
+	m_outer->m_block = m_cur_block;
+}
+
+void stream_impl::prev_block() {
+	lock_t lock(m_file->m_mut);
+	block * buff = m_cur_block;
+	assert(buff);
+	m_cur_block = m_file->get_predecessor_block(lock, buff);
+	m_file->free_block(lock, buff);
+	m_outer->m_cur_index = m_cur_block->m_logical_size - 1;
 	m_outer->m_block = m_cur_block;
 }
 

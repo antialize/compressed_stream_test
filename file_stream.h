@@ -131,7 +131,8 @@ public:
 	}
 	
 	void skip_back() {
-		#warning "Implement skip back"
+		if (m_cur_index == 0) prev_block();
+		--m_cur_index;
 	}
 
 	void seek(file_size_t offset, whence w = whence::set);
@@ -156,6 +157,7 @@ public:
 	friend class stream_impl;
 protected:
 	void next_block();
+	void prev_block();
 	stream_base_base(file_base_base * impl);
 
 	block_base * m_block;
@@ -188,11 +190,13 @@ public:
 	}
 
 	const T & read_back() {
-		#warning "Implement read_back"
+		const T & item = reinterpret_cast<const T *>(m_block->m_data)[m_cur_index--];
+		if (m_cur_index == -1) prev_block();
+		return item;
 	}
 
 	const T & peek_back() {
-		#warning "Implement peak_back"
+		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index];
 	}
 	
 	void write(T item) {

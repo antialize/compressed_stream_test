@@ -40,7 +40,7 @@ struct internal_stream {
 	const T & peek() const noexcept {assert(can_read()); return m_file->m_items[m_offset];}
 	const T & read() noexcept {assert(can_read()); return m_file->m_items[m_offset++];}
 	const T & peek_back() const noexcept {assert(can_read_back()); return m_file->m_items[m_offset-1];}
-	const T & back() noexcept {assert(can_read_back()); return m_file->m_items[--m_offset];}
+	const T & read_back() noexcept {assert(can_read_back()); return m_file->m_items[--m_offset];}
 	bool can_read() const noexcept {return m_offset != m_file->m_items.size();}
 	bool can_read_back() const noexcept {return m_offset != 0;}
 	file_size_t offset() const noexcept {return m_offset;}
@@ -115,10 +115,13 @@ int random_test() {
 		write_end,
 		read,
 		peek,
+		read_back,
+		peek_back,
 		seek_start,
 		get_offset,
 		get_size,
 		can_read,
+		can_read_back,
 		open_default,
 		open_readonly,
 		open_truncate,
@@ -151,9 +154,12 @@ int random_test() {
 				tasks.emplace_back(task::destroy_stream, s1.size());
 				tasks.emplace_back(task::read, 20);
 				tasks.emplace_back(task::peek, 20);
+				tasks.emplace_back(task::read_back, 20);
+				tasks.emplace_back(task::peek_back, 20);
 				tasks.emplace_back(task::seek_start, 6);
 				tasks.emplace_back(task::get_offset, 20);
 				tasks.emplace_back(task::can_read, 20);
+				tasks.emplace_back(task::can_read_back, 20);
 				tasks.emplace_back(task::get_size, 20);
 
 				if (!readonly) {
@@ -214,6 +220,10 @@ int random_test() {
 				task_title("Can read", s);
 				ensure(s1[s].can_read(), s2[s].can_read(), "can_read");
 				break;
+			case task::can_read_back:
+				task_title("Can read back", s);
+				ensure(s1[s].can_read_back(), s2[s].can_read_back(), "can_read_back");
+				break;
 			case task::read: {
 				if (s2[s].offset() == f2.size()) break;
 				auto count = std::uniform_int_distribution<size_t>(1, std::min(file_size_t(1024), f2.size() - s2[s].offset()))(rng);
@@ -223,10 +233,25 @@ int random_test() {
 				}
 				break;
 			}
+			case task::read_back: {
+				if (s2[s].offset() == 0) break;
+				auto count = std::uniform_int_distribution<size_t>(1, std::min(file_size_t(1024), s2[s].offset()))(rng);
+				task_title("Read back " + std::to_string(count) + " at " + std::to_string(s1[s].offset()), s);
+				for (size_t i=0; i < count; ++i) {
+					ensure(s1[s].read_back(), s2[s].read_back(), "read_back");
+				}
+				break;
+			}
 			case task::peek: {
 				if (s2[s].offset() == f2.size()) break;
 				task_title("Peek at " + std::to_string(s1[s].offset()), s);
 				ensure(s1[s].peek(), s2[s].peek(), "peek");
+				break;
+			}
+			case task::peek_back: {
+				if (s2[s].offset() == 0) break;
+				task_title("Peek back at " + std::to_string(s1[s].offset()), s);
+				ensure(s1[s].peek_back(), s2[s].peek_back(), "peek_back");
 				break;
 			}
 			case task::seek_start:

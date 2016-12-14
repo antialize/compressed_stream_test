@@ -174,6 +174,7 @@ public:
 
 	void close();
 	void next_block();
+	void prev_block();
 	void seek(file_size_t offset, whence w);
 	void set_position(lock_t & l, stream_position p);
 };
