@@ -129,8 +129,9 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 		::memset(&header, 0, sizeof header);
 		header.magic = file_header::magicConst;
 		header.version = file_header::versionConst;
-		header.isCompressed = true;
-		header.isSerialized = false;
+		header.blocks = 0;
+		header.isCompressed = m_impl->m_compressed;
+		header.isSerialized = m_impl->m_serialized;
 		_pwrite(fd, &header, sizeof header, 0);
 
 		m_last_block = m_impl->m_last_block = m_impl->get_first_block(l);
