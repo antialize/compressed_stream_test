@@ -15,14 +15,20 @@ size_t ctr = 0;
 
 #ifndef NDEBUG
 #include <set>
-std::set<block *> all_blocks;
+std::unordered_set<block *> all_blocks;
 void print_available_blocks() {
 	log_info() << "Total number of blocks: " << all_blocks.size() << "\n"
 			   << "free: " << available_blocks.size() << ", "
 			   << "non-free: " << (all_blocks.size() - available_blocks.size()) << "\n";
 
+	log_info() << "Free:\n";
+	for (block * b : available_blocks) {
+		log_info() << "\t" << *b << "\n";
+	}
+	log_info() << "Non-free:\n";
 	for (block * b : all_blocks) {
-		log_info() << *b << "\n";
+		if (available_blocks.count(b)) continue;
+		log_info() << "\t" << *b << "\n";
 	}
 }
 #endif
