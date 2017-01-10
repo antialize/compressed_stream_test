@@ -215,12 +215,12 @@ void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_siz
 	}
 }
 
-block * file_impl::get_block(lock_t & l, stream_position p, block * predecessor) {
-	log_info() << "FILE  get_block   " << p.m_block << std::endl;
+block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, block * predecessor) {
+	log_info() << "FILE  get_block  " << p.m_block << std::endl;
 
 	block * b = get_available_block(l, p.m_block);
 	if (b) {
-		log_info() << "FILE fetch       " << b << std::endl;
+		log_info() << "FILE  fetch      " << *b << std::endl;
 		assert(b->m_block == p.m_block);
 		block_ref_inc(l, b);
 		return b;
