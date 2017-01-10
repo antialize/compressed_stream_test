@@ -14,5 +14,8 @@ target_link_libraries(stream ${Snappy_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
 add_executable(t test.cpp)
 target_link_libraries(t stream)
 
+add_executable(random_test random_test.cpp)
+target_link_libraries(random_test stream)
+
 add_executable(dump_file dump_file.cpp)
 target_link_libraries(dump_file stream)
