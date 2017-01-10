@@ -190,13 +190,16 @@ public:
 	}
 
 	const T & read_back() {
-		const T & item = reinterpret_cast<const T *>(m_block->m_data)[m_cur_index--];
-		if (m_cur_index == -1) prev_block();
-		return item;
+		if (m_cur_index == 0) prev_block();
+		return reinterpret_cast<const T *>(m_block->m_data)[--m_cur_index];
 	}
 
 	const T & peek_back() {
-		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index];
+		// If prev_block is called, the index is set to the logical size
+		// so even if we change the block, we will still use the correct block
+		// on reading forward
+		if (m_cur_index == 0) prev_block();
+		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index - 1];
 	}
 	
 	void write(T item) {

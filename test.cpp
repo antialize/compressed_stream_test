@@ -246,10 +246,17 @@ int read_back_test() {
 		s.write(i);
 
 	s.seek(0, whence::set);
+
+	for (int i = 0; i < 10 * b; i++)
+		ensure(i, s.read(), "read");
+
 	s.seek(0, whence::end);
 
-	for (int i = 0; i < 20 * b; i++)
-		s.read_back();
+	for (int i = 20 * b; i < 22 * b; i++)
+		s.write(i);
+
+	for (int i = 22 * b - 1; i >= 0; i--)
+		ensure(i, s.read_back(), "read_back");
 
 	return EXIT_SUCCESS;
 }

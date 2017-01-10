@@ -117,7 +117,7 @@ public:
 		return it->second;
 	}
 
-	block * get_block(lock_t & lock, stream_position p, block * predecessor = nullptr);
+	block * get_block(lock_t & lock, stream_position p, bool find_next = true, block * rel = nullptr);
 	
 	static constexpr stream_position start_position() noexcept {
 		return stream_position{0, 0, 0, sizeof(file_header)};
@@ -151,6 +151,16 @@ public:
 			is_known(b->m_physical_offset) &&
 			b->m_logical_size == b->m_maximal_logical_size) {
 			return b->m_physical_size + b->m_physical_offset;
+		}
+		return no_file_size;
+	}
+
+	// Returns the offset of the predecessor block to b if known
+	// Doesn't block
+	file_size_t get_prev_physical_offset(lock_t & l, block * b) {
+		if (is_known(b->m_physical_offset) &&
+			is_known(b->m_prev_physical_size)) {
+			return b->m_physical_offset - b->m_prev_physical_size;
 		}
 		return no_file_size;
 	}

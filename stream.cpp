@@ -100,7 +100,7 @@ void stream_impl::prev_block() {
 	assert(buff);
 	m_cur_block = m_file->get_predecessor_block(lock, buff);
 	m_file->free_block(lock, buff);
-	m_outer->m_cur_index = m_cur_block->m_logical_size - 1;
+	m_outer->m_cur_index = m_cur_block->m_logical_size;
 	m_outer->m_block = m_cur_block;
 }
 

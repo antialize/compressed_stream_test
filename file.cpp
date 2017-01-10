@@ -205,7 +205,7 @@ bool file_base_base::is_writable() const noexcept {
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {
-		auto it = m_block_map.find(block -1);
+		auto it = m_block_map.find(block - 1);
 		if (it != m_block_map.end()) it->second->m_next_physical_size = size;
 	}
 	if (block + 1 == m_blocks) m_last_physical_size = size;
@@ -215,7 +215,7 @@ void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_siz
 	}
 }
 
-block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, block * predecessor) {
+block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, block * rel) {
 	log_info() << "FILE  get_block  " << p.m_block << std::endl;
 
 	block * b = get_available_block(l, p.m_block);
@@ -242,15 +242,25 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	buff->m_maximal_logical_size = block_size() / buff->m_file->m_item_size;
 	m_block_map.emplace(buff->m_block, buff);
 
+	// If we have to read the previous block we must know its offset
+	if (!find_next) {
+		if (!is_known(buff->m_physical_offset)) {
+			log_info() << "Need to know offset for " << *buff << ", next block is " << *rel << "\n";
+		}
+		assert(is_known(buff->m_physical_offset));
+	}
+
 	// If we don't know this blocks offset,
 	// the previous block must exist.
 	// When we popped the available block, we had to unlock the file lock,
 	// so the predecessor block might be done now, without having updated this blocks offset,
-	// as this block was only just added to the block_map.
+	// as this block was only just added to the block_map and so we need to update that now.
+	// If not it will be updated later when the previous block is written to disk.
 	if (!is_known(buff->m_physical_offset)) {
-		assert(predecessor != nullptr);
+		assert(rel != nullptr);
 
-		buff->m_physical_offset = get_next_physical_offset(l, predecessor);
+		buff->m_physical_offset = get_next_physical_offset(l, rel);
+
 		if (is_known(buff->m_physical_offset)) {
 			log_info() << "\nUPDATED " << p.m_block << "\n\n";
 		}
@@ -301,7 +311,7 @@ block * file_impl::get_successor_block(lock_t & l, block * t) {
 	p.m_index = 0;
 	p.m_logical_offset = t->m_logical_offset + t->m_maximal_logical_size;
 	p.m_physical_offset = get_next_physical_offset(l, t);
-	return get_block(l, p, t);
+	return get_block(l, p, true, t);
 }
 
 block * file_impl::get_predecessor_block(lock_t & l, block * t) {
@@ -310,16 +320,12 @@ block * file_impl::get_predecessor_block(lock_t & l, block * t) {
 	p.m_index = 0;
 	// TODO: Can we assume that all blocks have same max logical size?
 	p.m_logical_offset = t->m_logical_offset - t->m_maximal_logical_size;
-	assert(is_known(t->m_physical_offset));
-	assert(is_known(t->m_prev_physical_size));
-	p.m_physical_offset = (is_known(t->m_physical_offset) && is_known(t->m_prev_physical_size))
-		? t->m_physical_offset - t->m_prev_physical_size
-		: no_file_size;
-	return get_block(l, p, nullptr);
+	p.m_physical_offset = get_prev_physical_offset(l, t);
+	return get_block(l, p, false, t);
 }
 
 
-void file_impl::free_block(lock_t &, block * t) {
+void file_impl::free_block(lock_t & l, block * t) {
 	if (t == nullptr) return;
 	assert(t->m_usage != 0);
 	--t->m_usage;
@@ -373,6 +379,11 @@ void file_impl::kill_block(lock_t & l, block * t) {
 	assert(is_known(t->m_logical_offset));
 	assert(is_known(t->m_physical_offset));
 	assert(is_known(t->m_logical_size));
+	assert(is_known(t->m_physical_size));
+	// The predecessor to this block might have appeared after writing this block
+	// so we need to tell it our size, so that we can read_back later
+	update_physical_size(l, t->m_block, t->m_physical_size);
+
 	size_t c = m_block_map.erase(t->m_block);
 	assert(c == 1);
 	t->m_file = nullptr;
