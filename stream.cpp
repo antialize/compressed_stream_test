@@ -142,7 +142,7 @@ void stream_impl::seek(file_size_t offset, whence w) {
 		p.m_block = loc / logical_block_size;
 		p.m_logical_offset = p.m_block * logical_block_size;
 		p.m_index = loc - p.m_logical_offset;
-		p.m_physical_offset = 4 + p.m_block * (sizeof(block_header) *2 + block_size());
+		p.m_physical_offset = sizeof(file_header) + p.m_block * (sizeof(block_header) * 2 + block_size());
 		
 	} else if (offset != 0 || (w != whence::set && w != whence::end)) {
 		throw std::runtime_error("Arbetrery seek not supported for compressed or serialized files");
