@@ -4,6 +4,8 @@
 #include <vector>
 #include <random>
 #include <unistd.h>
+#include <map>
+#include <set>
 
 template <typename T>
 class internal_stream;
@@ -76,26 +78,37 @@ void task_title(std::string title, size_t stream = (size_t)-1) {
 	l << "\n" << std::endl;
 }
 
-int random_test(int max_streams) {
-	enum class task {
-		create_stream,
-		destroy_stream,
-		write_end,
-		read,
-		peek,
-		read_back,
-		peek_back,
-		seek_start,
-		get_offset,
-		get_size,
-		can_read,
-		can_read_back,
-		open_default,
-		open_readonly,
-		open_truncate,
-		close_file,
-	};
+#define RANDOM_TASKS(X) \
+	X(create_stream), \
+	X(destroy_stream), \
+	X(write_end), \
+	X(read), \
+	X(peek), \
+	X(read_back), \
+	X(peek_back), \
+	X(seek_start), \
+	X(get_offset), \
+	X(get_size), \
+	X(can_read), \
+	X(can_read_back), \
+	X(open_default), \
+	X(open_readonly), \
+	X(open_truncate), \
+	X(close_file), \
 
+enum class task {
+#define X(t) t
+	RANDOM_TASKS(X)
+#undef X
+};
+
+std::map<std::string, task> task_names = {
+#define X(t) {#t, task::t}
+	RANDOM_TASKS(X)
+#undef X
+};
+
+int random_test(int max_streams, bool whitelist, std::set<task> & task_list) {
 	file<int> f1;
 	f1.open(TMP_FILE, open_flags::truncate);
 	bool open = true;
@@ -110,31 +123,32 @@ int random_test(int max_streams) {
 
 	while (true) {
 		std::vector<std::pair<task, size_t> > tasks;
+		auto add_task = [&](task t, int p){ if (task_list.count(t) == whitelist) tasks.emplace_back(t, p); };
 
 		if (!open) {
-			tasks.emplace_back(task::open_default, 10);
-			tasks.emplace_back(task::open_readonly, 2);
-			tasks.emplace_back(task::open_truncate, 10);
+			add_task(task::open_default, 10);
+			add_task(task::open_readonly, 2);
+			add_task(task::open_truncate, 10);
 		} else {
 			if (s1.size() < max_streams)
-				tasks.emplace_back(task::create_stream, max_streams - s1.size());
+				add_task(task::create_stream, max_streams - s1.size());
 			if (s1.size()) {
-				tasks.emplace_back(task::destroy_stream, s1.size());
-				tasks.emplace_back(task::read, 20);
-				tasks.emplace_back(task::peek, 20);
-				tasks.emplace_back(task::read_back, 20);
-				tasks.emplace_back(task::peek_back, 20);
-				tasks.emplace_back(task::seek_start, 6);
-				tasks.emplace_back(task::get_offset, 20);
-				tasks.emplace_back(task::can_read, 20);
-				tasks.emplace_back(task::can_read_back, 20);
-				tasks.emplace_back(task::get_size, 20);
+				add_task(task::destroy_stream, s1.size());
+				add_task(task::read, 20);
+				add_task(task::peek, 20);
+				add_task(task::read_back, 20);
+				add_task(task::peek_back, 20);
+				add_task(task::seek_start, 6);
+				add_task(task::get_offset, 20);
+				add_task(task::can_read, 20);
+				add_task(task::can_read_back, 20);
+				add_task(task::get_size, 20);
 
 				if (!readonly) {
-					tasks.emplace_back(task::write_end, 20);
+					add_task(task::write_end, 20);
 				}
 			} else {
-				tasks.emplace_back(task::close_file, 2);
+				add_task(task::close_file, 2);
 			}
 		}
 
@@ -258,16 +272,21 @@ int random_test(int max_streams) {
 }
 
 int main(int argc, char ** argv) {
-	const char * usage = "Usage: random_test [-h] [-t threads] [-s streams]\n";
+	const char * usage = "Usage: random_test [-h] [-t threads] [-s streams] [-w] [-b] [task_names]...\n";
 
+	int whitelist = -1;
 	int worker_threads = 4;
 	int max_streams = 5;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "ht:s:")) != -1) {
+	while ((opt = getopt(argc, argv, "ht:s:wb")) != -1) {
 		switch (opt) {
 		case 'h':
 			std::cout << usage;
+			std::cout << "Task names:\n";
+			for (auto p : task_names) {
+				std::cout << "\t" << p.first << "\n";
+			}
 			return EXIT_SUCCESS;
 		case 't':
 			worker_threads = std::stoi(optarg);
@@ -275,19 +294,34 @@ int main(int argc, char ** argv) {
 		case 's':
 			max_streams = std::stoi(optarg);
 			break;
+		case 'w':
+			whitelist = 1;
+			break;
+		case 'b':
+			whitelist = 0;
+			break;
 		case '?':
 			return EXIT_FAILURE;
 		}
 	}
 
-	if (optind != argc) {
-		std::cerr << usage;
-		return EXIT_FAILURE;
+	std::set<task> task_list;
+	for (int i = optind; i < argc; i++) {
+		auto it = task_names.find(argv[i]);
+		if (it == task_names.end()) {
+			std::cerr << "Unknown task name: " << argv[i] << "\n";
+			return EXIT_FAILURE;
+		}
+		task_list.insert(it->second);
+	}
+
+	if (whitelist == -1) {
+		whitelist = task_list.size() > 0;
 	}
 
 	file_stream_init(worker_threads);
 
-	int res = random_test(max_streams);
+	int res = random_test(max_streams, whitelist, task_list);
 
 	file_stream_term();
 
