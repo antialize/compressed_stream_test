@@ -108,7 +108,7 @@ std::map<std::string, task> task_names = {
 #undef X
 };
 
-int random_test(int max_streams, bool whitelist, std::set<task> & task_list) {
+int random_test(int max_streams, bool whitelist, std::set<task> & task_list, std::default_random_engine::result_type seed) {
 	file<int> f1;
 	f1.open(TMP_FILE, open_flags::truncate);
 	bool open = true;
@@ -119,7 +119,7 @@ int random_test(int max_streams, bool whitelist, std::set<task> & task_list) {
 	std::vector<stream<int>> s1;
 	std::vector<internal_stream<int>> s2;
 
-	std::default_random_engine rng;
+	std::default_random_engine rng(seed);
 
 	while (true) {
 		std::vector<std::pair<task, size_t> > tasks;
@@ -272,14 +272,15 @@ int random_test(int max_streams, bool whitelist, std::set<task> & task_list) {
 }
 
 int main(int argc, char ** argv) {
-	const char * usage = "Usage: random_test [-h] [-t threads] [-s streams] [-w] [-b] [task_names]...\n";
+	const char * usage = "Usage: random_test [-h] [-w] [-b] [-t threads] [-s streams] [-r seed] [task_names]...\n";
 
 	int whitelist = -1;
 	int worker_threads = 4;
 	int max_streams = 5;
+	auto seed = std::default_random_engine::default_seed;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "ht:s:wb")) != -1) {
+	while ((opt = getopt(argc, argv, "hwbt:s:r:")) != -1) {
 		switch (opt) {
 		case 'h':
 			std::cout << usage;
@@ -288,17 +289,20 @@ int main(int argc, char ** argv) {
 				std::cout << "\t" << p.first << "\n";
 			}
 			return EXIT_SUCCESS;
+		case 'w':
+			whitelist = 1;
+			break;
+		case 'b':
+			whitelist = 0;
+			break;
 		case 't':
 			worker_threads = std::stoi(optarg);
 			break;
 		case 's':
 			max_streams = std::stoi(optarg);
 			break;
-		case 'w':
-			whitelist = 1;
-			break;
-		case 'b':
-			whitelist = 0;
+		case 'r':
+			seed = std::stoull(optarg);
 			break;
 		case '?':
 			return EXIT_FAILURE;
@@ -321,7 +325,7 @@ int main(int argc, char ** argv) {
 
 	file_stream_init(worker_threads);
 
-	int res = random_test(max_streams, whitelist, task_list);
+	int res = random_test(max_streams, whitelist, task_list, seed);
 
 	file_stream_term();
 
