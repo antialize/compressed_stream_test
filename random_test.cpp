@@ -108,7 +108,7 @@ std::map<std::string, task> task_names = {
 #undef X
 };
 
-int random_test(int max_streams, bool whitelist, std::set<task> & task_list, std::default_random_engine::result_type seed) {
+void random_test(int max_streams, bool whitelist, std::set<task> & task_list, std::default_random_engine::result_type seed, size_t total_tasks) {
 	file<int> f1;
 	f1.open(TMP_FILE, open_flags::truncate);
 	bool open = true;
@@ -121,7 +121,7 @@ int random_test(int max_streams, bool whitelist, std::set<task> & task_list, std
 
 	std::default_random_engine rng(seed);
 
-	while (true) {
+	for (size_t i = 0; i < total_tasks; i++) {
 		std::vector<std::pair<task, size_t> > tasks;
 		auto add_task = [&](task t, int p){ if (task_list.count(t) == whitelist) tasks.emplace_back(t, p); };
 
@@ -268,19 +268,19 @@ int random_test(int max_streams, bool whitelist, std::set<task> & task_list, std
 			break;
 		}
 	}
-	return EXIT_SUCCESS;
 }
 
 int main(int argc, char ** argv) {
-	const char * usage = "Usage: random_test [-h] [-w] [-b] [-t threads] [-s streams] [-r seed] [task_names]...\n";
+	const char * usage = "Usage: random_test [-h] [-w] [-b] [-t threads] [-s streams] [-r seed] [-R restart_period] [task_names]...\n";
 
 	int whitelist = -1;
-	int worker_threads = 4;
+	size_t worker_threads = 4;
 	int max_streams = 5;
 	auto seed = std::default_random_engine::default_seed;
+	size_t restart_period = SIZE_MAX;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "hwbt:s:r:")) != -1) {
+	while ((opt = getopt(argc, argv, "hwbt:s:r:R:")) != -1) {
 		switch (opt) {
 		case 'h':
 			std::cout << usage;
@@ -304,6 +304,9 @@ int main(int argc, char ** argv) {
 		case 'r':
 			seed = std::stoull(optarg);
 			break;
+		case 'R':
+			restart_period = std::stoull(optarg);
+			break;
 		case '?':
 			return EXIT_FAILURE;
 		}
@@ -324,10 +327,9 @@ int main(int argc, char ** argv) {
 	}
 
 	file_stream_init(worker_threads);
-
-	int res = random_test(max_streams, whitelist, task_list, seed);
-
-	file_stream_term();
-
-	return res;
+	while (true) {
+		random_test(max_streams, whitelist, task_list, seed, restart_period);
+	}
+	// Unreachable
+	//file_stream_term();
 }
