@@ -48,6 +48,7 @@ void hexdump(unsigned char * buf, size_t n) {
 	int perline = cols * grouped;
 
 	for (size_t i = 0; i < n; i += perline) {
+		std::cout << std::setw(8) << i << ":  ";
 		for (int j = 0; j < perline; j++) {
 			if (j > 0 && j % grouped == 0) std::cout << ' ';
 
