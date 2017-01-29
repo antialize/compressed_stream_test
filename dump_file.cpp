@@ -45,17 +45,21 @@ void hexdump(unsigned char * buf, size_t n) {
 
 	int cols = 8;
 	int grouped = 2;
-	for (size_t i = 0; i < n; i += cols * grouped) {
-		for (int j = 0; j < cols; j++) {
-			for (int k = 0; k < grouped; k++) {
-				std::cout << std::setw(2) << int(buf[i + j + k]);
-			}
-			std::cout << ' ';
+	int perline = cols * grouped;
+
+	for (size_t i = 0; i < n; i += perline) {
+		for (int j = 0; j < perline; j++) {
+			if (j > 0 && j % grouped == 0) std::cout << ' ';
+
+			if (i + j < n)
+				std::cout << std::setw(2) << int(buf[i + j]);
+			else
+				std::cout << "  ";
 		}
-		std::cout << ' ';
-		for (int j = 0; j < cols * grouped; j++) {
+		std::cout << "  ";
+		for (int j = 0; j < perline && i + j < n; j++) {
 			unsigned char c = buf[i + j];
-			std::cout << (unsigned char)(std::isprint(c)? c: '.');
+			std::cout << (std::isprint(c)? c: (unsigned char)'.');
 		}
 		std::cout << '\n';
 	}
