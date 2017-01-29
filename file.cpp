@@ -78,7 +78,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	m_impl->m_fd = fd;
 	m_impl->m_file_id = file_ctr++;
 
-	file_size_t fsize = (file_size_t)lseek64(fd, 0, SEEK_END);
+	file_size_t fsize = (file_size_t)::lseek(fd, 0, SEEK_END);
 	file_header & header = m_impl->m_header;
 	if (fsize > 0) {
 		assert(fsize >= sizeof(file_header));
@@ -111,7 +111,6 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 			assert(fsize >= sizeof(file_header) + 2 * sizeof(block_header));
 			block_header last_header;
 			_pread(fd, &last_header, sizeof last_header, fsize - sizeof last_header);
-			last_header.physical_size;
 
 			stream_position p;
 			p.m_block = header.blocks - 1;

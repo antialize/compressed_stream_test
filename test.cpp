@@ -175,6 +175,8 @@ int open_close_dead_stream() {
 	auto s = f.stream();
 	for (int i = 0; i < 10000; i++)
 		s.write(i);
+
+	return EXIT_SUCCESS;
 }
 
 int peek_test() {
