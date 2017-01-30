@@ -169,7 +169,7 @@ public:
 	
 	stream_position get_position();
 
-	void set_position(stream_position);
+	void set_position(stream_position p);
 	
 	friend class stream_impl;
 protected:

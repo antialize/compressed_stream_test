@@ -74,6 +74,21 @@ void stream_base_base::seek(file_size_t off, whence w) {
 	m_impl->seek(off, w);
 }
 
+stream_position stream_base_base::get_position() {
+	block * b = m_impl->m_cur_block;
+	return {
+		b->m_block,
+		m_cur_index,
+		b->m_logical_offset,
+		b->m_physical_offset
+	};
+}
+
+void stream_base_base::set_position(stream_position p) {
+	lock_t l(m_impl->m_file->m_mut);
+	m_impl->set_position(l, p);
+}
+
 void stream_impl::close() {
 	if (m_cur_block) {
 		lock_t lock(m_file->m_mut);
