@@ -54,7 +54,6 @@ public:
 	uint64_t m_idx;
 	block_idx_t m_block;
 	file_impl * m_file;
-	bool m_read;
 	uint32_t m_usage;
 	cond_t m_cond;
 	bool m_io; // false = owned by main thread, true = owned by job thread

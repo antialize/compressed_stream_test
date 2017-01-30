@@ -263,7 +263,6 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	buff->m_logical_size = no_block_size;
 	buff->m_serialized_size = no_block_size;
 	buff->m_usage = 1;
-	buff->m_read = false;
 	buff->m_io = false;
 	buff->m_maximal_logical_size = block_size() / buff->m_file->m_item_size;
 	m_block_map.emplace(buff->m_block, buff);
@@ -297,7 +296,6 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		++m_blocks;
 		buff->m_logical_size = 0;
 		buff->m_serialized_size = 0;
-		buff->m_read = true;
 	} else {
 		log_info() << "FILE  read       " << *buff << std::endl;
 		//We need to read stuff
@@ -316,7 +314,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 			job_cond.notify_all();
 		}
 
-		while (!buff->m_read) buff->m_cond.wait(l);
+		while (buff->m_io) buff->m_cond.wait(l);
 	}
   
 	if (p.m_block + 1 == m_blocks) {

@@ -215,7 +215,6 @@ void process_run() {
 			b->m_logical_offset = logical_offset;
 			b->m_serialized_size = serialized_size;
 
-			b->m_read = true;
 			b->m_cond.notify_all();
 
 			file->free_block(file_lock, b);
