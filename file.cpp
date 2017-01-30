@@ -359,9 +359,9 @@ void file_impl::free_block(lock_t & l, block * t) {
 	assert(t->m_usage != 0);
 	--t->m_usage;
 
-	// Even if t->m_usage > 1, we need to write the block if it's dirty
+	// Even if t->m_usage > 1, we need to write the block if it's dirty and its full
 	// This is not a problem as we only support appending to a file
-	if (t->m_dirty) {
+	if (t->m_dirty && (t->m_usage == 0 || t->m_logical_size == t->m_maximal_logical_size)) {
 
 		//TODO check that we are allowed to write to this block
 		
