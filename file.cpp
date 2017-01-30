@@ -29,7 +29,7 @@ file_impl::~file_impl() {
 	destroy_available_block();
 }
 
-file_base_base::file_base_base(bool serialized, uint32_t item_size)
+file_base_base::file_base_base(bool serialized, block_size_t item_size)
 	: m_impl(nullptr)
 	, m_last_block(nullptr)
 {
@@ -38,11 +38,6 @@ file_base_base::file_base_base(bool serialized, uint32_t item_size)
 	impl->m_outer = this;
 	impl->m_item_size = item_size;
 	impl->m_serialized = serialized;
-}
-
-file_base_base::~file_base_base() {
-	if (is_open())
-		close();
 }
 
 file_base_base::file_base_base(file_base_base &&o)
@@ -235,6 +230,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	buff->m_physical_offset = p.m_physical_offset;
 	buff->m_logical_offset = p.m_logical_offset;
 	buff->m_logical_size = no_block_size;
+	buff->m_serialized_size = no_block_size;
 	buff->m_usage = 1;
 	buff->m_read = false;
 	buff->m_io = false;
@@ -266,8 +262,10 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	}
 
 	if (p.m_block == m_blocks) {
+		assert(is_known(buff->m_logical_offset));
 		++m_blocks;
 		buff->m_logical_size = 0;
+		buff->m_serialized_size = 0;
 		buff->m_read = true;
 	} else {
 		log_info() << "FILE  read       " << *buff << std::endl;
@@ -317,8 +315,9 @@ block * file_impl::get_predecessor_block(lock_t & l, block * t) {
 	stream_position p;
 	p.m_block = t->m_block - 1;
 	p.m_index = 0;
-	// TODO: Can we assume that all blocks have same max logical size?
-	p.m_logical_offset = t->m_logical_offset - t->m_maximal_logical_size;
+	// We can't assume that all blocks have same max logical size,
+	// because of serialization
+	p.m_logical_offset = no_file_size;
 	p.m_physical_offset = get_prev_physical_offset(l, t);
 	return get_block(l, p, false, t);
 }
@@ -379,6 +378,7 @@ void file_impl::kill_block(lock_t & l, block * t) {
 	assert(is_known(t->m_physical_offset));
 	assert(is_known(t->m_logical_size));
 	assert(is_known(t->m_physical_size));
+	assert(is_known(t->m_serialized_size));
 	// The predecessor to this block might have appeared after writing this block
 	// so we need to tell it our size, so that we can read_back later
 	update_physical_size(l, t->m_block, t->m_physical_size);

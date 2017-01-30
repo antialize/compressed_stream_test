@@ -30,7 +30,7 @@ int flush_test() {
 int write_read() {
 	file<int> f;
 	f.open(TMP_FILE);
-	stream<int> s=f.stream();
+	auto s = f.stream();
 	for (int i=0; i < 10000; ++i) s.write(i);
 	s.seek(0);
 	for (int i=0; i < 10000; ++i) ensure(i, s.read(), "read");
@@ -263,6 +263,53 @@ int read_back_test() {
 	return EXIT_SUCCESS;
 }
 
+int serialized_string() {
+	block_size_t m = max_serialized_block_size();
+	int N = 8;
+
+	auto get_string = [=](double i){ return std::string(size_t(m * (0.2 + (i / N) * 0.4)), 'A'); };
+
+	{
+		serialized_file<std::string> f;
+		f.open(TMP_FILE, open_flags::no_compress);
+		auto s = f.stream();
+
+		for (int i = 0; i < N; i++) {
+			s.write(get_string(i));
+		}
+	}
+
+	{
+		serialized_file<std::string> f;
+		f.open(TMP_FILE, open_flags::no_compress);
+		auto s = f.stream();
+
+		for (int i = 0; i < N; i++) {
+			std::string str = s.read();
+			std::string expected = get_string(i);
+			ensure(expected.size(), str.size(), "read (size)");
+			ensure(expected, str, "read");
+		}
+	}
+
+	// Test get_predecessor_block edge case
+	{
+		serialized_file<std::string> f;
+		f.open(TMP_FILE, open_flags::no_compress);
+		auto s = f.stream();
+		s.seek(0, whence::end);
+
+		for (int i = N - 1; i >= 0; i--) {
+			std::string str = s.read_back();
+			std::string expected = get_string(i);
+			ensure(expected.size(), str.size(), "read (size)");
+			ensure(expected, str, "read");
+		}
+	}
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -303,6 +350,7 @@ int main(int argc, char ** argv) {
 		{"uncompressed", uncompressed_test},
 		{"peek_back", peek_back_test},
 		{"read_back", read_back_test},
+		{"serialized_string", serialized_string},
 	};
 
 	std::string test = argc > 1 ? argv[1] : "";

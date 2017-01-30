@@ -16,6 +16,7 @@ void file_stream_init(size_t threads) {
 	void_block.m_logical_offset = 0;
 	void_block.m_logical_size = 0;
 	void_block.m_maximal_logical_size = 0;
+	void_block.m_serialized_size = 0;
 
 	for (size_t i=0; i < available_blocks(threads); ++i)
 		create_available_block();

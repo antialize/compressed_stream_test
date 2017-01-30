@@ -49,8 +49,10 @@ void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_
 
 void process_run() {
 	auto id = tid.fetch_add(1);
-	thread_local char data1[1024*1024];
-	thread_local char data2[1024*1024];
+	thread_local char _data1[1024*1024];
+	thread_local char _data2[1024*1024];
+	char * current_buffer = _data1;
+	char * next_buffer = _data2;
 	lock_t job_lock(job_mutex);
 	log_info() << "JOB " << id << " start" << std::endl;
 	while (true) {
@@ -82,12 +84,15 @@ void process_run() {
 		{
 			block_idx_t block = b->m_block;
 			file_size_t physical_offset = b->m_physical_offset;
-			file_size_t logical_offset = b->m_logical_offset;
 			block_size_t physical_size = b->m_physical_size;
-			block_size_t logical_size = b->m_logical_size;
 			block_size_t prev_physical_size = b->m_prev_physical_size;
 			block_size_t next_physical_size = b->m_next_physical_size;
 			auto blocks = file->m_blocks;
+
+			// Not necessarily known in advance
+			file_size_t logical_offset;
+			block_size_t logical_size;
+			block_size_t serialized_size;
 
 			file_lock.unlock();
 
@@ -111,8 +116,9 @@ void process_run() {
 
 			// If the next block has never been written out to disk
 			// we can't find its physical size
+			bool is_last_block = block + 1 == blocks;
 			bool should_read_next_physical_size = false;
-			if (block + 1 != blocks && !is_known(next_physical_size)) { // NOT THE LAST BLOCK
+			if (!is_last_block && !is_known(next_physical_size)) { // NOT THE LAST BLOCK
 				auto it = file->m_block_map.find(block + 1);
 				if (it != file->m_block_map.end()) {
 					next_physical_size = it->second->m_physical_size;
@@ -122,37 +128,66 @@ void process_run() {
 				}
 			}
 
-			char * data = data1;
-
 			log_info() << "JOB " << id << " pread      " << *b << " from " << off << " - " << (off + size - 1) << std::endl;
 
-			auto r = _pread(file->m_fd, data, size, off);
+			char * physical_data = current_buffer;
+			char * uncompressed_data = next_buffer;
+
+			auto r = _pread(file->m_fd, physical_data, size, off);
 
 			assert(r == size);
 
 			if (block != 0 && !is_known(prev_physical_size)) {
 				//log_info() << id << "read prev header" << std::endl;
 				block_header h;
-				memcpy(&h, data, sizeof(block_header));
-				data += sizeof(block_header);
+				memcpy(&h, physical_data, sizeof(block_header));
+				physical_data += sizeof(block_header);
 				prev_physical_size = h.physical_size;
 			}
 
 			{
 				block_header h;
-				memcpy(&h, data, sizeof(block_header));
+				memcpy(&h, physical_data, sizeof(block_header));
 				//log_info() << id << "Read current header " << physical_size << " " << h.physical_size << std::endl;
 
-				data += sizeof(block_header);
+				physical_data += sizeof(block_header);
 				assert(physical_size == h.physical_size);
 				logical_size = h.logical_size;
+				logical_offset = h.logical_offset;
 			}
 
+			char * compressed_data = physical_data;
+
+			physical_data += physical_size - sizeof(block_header); //Skip next block header
+			if (should_read_next_physical_size) {
+				block_header h;
+				memcpy(&h, physical_data, sizeof(block_header));
+				physical_data += sizeof(block_header);
+				next_physical_size = h.physical_size;
+			}
+
+			block_size_t compressed_size = physical_size - 2 * sizeof(block_header);
+
+			size_t uncompressed_size;
 			if (file->m_compressed) {
-				bool ok = snappy::RawUncompress(data, physical_size - 2 * sizeof(block_header), (char *)b->m_data);
+				bool ok = snappy::GetUncompressedLength(compressed_data, compressed_size, &uncompressed_size);
+				assert(ok);
+				assert(uncompressed_size <= sizeof(_data1));
+				ok = snappy::RawUncompress(compressed_data, compressed_size, uncompressed_data);
 				assert(ok);
 			} else {
-				memcpy(b->m_data, data, physical_size - 2 * sizeof(block_header));
+				uncompressed_data = compressed_data;
+				uncompressed_size = compressed_size;
+			}
+
+			serialized_size = uncompressed_size;
+
+			if (file->m_serialized) {
+				block_size_t unserialized_size;
+				file->m_outer->do_unserialize(uncompressed_data, logical_size, b->m_data, &unserialized_size);
+				assert(unserialized_size == logical_size * file->m_item_size);
+			} else {
+				memcpy(b->m_data, uncompressed_data, uncompressed_size);
 			}
 
 			log_info() << "Read " << *b << '\n'
@@ -160,15 +195,14 @@ void process_run() {
 					   << "First data " << reinterpret_cast<int*>(b->m_data)[0]
 					   << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
 
-			data += physical_size - sizeof(block_header); //Skip next block header
-			if (should_read_next_physical_size) {
-				block_header h;
-				memcpy(&h, data, sizeof(block_header));
-				data += sizeof(block_header);
-				next_physical_size = h.physical_size;
-			}
-
 			file_lock.lock();
+
+			// If the file is serialized and the current block is not
+			// the last one we have to override its maximal_logical_size here
+			// to get update_next_block to work as expected
+			if (file->m_serialized && !is_last_block) {
+				b->m_maximal_logical_size = logical_size;
+			}
 
 			update_next_block(file_lock, id, j, off + size);
 
@@ -179,6 +213,7 @@ void process_run() {
 			b->m_logical_size = logical_size;
 			b->m_physical_size = physical_size;
 			b->m_logical_offset = logical_offset;
+			b->m_serialized_size = serialized_size;
 
 			b->m_read = true;
 			b->m_cond.notify_all();
@@ -188,12 +223,12 @@ void process_run() {
 		break;
 		case job_type::write:
 		{
-			const auto bytes = b->m_logical_size * file->m_item_size;
+			block_size_t unserialized_size = b->m_logical_size * file->m_item_size;
 
 			block_header h;
 			h.logical_size = b->m_logical_size;
 			h.logical_offset = b->m_logical_offset;
-			log_info() << "JOB " << id << " compress   " << *b << " size " << bytes << '\n'
+			log_info() << "JOB " << id << " compress   " << *b << " size " << unserialized_size << '\n'
 					   << "First data " << reinterpret_cast<int*>(b->m_data)[0]
 					   << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
 
@@ -201,23 +236,34 @@ void process_run() {
 
 			// TODO check if it is undefined behaiviure to change data underneeth snappy
 			// TODO only used bytes here
-			memcpy(data1, b->m_data, bytes);
+			memcpy(current_buffer, b->m_data, unserialized_size);
 
 			// TODO free the block here
 
-			size_t s2;
-			if (file->m_compressed) {
-				s2 = 1024 * 1024;
-				snappy::RawCompress(data1, bytes, data2 + sizeof(block_header), &s2);
+			block_size_t serialized_size;
+
+			if (file->m_serialized) {
+				file->m_outer->do_serialize(current_buffer, h.logical_size, next_buffer, &serialized_size);
+				assert(serialized_size == b->m_serialized_size);
+				std::swap(current_buffer, next_buffer);
 			} else {
-				s2 = bytes;
-				memcpy(data2 + sizeof(block_header), data1, bytes);
+				serialized_size = unserialized_size;
 			}
-			block_size_t bs = 2 * sizeof(block_header) + s2;
+
+			size_t compressed_size;
+			if (file->m_compressed) {
+				compressed_size = sizeof(_data1) - sizeof(block_header);
+				snappy::RawCompress(current_buffer, serialized_size, next_buffer + sizeof(block_header), &compressed_size);
+			} else {
+				memcpy(next_buffer + sizeof(block_header), current_buffer, serialized_size);
+				compressed_size = serialized_size;
+			}
+			char * physical_data = next_buffer;
+			block_size_t bs = 2 * sizeof(block_header) + compressed_size;
 
 			h.physical_size = (block_size_t)bs;
-			memcpy(data2, &h, sizeof(block_header));
-			memcpy(data2 + sizeof(h) + s2, &h, sizeof(block_header));
+			memcpy(physical_data, &h, sizeof(block_header));
+			memcpy(physical_data + sizeof(h) + compressed_size, &h, sizeof(block_header));
 
 			file_lock.lock();
 			log_info() << "JOB " << id << " compressed " << *b << " size " << bs << std::endl;
@@ -242,7 +288,7 @@ void process_run() {
 
 			file_lock.unlock();
 
-			auto r = _pwrite(file->m_fd, data2, bs, off);
+			auto r = _pwrite(file->m_fd, physical_data, bs, off);
 			assert(r == bs);
 			log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 

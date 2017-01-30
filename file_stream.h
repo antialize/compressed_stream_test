@@ -6,6 +6,9 @@
 #include <string.h>
 #include <cassert>
 
+#include <tpie/serialization2.h>
+using namespace tpie;
+
 // Declare all types
 class block_base;
 class file_impl;
@@ -27,6 +30,9 @@ class stream_base;
 // Constexpr methods
 constexpr block_size_t block_size() {return 1024;}
 
+// TODO: Tweak this or calculate another way
+constexpr block_size_t max_serialized_block_size() {return block_size() * 64;}
+
 // Some free standing methods
 void file_stream_init(size_t threads);
 void file_stream_term();
@@ -37,6 +43,8 @@ public:
 	file_size_t m_logical_offset;
 	block_size_t m_logical_size;
 	block_size_t m_maximal_logical_size;
+	// Undefined for non-serialized blocks
+	block_size_t m_serialized_size;
 	bool m_dirty;
 	char m_data[block_size()];
 };
@@ -54,6 +62,10 @@ enum open_flags {
 	read_only = 1 << 0,
 	truncate = 1 << 1,
 	no_compress = 1 << 2,
+
+	// Alias for other flags
+	read_write = default_flags,
+	write_only = read_write,
 };
 }
 
@@ -61,11 +73,11 @@ class file_base_base {
 public:
 	friend class file_impl;
 	friend class stream_base_base;
-	
+	friend void process_run();
+
 	file_base_base(const file_base_base &) = delete;
 	file_base_base(file_base_base &&);
-	~file_base_base();
-	
+
 	// TODO more magic open methods here
 	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags);
 	void close();
@@ -98,12 +110,13 @@ public:
 	}
 
 protected:
-	file_base_base(bool serialized, uint32_t item_size);
+	file_base_base(bool serialized, block_size_t item_size);
+	~file_base_base() = default;
 private:
-	virtual void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) = 0;
-	virtual void do_unserialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) = 0;
-	virtual void do_destruct(char * data, uint32_t size) = 0;
-	
+	virtual void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) = 0;
+	virtual void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) = 0;
+	virtual void do_destruct(char * data, block_size_t size) = 0;
+
 	file_impl * m_impl;
 	block_base * m_last_block;
 };
@@ -180,31 +193,47 @@ public:
 	stream_base & operator=(stream_base &&) = default;
 	
 	const T & read() {
+		assert(m_file_base->is_open() && m_file_base->is_readable());
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index++];
 	}
 	
 	const T & peek() {
+		assert(m_file_base->is_open() && m_file_base->is_readable());
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index];
 	}
 
 	const T & read_back() {
+		assert(m_file_base->is_open() && m_file_base->is_readable());
 		if (m_cur_index == 0) prev_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[--m_cur_index];
 	}
 
 	const T & peek_back() {
+		assert(m_file_base->is_open() && m_file_base->is_readable());
 		// If prev_block is called, the index is set to the logical size
 		// so even if we change the block, we will still use the correct block
 		// on reading forward
 		if (m_cur_index == 0) prev_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index - 1];
 	}
-	
+
 	void write(T item) {
-		//TODO handle serialized write here
+		assert(m_file_base->is_open() && m_file_base->is_writable());
+
 		if (m_cur_index == m_block->m_maximal_logical_size) next_block();
+
+		if (serialized) {
+			block_size_t serialized_size = get_serialized_size(item);
+
+			if (m_block->m_serialized_size + serialized_size > max_serialized_block_size()) {
+				m_block->m_maximal_logical_size = m_cur_index;
+				next_block();
+			}
+
+			m_block->m_serialized_size += serialized_size;
+		}
 
 #ifndef NDEBUG
 		assert(get_last_block() == m_block);
@@ -215,6 +244,19 @@ public:
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
 		m_block->m_dirty = true;
 	}
+
+private:
+	block_size_t get_serialized_size(const T & item) {
+		struct Counter {
+			block_size_t s = 0;
+			void write(const char * data, size_t size) {
+				s += size;
+			}
+		};
+		Counter c;
+		serialize(c, item);
+		return c.s;
+	}
 };
 
 
@@ -224,52 +266,60 @@ public:
 	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
 
 	file_base(): file_base_base(serialized, sizeof(T)) {}
-	
-protected:
-	void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) override {}
-	void do_unserialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) override {}
-	void do_destruct(char * data, uint32_t size) override {}
-};
 
-template <typename T>
-class file_base<T, true> final: public file_base_base {
-public:
-	stream_base<T, true> stream() {return stream_base<T, true>(this);}
+	// We can't close the file in file_base_base's dtor
+	// as the job thread might need to serialize some items before we close the file.
+	~file_base() {
+		if (is_open())
+			close();
+	}
 
-	file_base(): file_base_base(true, sizeof(T)) {}
 protected:
-	virtual void do_serialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) {
+	void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) override {
+		assert(serialized);
+		if (!serialized) return;
+
 		struct W {
 			char * o;
+			block_size_t s = 0;
 			void write(const char * data, size_t size) {
-				memcpy(o, data, size);
-				o += size;
+				memcpy(o + s, data, size);
+				s += size;
 			}
-			W(char * o): o(o) {}
+			W(char * o) : o(o) {}
 		};
 		W w(out);
-		for (size_t i=0; i < in_size; ++i)
-			serialize(w, static_cast<T*>(in)[i]);
-	}
-	
-	virtual void do_unserialize(const char * in, uint32_t in_size, char * out, uint32_t out_size) {
-		struct R {
-			const char * i;
-			void read(char * data, size_t size) {
-				memcpy(i, data, size);
-				i += size;
-			}
-			R(const char *i): i(i) {}
-		};
-		R r(in);
-		for (size_t i=0; i < out_size; ++i)
-			unserialize(r, static_cast<T *>(out)[i]); //TODO placement new data here
+		for (size_t i = 0; i < in_items; i++)
+			serialize(w, reinterpret_cast<const T*>(in)[i]);
+		*out_size = w.s;
 	}
 
-	
-	virtual void do_destruct(char * data, uint32_t size) {
+	void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) override {
+		assert(serialized);
+		if (!serialized) return;
+
+		struct R {
+			const char * i;
+			block_size_t s = 0;
+			void read(char * data, size_t size) {
+				memcpy(data, i + s, size);
+				s += size;
+			}
+			R(const char * i) : i(i) {}
+		};
+		R r(in);
+		for (size_t i = 0; i < in_items; i++) {
+			T * o = new(out + i * sizeof(T)) T;
+			unserialize(r, *o);
+		}
+		*out_size = sizeof(T) * in_items;
+	}
+	void do_destruct(char * data, block_size_t size) override {
+		assert(serialized);
+		if (!serialized) return;
+
 		for (size_t i=0; i < size; ++i)
-			static_cast<T *>(data)[i].~T();
+			reinterpret_cast<T *>(data)[i].~T();
 	}
 };
 
