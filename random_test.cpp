@@ -326,9 +326,13 @@ int main(int argc, char ** argv) {
 		whitelist = task_list.size() > 0;
 	}
 
+	std::random_device rd;
+
 	file_stream_init(worker_threads);
 	while (true) {
 		random_test(max_streams, whitelist, task_list, seed, restart_period);
+		std::cout << '\n' << std::string(40, '=') << "\n\n";
+		seed = rd();
 	}
 	// Unreachable
 	//file_stream_term();
