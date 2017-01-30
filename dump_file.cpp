@@ -88,9 +88,26 @@ void dump_file(const char * fname, bool dumpcontents) {
 			  << "\tMagic: " << h.magic << (h.magic == file_header::magicConst? " (ok)": " (wrong)") << "\n"
 			  << "\tVersion: " << h.version << (h.version == file_header::versionConst? " (ok)": " (wrong)") << "\n"
 		      << "\tBlocks: " << h.blocks << "\n"
+			  << "\tUser data size: " << h.user_data_size << "\n"
+			  << "\tMax user data size: " << h.max_user_data_size << "\n"
 			  << "\tCompressed: " << h.isCompressed << "\n"
 		      << "\tSerialized: " << h.isSerialized << "\n"
 	          << "\n";
+
+	unsigned char * buf = new unsigned char[h.max_user_data_size];
+	off += _read(fd, buf, h.max_user_data_size);
+	if (dumpcontents && h.max_user_data_size != 0) {
+		if (h.user_data_size != 0) {
+			std::cout << "User data:\n";
+			hexdump(buf, h.user_data_size);
+		}
+		if (h.max_user_data_size > h.user_data_size) {
+			std::cout << "\nUnused user data:\n";
+			hexdump(buf + h.user_data_size, h.max_user_data_size - h.user_data_size);
+		}
+		std::cout << '\n';
+	}
+	delete[] buf;
 
 	block_header h1, h2;
 	size_t header_size = sizeof(block_header);

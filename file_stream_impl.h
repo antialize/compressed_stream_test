@@ -32,11 +32,13 @@ block * pop_available_block();
 
 struct file_header {
 	static const uint64_t magicConst = 0x454c494645495054ull;
-	static const uint64_t versionConst = 1;
+	static const uint64_t versionConst = 0;
 
 	uint64_t magic;
 	uint64_t version;
 	block_idx_t blocks;
+	size_t user_data_size;
+	size_t max_user_data_size;
 	bool isCompressed : 1;
 	bool isSerialized : 1;
 };
@@ -119,8 +121,8 @@ public:
 
 	block * get_block(lock_t & lock, stream_position p, bool find_next = true, block * rel = nullptr);
 	
-	static constexpr stream_position start_position() noexcept {
-		return stream_position{0, 0, 0, sizeof(file_header)};
+	stream_position start_position() const noexcept {
+		return stream_position{0, 0, 0, sizeof(file_header) + m_outer->max_user_data_size()};
 	}
 
 	void block_ref_inc(lock_t & l, block * b) const noexcept {

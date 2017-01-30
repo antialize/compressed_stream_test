@@ -79,9 +79,9 @@ public:
 	file_base_base(file_base_base &&);
 
 	// TODO more magic open methods here
-	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags);
-	void open(const std::string & path, std::underlying_type<open_flags::open_flags>::type flags) {
-		open(path, static_cast<open_flags::open_flags>(flags));
+	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0);
+	void open(const std::string & path, std::underlying_type<open_flags::open_flags>::type flags, size_t max_user_data_size = 0) {
+		open(path, static_cast<open_flags::open_flags>(flags), max_user_data_size);
 	}
 	void close();
 
@@ -90,10 +90,11 @@ public:
 	bool is_readable() const noexcept;
 	bool is_writable() const noexcept;
 
-	void read_user_data(void * data, size_t count);
 	size_t user_data_size() const noexcept;
 	size_t max_user_data_size() const noexcept;
+	void read_user_data(void * data, size_t count);
 	void write_user_data (const void *data, size_t count);
+
 	const std::string & path() const noexcept;
 	
 	template <typename TT>

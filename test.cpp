@@ -433,6 +433,51 @@ int serialized_dtor() {
 	return EXIT_SUCCESS;
 }
 
+int user_data() {
+	const char * user_data = "foobar";
+	constexpr size_t size = 7;
+
+	{
+		file<int> f;
+		f.open(TMP_FILE, compression_flag, 2 * size);
+		ensure(size_t(0), f.user_data_size(), "user_data_size");
+		ensure(2 * size, f.max_user_data_size(), "user_data_size");
+	}
+	{
+		file<int> f;
+		f.open(TMP_FILE, compression_flag);
+		ensure(size_t(0), f.user_data_size(), "user_data_size");
+		ensure(2 * size, f.max_user_data_size(), "user_data_size");
+
+		f.write_user_data(user_data, size);
+		ensure(size, f.user_data_size(), "user_data_size");
+
+		f.write_user_data(user_data, 1);
+		ensure(size, f.user_data_size(), "user_data_size");
+
+		char user_data2[size];
+		f.read_user_data(user_data2, size);
+		ensure<std::string>(user_data, user_data2, "read_user_data");
+
+		auto s = f.stream();
+		s.write(105);
+	}
+	{
+		file<int> f;
+		f.open(TMP_FILE, compression_flag, 2 * size);
+		ensure(size, f.user_data_size(), "user_data_size");
+
+		char user_data2[size];
+		f.read_user_data(user_data2, size);
+		ensure<std::string>(user_data, user_data2, "read_user_data");
+
+		auto s = f.stream();
+		ensure(105, s.read(), "read");
+	}
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -478,6 +523,7 @@ int main(int argc, char ** argv) {
 		{"read_back", read_back_test},
 		{"serialized_string", serialized_string},
 		{"serialized_dtor", serialized_dtor},
+		{"user_data", user_data},
 	};
 
 	std::stringstream usage;

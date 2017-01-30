@@ -49,7 +49,7 @@ file_base_base::file_base_base(file_base_base &&o)
 	m_impl->m_outer = this;
 }
 
-void file_base_base::open(const std::string & path, open_flags::open_flags flags) {
+void file_base_base::open(const std::string & path, open_flags::open_flags flags, size_t max_user_data_size) {
 	assert(!is_open());
 	assert(!(flags & open_flags::read_only && flags & open_flags::truncate));
 
@@ -100,10 +100,12 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 			abort();
 		}
 
+		assert(max_user_data_size == 0 || header.max_user_data_size == max_user_data_size);
+
 		m_impl->m_blocks = header.blocks;
 
 		if (header.blocks > 0) {
-			assert(fsize >= sizeof(file_header) + 2 * sizeof(block_header));
+			assert(fsize >= sizeof(file_header) + header.max_user_data_size + 2 * sizeof(block_header));
 			block_header last_header;
 			_pread(fd, &last_header, sizeof last_header, fsize - sizeof last_header);
 
@@ -116,7 +118,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 			// This call sets m_last_block
 			m_impl->get_block(l, p);
 		} else {
-			assert(fsize == sizeof(file_header));
+			assert(fsize == sizeof(file_header) + header.max_user_data_size);
 			// This call sets m_last_block
 			m_impl->get_first_block(l);
 		}
@@ -127,11 +129,17 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 		header.magic = file_header::magicConst;
 		header.version = file_header::versionConst;
 		header.blocks = 0;
+		header.user_data_size = 0;
+		header.max_user_data_size = max_user_data_size;
 		header.isCompressed = m_impl->m_compressed;
 		header.isSerialized = m_impl->m_serialized;
 		// This isn't really needed, because the header will be written when we close the file.
 		// However if the file gets in an invalid state and we crash, it is nice to have a valid header.
 		_pwrite(fd, &header, sizeof header, 0);
+
+		void * zeros = calloc(max_user_data_size, 1);
+		_pwrite(fd, zeros, max_user_data_size, sizeof header);
+		free(zeros);
 
 		// This call sets m_last_block
 		m_impl->get_first_block(l);
@@ -198,6 +206,25 @@ bool file_base_base::is_readable() const noexcept {
 
 bool file_base_base::is_writable() const noexcept {
 	return !m_impl->m_readonly;
+}
+
+size_t file_base_base::user_data_size() const noexcept {
+	return m_impl->m_header.user_data_size;
+}
+
+size_t file_base_base::max_user_data_size() const noexcept {
+	return m_impl->m_header.max_user_data_size;
+}
+
+void file_base_base::read_user_data(void *data, size_t count) {
+	assert(count <= user_data_size());
+	_pread(m_impl->m_fd, data, count, sizeof(file_header));
+}
+
+void file_base_base::write_user_data(const void *data, size_t count) {
+	assert(count <= max_user_data_size());
+	_pwrite(m_impl->m_fd, data, count, sizeof(file_header));
+	m_impl->m_header.user_data_size = std::max(user_data_size(), count);
 }
 
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
