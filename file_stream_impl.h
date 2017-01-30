@@ -77,6 +77,7 @@ public:
 	mutex_t m_mut;
 	file_base_base * m_outer;
 	int m_fd;
+	std::string m_path;
 
 	// An unique id for the entire run of the program
 	// Should change when the file is closed/opened

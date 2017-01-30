@@ -53,6 +53,8 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	assert(!is_open());
 	assert(!(flags & open_flags::read_only && flags & open_flags::truncate));
 
+	m_impl->m_path = path;
+
 	int posix_flags = 0;
 	if (flags & open_flags::read_only) {
 		posix_flags |= O_RDONLY;
@@ -188,6 +190,7 @@ void file_base_base::close() {
 
 	::close(m_impl->m_fd);
 	m_impl->m_fd = -1;
+	m_impl->m_path = "";
 
 	m_impl->m_blocks = 0;
 	m_impl->m_first_physical_size = no_block_size;
@@ -225,6 +228,10 @@ void file_base_base::write_user_data(const void *data, size_t count) {
 	assert(count <= max_user_data_size());
 	_pwrite(m_impl->m_fd, data, count, sizeof(file_header));
 	m_impl->m_header.user_data_size = std::max(user_data_size(), count);
+}
+
+const std::string &file_base_base::path() const noexcept {
+	return m_impl->m_path;
 }
 
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
