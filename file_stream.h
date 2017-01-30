@@ -80,6 +80,9 @@ public:
 
 	// TODO more magic open methods here
 	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags);
+	void open(const std::string & path, std::underlying_type<open_flags::open_flags>::type flags) {
+		open(path, static_cast<open_flags::open_flags>(flags));
+	}
 	void close();
 
 	bool is_open() const noexcept;

@@ -8,10 +8,13 @@
 #include <set>
 #include <csignal>
 #include <unistd.h>
+#include <sstream>
+
+open_flags::open_flags compression_flag = open_flags::default_flags;
 
 int flush_test() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 
 	auto s1 = f.stream();
 	auto s2 = f.stream();
@@ -29,7 +32,7 @@ int flush_test() {
 
 int write_read() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	auto s = f.stream();
 	for (int i=0; i < 10000; ++i) s.write(i);
 	s.seek(0);
@@ -39,7 +42,7 @@ int write_read() {
 
 int size_test() {
 	file<uint8_t> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	auto s = f.stream();
 
 	file_size_t B = block_size();
@@ -66,7 +69,7 @@ int size_test() {
 
 int write_seek_write_read() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 
 	auto s = f.stream();
 
@@ -93,7 +96,7 @@ int write_seek_write_read() {
 int open_close() {
 	file<int> f;
 	block_size_t b;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	{
 		auto s = f.stream();
 		b = s.logical_block_size();
@@ -102,7 +105,7 @@ int open_close() {
 	}
 
 	f.close();
-	f.open(TMP_FILE, open_flags::truncate);
+	f.open(TMP_FILE, open_flags::truncate | compression_flag);
 
 	auto s = f.stream();
 	s.seek(0, whence::end);
@@ -115,7 +118,7 @@ int open_close() {
 
 	f.close();
 
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	auto s2 = f.stream();
 	ensure(1337, s2.read(), "read");
 	for (int i = 0; i < 100 * b; i++)
@@ -123,7 +126,7 @@ int open_close() {
 
 	f.close();
 	for(int i = 0; i < 10; i++) {
-		f.open(TMP_FILE);
+		f.open(TMP_FILE, compression_flag);
 		f.close();
 	}
 
@@ -132,7 +135,7 @@ int open_close() {
 
 int seek_start_seek_end() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	{
 		auto s = f.stream();
 		s.seek(0, whence::set);
@@ -146,7 +149,7 @@ int seek_start_seek_end() {
 
 int write_end() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 
 	auto s1 = f.stream();
 	auto s2 = f.stream();
@@ -166,11 +169,11 @@ int write_end() {
 
 int open_close_dead_stream() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	{
 		auto s = f.stream();
 		f.close();
-		f.open(TMP_FILE);
+		f.open(TMP_FILE, compression_flag);
 	}
 	auto s = f.stream();
 	for (int i = 0; i < 10000; i++)
@@ -181,7 +184,7 @@ int open_close_dead_stream() {
 
 int peek_test() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	auto s = f.stream();
 
 	for (int i = 0; i < 10000; i++)
@@ -196,35 +199,9 @@ int peek_test() {
 	return EXIT_SUCCESS;
 }
 
-int uncompressed_test() {
-	{
-		file<uint8_t> f;
-		f.open(TMP_FILE, open_flags::no_compress);
-		auto s = f.stream();
-
-		for (int i = 0; i < 10000; i++)
-			s.write((uint8_t)i);
-
-		s.seek(0, whence::set);
-		for (int i = 0; i < 10000; i++)
-			ensure(s.read(), (uint8_t)i, "read");
-	}
-
-	{
-		file<uint8_t> f;
-		f.open(TMP_FILE, open_flags::no_compress);
-		auto s = f.stream();
-
-		for (int i = 0; i < 10000; i++)
-			ensure(s.read(), (uint8_t)i, "read");
-	}
-
-	return EXIT_SUCCESS;
-}
-
 int peek_back_test() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	auto s = f.stream();
 	auto b = s.logical_block_size();
 	int w = 20 * b;
@@ -241,7 +218,7 @@ int peek_back_test() {
 
 int read_back_test() {
 	file<int> f;
-	f.open(TMP_FILE);
+	f.open(TMP_FILE, compression_flag);
 	auto s = f.stream();
 	auto b = s.logical_block_size();
 	for (int i = 0; i < 20 * b; i++)
@@ -271,7 +248,7 @@ int serialized_string() {
 
 	{
 		serialized_file<std::string> f;
-		f.open(TMP_FILE, open_flags::no_compress);
+		f.open(TMP_FILE, compression_flag);
 		auto s = f.stream();
 
 		for (int i = 0; i < N; i++) {
@@ -281,7 +258,7 @@ int serialized_string() {
 
 	{
 		serialized_file<std::string> f;
-		f.open(TMP_FILE, open_flags::no_compress);
+		f.open(TMP_FILE, compression_flag);
 		auto s = f.stream();
 
 		for (int i = 0; i < N; i++) {
@@ -295,7 +272,7 @@ int serialized_string() {
 	// Test get_predecessor_block edge case
 	{
 		serialized_file<std::string> f;
-		f.open(TMP_FILE, open_flags::no_compress);
+		f.open(TMP_FILE, compression_flag);
 		auto s = f.stream();
 		s.seek(0, whence::end);
 
@@ -423,7 +400,7 @@ int serialized_dtor() {
 
 	{
 		serialized_file<T> f;
-		f.open(TMP_FILE, open_flags::no_compress);
+		f.open(TMP_FILE, compression_flag);
 		auto s = f.stream();
 		for (int i = 0; i < N; i++) {
 			T t;
@@ -443,7 +420,7 @@ int serialized_dtor() {
 
 	{
 		serialized_file<T> f;
-		f.open(TMP_FILE, open_flags::no_compress);
+		f.open(TMP_FILE, compression_flag);
 		auto s = f.stream();
 		for (int i = 0; i < N; i++) {
 			const T & t = s.read();
@@ -477,6 +454,10 @@ void signal_handler(int signal) {
 	std::_Exit(EXIT_FAILURE);
 }
 
+void usage() {
+
+}
+
 int main(int argc, char ** argv) {
 	std::signal(SIGABRT, signal_handler);
 	std::signal(SIGINT, signal_handler);
@@ -493,14 +474,40 @@ int main(int argc, char ** argv) {
 		{"write_end", write_end},
 		{"open_close_dead_stream", open_close_dead_stream},
 		{"peek", peek_test},
-		{"uncompressed", uncompressed_test},
 		{"peek_back", peek_back_test},
 		{"read_back", read_back_test},
 		{"serialized_string", serialized_string},
 		{"serialized_dtor", serialized_dtor},
 	};
 
-	std::string test = argc > 1 ? argv[1] : "";
+	std::stringstream usage;
+	usage << "Usage: t [-h] [-C] [-t threads] test_name\n"
+		  << "Available tests:\n";
+	usage << "\t" << "all - Runs all tests\n";
+	for (auto p : tests) {
+		usage << "\t" << p.first << "\n";
+	}
+
+	int job_threads = default_job_threads;
+
+	int opt;
+	while ((opt = getopt(argc, argv, "hCt:")) != -1) {
+		switch (opt) {
+		case 'h':
+			std::cout << usage.str();
+			return EXIT_SUCCESS;
+		case 'C':
+			compression_flag = open_flags::no_compress;
+			break;
+		case 't':
+			job_threads = std::stoi(optarg);
+			break;
+		case '?':
+			return EXIT_FAILURE;
+		}
+	}
+
+	std::string test = optind < argc ? argv[optind] : "";
 	auto it = tests.find(test);
 
 	std::map<std::string, test_fun_t> tests_to_run;
@@ -510,17 +517,10 @@ int main(int argc, char ** argv) {
 		tests_to_run = tests;
 	}
 
-	if (tests_to_run.empty() || argc > 3) {
-		std::cerr << "Usage: t testname [job_threads (default " << default_job_threads << ")]\n\n"
-				  << "Available tests:\n";
-		std::cerr << "\t" << "all - Runs all tests\n";
-		for (auto p : tests) {
-			std::cerr << "\t" << p.first << "\n";
-		}
+	if (tests_to_run.empty() || optind + 1 != argc) {
+		std::cerr << usage.str();
 		return EXIT_FAILURE;
 	}
-
-	int job_threads = argc > 2 ? std::stoi(argv[2]) : default_job_threads;
 
 	for (auto p : tests_to_run) {
 		std::cout << "\n>>> Running test " << p.first << "\n\n";
