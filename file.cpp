@@ -149,7 +149,7 @@ void file_base_base::close() {
 	for (auto p : m_impl->m_block_map) {
 		block *b = p.second;
 		if (b->m_usage != 0) {
-			// Make sure we make the block available
+			// Make sure we release the block
 			b->m_usage = 1;
 			m_impl->free_block(l, b);
 		}
@@ -158,25 +158,29 @@ void file_base_base::close() {
 	// Wait for all freed dirty blocks to be written
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
-	// Set the owner of the blocks to nullptr
-	for (auto p : m_impl->m_block_map) {
-		block *b = p.second;
+	m_last_block = m_impl->m_last_block = nullptr;
+
+	// Kill all blocks
+	// Note: kill_block invalidates it
+	for (auto it = m_impl->m_block_map.begin(); it != m_impl->m_block_map.end();) {
+		auto itnext = std::next(it);
+		block *b = it->second;
 		assert(b->m_usage == 0);
-		b->m_file = nullptr;
+		m_impl->kill_block(l, b);
+		it = itnext;
 	}
 
-	m_impl->m_block_map.clear();
+	assert(m_impl->m_block_map.size() == 0);
 
 	if (!m_impl->m_readonly) {
 		// Write out header
 		m_impl->m_header.blocks = m_impl->m_blocks;
 		_pwrite(m_impl->m_fd, &m_impl->m_header, sizeof(file_header), 0);
-
-		::close(m_impl->m_fd);
 	}
 
+	::close(m_impl->m_fd);
 	m_impl->m_fd = -1;
-	m_last_block = m_impl->m_last_block = nullptr;
+
 	m_impl->m_blocks = 0;
 	m_impl->m_first_physical_size = no_block_size;
 	m_impl->m_last_physical_size = no_block_size;
@@ -373,20 +377,21 @@ void file_impl::free_block(lock_t & l, block * t) {
 
 void file_impl::kill_block(lock_t & l, block * t) {
 	log_info() << "      kill block " << *t << std::endl;
+	assert(t->m_usage == 0);
 	assert(t->m_file == this);
 	assert(is_known(t->m_logical_offset));
 	assert(is_known(t->m_physical_offset));
 	assert(is_known(t->m_logical_size));
-	assert(is_known(t->m_physical_size));
+	assert(is_known(t->m_physical_size) || t->m_logical_size == 0);
 	assert(is_known(t->m_serialized_size));
 	// The predecessor to this block might have appeared after writing this block
 	// so we need to tell it our size, so that we can read_back later
 	update_physical_size(l, t->m_block, t->m_physical_size);
 
+	if (t->m_file->m_serialized)
+		m_outer->do_destruct(t->m_data, t->m_logical_size);
+
 	size_t c = m_block_map.erase(t->m_block);
 	assert(c == 1);
 	t->m_file = nullptr;
-	// We never kill a block not associated to a file,
-	// and the last block should always be associated to its file
-	assert(t != m_last_block);
 }

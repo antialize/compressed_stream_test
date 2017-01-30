@@ -310,6 +310,152 @@ int serialized_string() {
 	return EXIT_SUCCESS;
 }
 
+template <typename T, size_t repeat>
+class debug_class {
+private:
+	bool constructed = false;
+	bool moved = false;
+	bool destructed = false;
+
+	T value;
+
+public:
+	static std::atomic<size_t> live_instances;
+
+	void set_value(T val) {
+		check_alive();
+		value = std::move(val);
+	}
+
+	T get_value() const {
+		check_alive();
+		return value;
+	}
+
+	debug_class() {
+		//log_info() << "-> default ctor: " << std::endl;
+		constructed = true;
+		live_instances++;
+	}
+
+	void check_alive() const {
+		assert(constructed);
+		assert(!moved);
+		assert(!destructed);
+	}
+
+	debug_class & operator=(const debug_class & o) = delete;
+	debug_class(const debug_class & o) = delete;
+
+	debug_class(debug_class && o) {
+		//log_info() << "-> move ctor: " << o.value << std::endl;
+
+		o.check_alive();
+
+		constructed = o.constructed;
+		moved = o.moved;
+		destructed = o.destructed;
+
+		value = o.value;
+
+		o.moved = true;
+
+		live_instances++;
+	}
+
+
+	debug_class & operator=(debug_class && o) {
+		//log_info() << "-> move assignment: " << o.value << std::endl;
+
+		o.check_alive();
+
+		constructed = o.constructed;
+		moved = o.moved;
+		destructed = o.destructed;
+
+		value = o.value;
+
+		o.moved = true;
+
+		live_instances++;
+
+		return *this;
+	}
+
+	~debug_class() {
+		//log_info() << "-> dtor: " << value << std::endl;
+
+		assert(constructed);
+		assert(!destructed);
+		destructed = true;
+		live_instances--;
+	}
+};
+
+template <typename T, size_t repeat>
+std::atomic<size_t> debug_class<T, repeat>::live_instances;
+
+template <typename D, typename T, size_t repeat>
+void serialize(D & dst, const debug_class<T, repeat> & o) {
+	for (int i = 0; i < repeat; i++)
+		serialize(dst, o.get_value());
+}
+
+template <typename S, typename T, size_t repeat>
+void unserialize(S & src, debug_class<T, repeat> & o) {
+	T val;
+	unserialize(src, val);
+	for (int i = 1; i < repeat; i++) {
+		T val2;
+		unserialize(src, val2);
+		ensure(val, val2, "unserialize");
+	}
+	o.set_value(val);
+}
+
+int serialized_dtor() {
+	constexpr size_t bytes_per_item = max_serialized_block_size() / 10;
+	using T = debug_class<uint8_t, bytes_per_item>;
+
+	int N = 100;
+
+	ensure(size_t(0), T::live_instances.load(), "live_instances");
+
+	{
+		serialized_file<T> f;
+		f.open(TMP_FILE, open_flags::no_compress);
+		auto s = f.stream();
+		for (int i = 0; i < N; i++) {
+			T t;
+			t.set_value(i);
+			s.write(std::move(t));
+		}
+
+		const T & t = s.read_back();
+		t.check_alive();
+
+		ensure(true, T::live_instances.load() > 0, "live_instances");
+
+		f.close();
+
+		ensure(size_t(0), T::live_instances.load(), "live_instances");
+	}
+
+	{
+		serialized_file<T> f;
+		f.open(TMP_FILE, open_flags::no_compress);
+		auto s = f.stream();
+		for (int i = 0; i < N; i++) {
+			const T & t = s.read();
+			ensure(uint8_t(i), t.get_value(), "read");
+		}
+	}
+
+	ensure(size_t(0), T::live_instances.load(), "live_instances");
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -351,6 +497,7 @@ int main(int argc, char ** argv) {
 		{"peek_back", peek_back_test},
 		{"read_back", read_back_test},
 		{"serialized_string", serialized_string},
+		{"serialized_dtor", serialized_dtor},
 	};
 
 	std::string test = argc > 1 ? argv[1] : "";
