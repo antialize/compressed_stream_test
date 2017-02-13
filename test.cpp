@@ -499,10 +499,6 @@ void signal_handler(int signal) {
 	std::_Exit(EXIT_FAILURE);
 }
 
-void usage() {
-
-}
-
 int main(int argc, char ** argv) {
 	std::signal(SIGABRT, signal_handler);
 	std::signal(SIGINT, signal_handler);
