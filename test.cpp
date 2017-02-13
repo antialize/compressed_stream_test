@@ -478,6 +478,37 @@ int user_data() {
 	return EXIT_SUCCESS;
 }
 
+int get_set_position() {
+	file<int> f;
+	f.open(TMP_FILE, compression_flag);
+	auto s = f.stream();
+
+	auto p1 = s.get_position();
+	s.set_position(p1);
+
+	for (int i = 0; i < 10000; i++)
+		s.write(i);
+
+	auto p2 = s.get_position();
+
+	for (int i = 0; i < 10000; i++)
+		s.write(i);
+
+	auto p3 = s.get_position();
+
+	s.set_position(p2);
+	ensure(0, s.peek(), "peek (p2)");
+	ensure(9999, s.peek_back(), "peek_back (p2)");
+
+	s.set_position(p1);
+	ensure(0, s.peek(), "peek (p1)");
+
+	s.set_position(p3);
+	ensure(9999, s.peek_back(), "peek_back (p3)");
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -520,6 +551,7 @@ int main(int argc, char ** argv) {
 		{"serialized_string", serialized_string},
 		{"serialized_dtor", serialized_dtor},
 		{"user_data", user_data},
+		{"get_set_position", get_set_position},
 	};
 
 	std::stringstream usage;

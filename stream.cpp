@@ -76,6 +76,13 @@ void stream_base_base::seek(file_size_t off, whence w) {
 
 stream_position stream_base_base::get_position() {
 	block * b = m_impl->m_cur_block;
+	if (!b) return m_impl->m_file->start_position();
+
+	lock_t l(m_impl->m_file->m_mut);
+	while (!is_known(b->m_physical_offset)) {
+		b->m_cond.wait(l);
+	}
+
 	return {
 		b->m_block,
 		m_cur_index,
