@@ -96,7 +96,10 @@ public:
 	void write_user_data (const void *data, size_t count);
 
 	const std::string & path() const noexcept;
-	
+
+	void truncate(file_size_t offset);
+	void truncate(stream_position pos);
+
 	template <typename TT>
 	void read_user_data(TT & data) {
 		//if (sizeof(TT) != user_data_size()) throw io_exception("Wrong user data size");
@@ -164,9 +167,6 @@ public:
 	}
 #endif
 
-	void truncate(file_size_t offset);
-	void truncate(stream_position pos);	
-	
 	stream_position get_position();
 
 	void set_position(stream_position p);
