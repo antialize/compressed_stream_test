@@ -39,6 +39,7 @@ struct internal_stream {
 	bool can_read() const noexcept {return m_offset != m_file->m_items.size();}
 	bool can_read_back() const noexcept {return m_offset != 0;}
 	file_size_t offset() const noexcept {return m_offset;}
+	void set_offset(file_size_t offset) {assert(offset <= m_file->size()); m_offset = offset;};
 
 	void write(const T & t) {
 		if (m_offset == m_file->m_items.size())	{
@@ -95,6 +96,8 @@ void task_title(std::string title, size_t stream = (size_t)-1) {
 	X(open_readonly), \
 	X(open_truncate), \
 	X(close_file), \
+	X(get_position), \
+	X(set_position), \
 
 enum class task {
 #define X(t) t
@@ -118,6 +121,8 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 
 	std::vector<stream<int>> s1;
 	std::vector<internal_stream<int>> s2;
+
+	std::vector<stream_position> pos;
 
 	std::default_random_engine rng(seed);
 
@@ -144,6 +149,11 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				add_task(task::can_read_back, 20);
 				add_task(task::get_size, 20);
 
+				add_task(task::get_position, 20);
+
+				if (pos.size())
+					add_task(task::set_position, 20);
+
 				if (!readonly) {
 					add_task(task::write_end, 20);
 				}
@@ -160,6 +170,7 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				continue;
 			}
 			const size_t s = std::uniform_int_distribution<size_t>(0, std::max<size_t>(1, s1.size()) -1)(rng);
+			const size_t p = std::uniform_int_distribution<size_t>(0, std::max<size_t>(1, pos.size()) -1)(rng);
 			switch (t.first) {
 			case task::close_file:
 				task_title("Close file");
@@ -180,6 +191,7 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				f2.open(open_flags::truncate);
 				readonly = false;
 				open = true;
+				pos.clear();
 				break;
 			case task::open_readonly:
 				task_title("Open file readonly");
@@ -264,6 +276,24 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				task_title("Get size");
 				ensure(f1.size(), f2.size(), "size");
 				break;
+			case task::get_position: {
+				task_title("Get position", s);
+				auto p1 = s1[s].get_position();
+				auto p2 = s2[s].offset();
+				ensure(p1.m_logical_offset + p1.m_index, p2, "get_position");
+				pos.push_back(p1);
+				break;
+			}
+			case task::set_position: {
+				if (pos.size() == 0) break;
+				task_title("Set position", s);
+				auto p1 = pos[p];
+				s1[s].set_position(p1);
+				auto o = s1[s].offset();
+				ensure(p1.m_logical_offset + p1.m_index, o, "offset");
+				s2[s].set_offset(o);
+				break;
+			}
 			}
 			break;
 		}
