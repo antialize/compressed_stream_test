@@ -119,6 +119,8 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 
 			// This call sets m_last_block
 			m_impl->get_block(l, p);
+			m_impl->m_last_block->m_usage--;
+			assert(m_impl->m_last_block->m_usage == 1);
 		} else {
 			assert(fsize == sizeof(file_header) + header.max_user_data_size);
 			// This call sets m_last_block

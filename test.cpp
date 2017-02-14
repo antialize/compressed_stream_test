@@ -431,6 +431,32 @@ int serialized_dtor() {
 
 	ensure(size_t(0), T::live_instances.load(), "live_instances");
 
+	{
+		serialized_file<T> f;
+		f.open(TMP_FILE, compression_flag);
+		stream_position p1, p2;
+		auto s = f.stream();
+		auto s2 = f.stream();
+		for (int i = 0; i < N; i++) {
+			if (i == N / 3)
+				p1 = s.get_position();
+			if (i == N / 2)
+				p2 = s.get_position();
+			const T & t = s.read();
+			ensure(uint8_t(i), t.get_value(), "read");
+		}
+
+		s.set_position(p1);
+		s2.set_position(p2);
+		f.truncate(p2);
+		for (int i = p1.m_logical_offset + p1.m_index; i < p2.m_logical_offset + p2.m_index; i++) {
+			const T & t = s.read();
+			ensure(uint8_t(i), t.get_value(), "read");
+		}
+	}
+
+	ensure(size_t(0), T::live_instances.load(), "live_instances");
+
 	return EXIT_SUCCESS;
 }
 
