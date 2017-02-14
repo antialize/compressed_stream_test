@@ -7,6 +7,11 @@
 
 std::vector<std::thread> process_threads;
 
+#ifndef NDEBUG
+#include <unordered_set>
+extern std::unordered_set<block *> all_blocks;
+#endif
+
 size_t available_blocks(size_t threads) {
 	return threads + 1;
 }
@@ -40,6 +45,10 @@ void file_stream_term() {
 
 	for (size_t i=0; i < available_blocks(process_threads.size()); ++i)
 		destroy_available_block();
+
+#ifndef NDEBUG
+	assert(all_blocks.size() == 0);
+#endif
 	
 	process_threads.clear();
 

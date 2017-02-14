@@ -118,7 +118,7 @@ public:
 
 protected:
 	file_base_base(bool serialized, block_size_t item_size);
-	~file_base_base() = default;
+	~file_base_base();
 private:
 	virtual void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) = 0;
 	virtual void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) = 0;

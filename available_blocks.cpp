@@ -14,7 +14,6 @@ std::unordered_set<block *> available_blocks;
 size_t ctr = 0;
 
 #ifndef NDEBUG
-#include <set>
 std::unordered_set<block *> all_blocks;
 void print_available_blocks() {
 	log_info() << "Total number of blocks: " << all_blocks.size() << "\n"
@@ -54,7 +53,8 @@ void destroy_available_block() {
 	assert(b->m_usage == 0);
 	log_info() << "AVAIL destroy    " << *b << std::endl;
 #ifndef NDEBUG
-	all_blocks.erase(b);
+	size_t c = all_blocks.erase(b);
+	assert(c == 1);
 #endif
 	delete b;
 }

@@ -25,7 +25,7 @@ file_impl::file_impl()
 	create_available_block();
 }
 
-file_impl::~file_impl() {
+file_base_base::~file_base_base() {
 	destroy_available_block();
 }
 
