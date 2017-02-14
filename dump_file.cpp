@@ -125,6 +125,7 @@ void dump_file(const char * fname, bool dumpcontents) {
 		off += h1.physical_size - header_size;
 		if (off >= size) {
 			std::cerr << "Trying to seek beyond file!\n";
+			std::cerr << "Expected file size was at least " << (off + header_size) << " < " << size << "\n";
 			exit(1);
 		}
 
