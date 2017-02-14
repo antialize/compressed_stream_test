@@ -234,6 +234,80 @@ const std::string &file_base_base::path() const noexcept {
 	return m_impl->m_path;
 }
 
+void file_base_base::truncate(stream_position pos) {
+	lock_t l(m_impl->m_mut);
+
+	block * new_last_block = m_impl->get_block(l, pos);
+	assert(new_last_block->m_logical_offset == pos.m_logical_offset);
+	assert(is_known(new_last_block->m_physical_offset));
+
+	// Wait for all jobs to be completed for this file
+	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+
+	// Make sure no one uses blocks past this one
+	// Exception: the last block is always used by the file
+	for (auto p : m_impl->m_block_map) {
+		block *b = p.second;
+		if (b->m_usage != 0 && b->m_block > pos.m_block) {
+			assert(b == m_last_block);
+			assert(b->m_usage == 1);
+		}
+	}
+
+	// If new_last_block != m_last_block, we need to free the current last block
+	if (new_last_block != m_last_block) {
+		m_impl->free_block(l, m_impl->m_last_block);
+		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+		m_impl->kill_block(l, m_impl->m_last_block);
+		m_last_block = m_impl->m_last_block = new_last_block;
+	}
+
+	m_impl->m_blocks = pos.m_block + 1;
+
+	block * b = m_impl->m_last_block;
+
+	assert(pos.m_index <= b->m_logical_size);
+	block_size_t truncated_items = b->m_logical_size - pos.m_index;
+
+	file_size_t truncate_size;
+
+	// If truncated_items == 0, then we are truncating on a block boundary
+	if (truncated_items != 0) {
+		// We need to remove some items from the block
+		if (m_impl->m_serialized) {
+			do_destruct(b->m_data + m_impl->m_item_size * pos.m_index, truncated_items);
+			// Update serialized size
+			do_serialize(b->m_data, pos.m_index, nullptr, &b->m_serialized_size);
+		}
+		// We don't know this blocks physical_size and we mark it as dirty
+		// We don't actually write this block yet, but just truncate the file to only include the previous blocks
+		b->m_physical_size = no_block_size;
+		m_impl->update_physical_size(l, pos.m_block, no_block_size);
+		b->m_dirty = true;
+
+		truncate_size = b->m_physical_offset;
+	} else {
+		// We just include the whole block
+		truncate_size = b->m_physical_offset + b->m_physical_size;
+	}
+
+	b->m_next_physical_size = no_block_size;
+	b->m_logical_size = pos.m_index;
+
+	log_info() << "FILE  trunc       " << truncate_size << std::endl;
+	{
+		m_impl->m_job_count++;
+
+		lock_t l2(job_mutex);
+		job j;
+		j.type = job_type::trunc;
+		j.file = m_impl;
+		j.truncate_size = truncate_size;
+		jobs.push(j);
+		job_cond.notify_all();
+	}
+}
+
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {
@@ -315,6 +389,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 			j.buff = buff;
 			j.file = this;
 			buff->m_usage++;
+			assert(!buff->m_io);
 			buff->m_io = true;
 			//log_info() << "read block " << *buff << std::endl;
 			jobs.push(j);
@@ -383,6 +458,7 @@ void file_impl::free_block(lock_t & l, block * t) {
 		j.file = this;
 		t->m_usage++;
 		t->m_dirty = false;
+		assert(!t->m_io);
 		t->m_io = true;
 		//log_info() << "write block " << *t << std::endl;
 		jobs.push(j);
@@ -415,7 +491,7 @@ void file_impl::kill_block(lock_t & l, block * t) {
 	assert(is_known(t->m_physical_offset));
 	assert(is_known(t->m_logical_size));
 	assert(is_known(t->m_physical_size) || t->m_logical_size == 0);
-	assert(is_known(t->m_serialized_size));
+	assert(!t->m_file->m_serialized || is_known(t->m_serialized_size));
 	// The predecessor to this block might have appeared after writing this block
 	// so we need to tell it our size, so that we can read_back later
 	update_physical_size(l, t->m_block, t->m_physical_size);

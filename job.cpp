@@ -63,8 +63,13 @@ void process_run() {
 			log_info() << "JOB " << id << " pop job    TERM\n";
 			break;
 		}
-		block * b = j.buff;
-		log_info() << "JOB " << id << " pop job    " << *b << " " << j.type << " " << b->m_logical_size << '\n';
+		block * b = nullptr;
+		if (j.type == job_type::trunc) {
+			log_info() << "JOB " << id << " pop job    " << j.truncate_size << " " << j.type << '\n';
+		} else {
+			b = j.buff;
+			log_info() << "JOB " << id << " pop job    " << *b << " " << j.type << " " << b->m_logical_size << '\n';
+		}
 
 		jobs.pop();
 		job_lock.unlock();
@@ -72,7 +77,7 @@ void process_run() {
 		auto file = j.file;
 		lock_t file_lock(file->m_mut);
 
-		assert(b->m_usage != 0);
+		assert(j.type == job_type::trunc || b->m_usage != 0);
 
 		switch (j.type) {
 		case job_type::term:
@@ -302,7 +307,7 @@ void process_run() {
 					}
 				}
 				auto it = block_offsets.find({file->m_file_id, b->m_block - 1});
-				if (it != block_offsets.end()) {
+				if (it != block_offsets.end() && is_known(it->second.second)) {
 					assert(it->second.second == off);
 				}
 
@@ -319,13 +324,30 @@ void process_run() {
 			file->free_block(file_lock, b);
 		}
 		break;
-		case job_type::trunc:
-			break;
+		case job_type::trunc: {
+			::ftruncate(file->m_fd, j.truncate_size);
+
+			log_info() << "JOB " << id << " truncated  " << file->m_path << " to size " << j.truncate_size << std::endl;
+
+#ifndef NDEBUG
+			{
+				auto it = block_offsets.lower_bound({file->m_file_id, file->m_blocks - 1});
+				if (it != block_offsets.end()) {
+					if (it->second == std::make_pair(file->m_file_id, file->m_blocks - 1)) {
+						it->second.second = no_file_size;
+						it = std::next(it);
+					}
+					block_offsets.erase(it, block_offsets.end());
+				}
+			}
+#endif
+		}
+		break;
 		}
 
 		file->m_job_count--;
 		file->m_job_cond.notify_one();
-		b->m_cond.notify_all();
+		if (b) b->m_cond.notify_all();
 		job_lock.lock();
 	}
 	log_info() << "JOB " << id << " end" << std::endl;

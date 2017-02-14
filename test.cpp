@@ -510,6 +510,52 @@ int get_set_position() {
 	return EXIT_SUCCESS;
 }
 
+int truncate() {
+	file<int> f;
+	f.open(TMP_FILE, compression_flag);
+	auto s = f.stream();
+	auto b = s.logical_block_size();
+
+	int ctr = 0;
+
+	for (; ctr < 10 * b + 2; ctr++)
+		s.write(ctr);
+
+	// Not on block boundary
+	auto p1 = s.get_position();
+
+	for (; ctr < 20 * b; ctr++)
+		s.write(ctr);
+
+	// On block boundary
+	auto p2 = s.get_position();
+
+	for (; ctr < 30 * b; ctr++)
+		s.write(ctr);
+
+	s.seek(0, whence::set);
+	f.truncate(p2);
+
+	assert(f.size() == 20 * b);
+
+	for (int i = 0; i < 20 * b; i++)
+		ensure(i, s.read(), "read");
+
+	s.write(123546);
+
+	s.seek(0, whence::set);
+	f.truncate(p1);
+
+	assert(f.size() == 10 * b + 2);
+
+	for (int i = 0; i < 10 * b + 2; i++)
+		ensure(i, s.read(), "read");
+
+	s.write(789);
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -553,6 +599,7 @@ int main(int argc, char ** argv) {
 		{"serialized_dtor", serialized_dtor},
 		{"user_data", user_data},
 		{"get_set_position", get_set_position},
+		{"truncate", truncate},
 	};
 
 	std::stringstream usage;

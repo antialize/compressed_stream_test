@@ -195,11 +195,13 @@ enum class job_type {
 	term, write, read, trunc
 };
 
-class job {
-public:
+struct job {
 	job_type type;
 	file_impl * file;
-	block * buff;
+	union {
+		block * buff;
+		file_size_t truncate_size;
+	};
 };
 
 

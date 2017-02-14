@@ -287,7 +287,7 @@ protected:
 			char * o;
 			block_size_t s = 0;
 			void write(const char * data, size_t size) {
-				memcpy(o + s, data, size);
+				if(o) memcpy(o + s, data, size);
 				s += size;
 			}
 			W(char * o) : o(o) {}
