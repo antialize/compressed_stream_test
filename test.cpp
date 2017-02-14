@@ -9,6 +9,7 @@
 #include <csignal>
 #include <unistd.h>
 #include <sstream>
+#include <atomic>
 
 open_flags::open_flags compression_flag = open_flags::default_flags;
 
