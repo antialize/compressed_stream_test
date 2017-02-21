@@ -585,6 +585,12 @@ int truncate() {
 		ensure(i, s.read(), "read");
 
 	s.write(789);
+	auto p3 = s.get_position();
+	f.truncate(p3);
+	s.write(987);
+
+	ensure(987, s.read_back(), "read_back");
+	ensure(789, s.read_back(), "read_back");
 
 	return EXIT_SUCCESS;
 }
