@@ -13,7 +13,6 @@ stream_base_base::stream_base_base(file_base_base * file_base)
 	m_impl = new stream_impl();
 	m_impl->m_outer = this;
 	m_impl->m_file = file_base->m_impl;
-	m_impl->m_file_id = m_impl->m_file->m_file_id;
 	m_block = &void_block;
 	create_available_block();
 }
@@ -99,9 +98,7 @@ void stream_base_base::set_position(stream_position p) {
 void stream_impl::close() {
 	if (m_cur_block) {
 		lock_t lock(m_file->m_mut);
-		// The file might have been closed (and even reopened) before the stream is destructed
-		if (m_file_id == m_file->m_file_id)
-			m_file->free_block(lock, m_cur_block);
+		m_file->free_block(lock, m_cur_block);
 	}
 	destroy_available_block();
 }

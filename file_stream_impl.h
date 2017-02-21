@@ -183,7 +183,6 @@ public:
 	stream_base_base * m_outer;
 	file_impl * m_file;
 	block * m_cur_block;
-	size_t m_file_id;
 
 	void close();
 	void next_block();

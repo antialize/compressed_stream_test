@@ -108,28 +108,35 @@ int open_close() {
 	f.close();
 	f.open(TMP_FILE, open_flags::truncate | compression_flag);
 
-	auto s = f.stream();
-	s.seek(0, whence::end);
-	s.write(1337);
-	s.seek(0, whence::set);
-	ensure(1337, s.read(), "read");
+	{
+		auto s = f.stream();
+		s.seek(0, whence::end);
+		s.write(1337);
+		s.seek(0, whence::set);
+		ensure(1337, s.read(), "read");
 
-	for (int i = 0; i < 100 * b; i++)
-		s.write(i);
+		for (int i = 0; i < 100 * b; i++)
+			s.write(i);
+	}
 
 	f.close();
 
 	f.open(TMP_FILE, compression_flag);
-	auto s2 = f.stream();
-	ensure(1337, s2.read(), "read");
-	for (int i = 0; i < 100 * b; i++)
-		ensure(s2.read(), i, "read");
+	{
+		auto s = f.stream();
+		ensure(1337, s.read(), "read");
+		for (int i = 0; i < 100 * b; i++)
+			ensure(s.read(), i, "read");
+	}
 
 	f.close();
 	for(int i = 0; i < 10; i++) {
 		f.open(TMP_FILE, compression_flag);
 		f.close();
 	}
+
+	f.open(TMP_FILE, compression_flag);
+	auto s = f.stream();
 
 	return EXIT_SUCCESS;
 }
@@ -171,11 +178,6 @@ int write_end() {
 int open_close_dead_stream() {
 	file<int> f;
 	f.open(TMP_FILE, compression_flag);
-	{
-		auto s = f.stream();
-		f.close();
-		f.open(TMP_FILE, compression_flag);
-	}
 	auto s = f.stream();
 	for (int i = 0; i < 10000; i++)
 		s.write(i);
@@ -405,17 +407,19 @@ int serialized_dtor() {
 	{
 		serialized_file<T> f;
 		f.open(TMP_FILE, compression_flag);
-		auto s = f.stream();
-		for (int i = 0; i < N; i++) {
-			T t;
-			t.set_value(i);
-			s.write(std::move(t));
+		{
+			auto s = f.stream();
+			for (int i = 0; i < N; i++) {
+				T t;
+				t.set_value(i);
+				s.write(std::move(t));
+			}
+
+			const T & t = s.read_back();
+			t.check_alive();
+
+			ensure(true, T::live_instances.load() > 0, "live_instances");
 		}
-
-		const T & t = s.read_back();
-		t.check_alive();
-
-		ensure(true, T::live_instances.load() > 0, "live_instances");
 
 		f.close();
 

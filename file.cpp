@@ -120,8 +120,6 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 
 			// This call sets m_last_block
 			m_impl->get_block(l, p);
-			m_impl->m_last_block->m_usage--;
-			assert(m_impl->m_last_block->m_usage == 1);
 		} else {
 			assert(fsize == sizeof(file_header) + header.max_user_data_size);
 			// This call sets m_last_block
@@ -149,6 +147,13 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 		// This call sets m_last_block
 		m_impl->get_first_block(l);
 	}
+
+	// In all paths we called get_block, which got a fresh block
+	// and set the usage of the last block to 2
+	// This is normally the correct behaviour, when a stream called get_block,
+	// but as no streams are using this block we should set it to 1
+	assert(m_impl->m_last_block->m_usage == 2);
+	m_impl->m_last_block->m_usage--;
 }
 
 void file_base_base::close() {
@@ -162,8 +167,8 @@ void file_base_base::close() {
 	for (auto p : m_impl->m_block_map) {
 		block *b = p.second;
 		if (b->m_usage != 0) {
-			// Make sure we release the block
-			b->m_usage = 1;
+			// Make sure that no streams are open
+			assert(b->m_usage == 1 && b == m_last_block);
 			m_impl->free_block(l, b);
 		}
 	}
@@ -263,6 +268,8 @@ void file_base_base::truncate(stream_position pos) {
 		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 		m_impl->kill_block(l, m_impl->m_last_block);
 		m_last_block = m_impl->m_last_block = new_last_block;
+	} else {
+		m_impl->free_block(l, new_last_block);
 	}
 
 	m_impl->m_blocks = pos.m_block + 1;
