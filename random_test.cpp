@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <map>
 #include <set>
+#include <algorithm>
 
 template <typename T>
 class internal_stream;
@@ -115,6 +116,10 @@ std::map<std::string, task> task_names = {
 	RANDOM_TASKS(X)
 #undef X
 };
+
+file_size_t get_offset(stream_position p) {
+	return p.m_logical_offset + p.m_index;
+}
 
 void random_test(int max_streams, bool whitelist, std::set<task> & task_list, std::default_random_engine::result_type seed, size_t total_tasks) {
 	file<int> f1;
@@ -287,7 +292,7 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				task_title("Get position", s);
 				auto p1 = s1[s].get_position();
 				auto p2 = s2[s].offset();
-				ensure(p1.m_logical_offset + p1.m_index, p2, "get_position");
+				ensure(get_offset(p1), p2, "get_position");
 				pos.push_back(p1);
 				break;
 			}
@@ -296,25 +301,33 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				auto p1 = pos[p];
 				s1[s].set_position(p1);
 				auto o = s1[s].offset();
-				ensure(p1.m_logical_offset + p1.m_index, o, "offset");
+				ensure(get_offset(p1), o, "offset");
 				s2[s].set_offset(o);
 				break;
 			}
 			case task::truncate: {
-				stream_position largest_pos = {0, 0, 0, 0};
+				stream_position largest_pos;
 				size_t i = 0;
-				size_t largest_i;
+				size_t largest_i = -1;
 				for (auto & s : s1) {
 					auto pos = s.get_position();
-					if (largest_pos < pos) {
+					if (largest_i == -1 || largest_pos < pos) {
 						largest_pos = pos;
 						largest_i = i;
 					}
 					i++;
 				}
-				task_title("Truncate to logical size " + std::to_string(largest_pos.m_logical_offset), largest_i);
+				auto o1 = get_offset(largest_pos);
+				task_title("Truncate to logical size " + std::to_string(o1), largest_i);
 				f1.truncate(largest_pos);
-				f2.truncate(s2[largest_i].offset());
+				auto o2 = s2[largest_i].offset();
+				ensure(o1, o2, "offset");
+				f2.truncate(o2);
+
+				// Remove all positions saved beyond largest_pos
+				pos.erase(std::remove_if(pos.begin(), pos.end(),
+										 [=](stream_position pos){return largest_pos < pos;}),
+						  pos.end());
 			}
 			}
 			break;
