@@ -595,6 +595,15 @@ int truncate() {
 	return EXIT_SUCCESS;
 }
 
+int open_truncate_close() {
+	file<int> f;
+	f.open(TMP_FILE, compression_flag);
+	f.truncate(0);
+	f.close();
+
+	f.open(TMP_FILE, compression_flag);
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -639,6 +648,7 @@ int main(int argc, char ** argv) {
 		{"user_data", user_data},
 		{"get_set_position", get_set_position},
 		{"truncate", truncate},
+		{"open_truncate_close", open_truncate_close},
 	};
 
 	std::stringstream usage;
