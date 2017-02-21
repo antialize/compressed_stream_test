@@ -311,6 +311,30 @@ void file_base_base::truncate(stream_position pos) {
 	}
 }
 
+void file_base_base::truncate(file_size_t offset) {
+	lock_t l(m_impl->m_mut);
+	truncate(m_impl->position_from_offset(l, offset));
+}
+
+stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) const {
+	stream_position p;
+	if (direct()) {
+		auto logical_block_size = block_size() / m_item_size;
+
+		p.m_block = offset / logical_block_size;
+		p.m_logical_offset = p.m_block * logical_block_size;
+		p.m_index = offset - p.m_logical_offset;
+		p.m_physical_offset = start_position().m_physical_offset + p.m_block * (sizeof(block_header) * 2 + block_size());
+	} else if (offset == 0) {
+		p = start_position();
+	} else if (offset != m_outer->size()) {
+		p = end_position(l);
+	} else {
+		throw std::runtime_error("Arbitrary offset find not supported for compressed or serialized files");
+	}
+	return p;
+}
+
 void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {

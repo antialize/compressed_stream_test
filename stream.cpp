@@ -142,7 +142,7 @@ void stream_impl::set_position(lock_t & l, stream_position p) {
 
 void stream_impl::seek(file_size_t offset, whence w) {
 	log_info() << "STREM seek       " << offset << std::endl;
-	lock_t lock(m_file->m_mut);
+	lock_t l(m_file->m_mut);
 	
 	stream_position p;
 
@@ -159,22 +159,16 @@ void stream_impl::seek(file_size_t offset, whence w) {
 			loc = m_file->m_outer->size() + offset;
 			break;
 		}
-		auto logical_block_size = block_size() / m_file->m_item_size;
-		
-		p.m_block = loc / logical_block_size;
-		p.m_logical_offset = p.m_block * logical_block_size;
-		p.m_index = loc - p.m_logical_offset;
-		p.m_physical_offset = sizeof(file_header) + p.m_block * (sizeof(block_header) * 2 + block_size());
-		
+		p = m_file->position_from_offset(l, loc);
 	} else if (offset != 0 || (w != whence::set && w != whence::end)) {
-		throw std::runtime_error("Arbetrery seek not supported for compressed or serialized files");
+		throw std::runtime_error("Arbitrary seek not supported for compressed or serialized files");
 	} else if (w == whence::set) {
 		p = m_file->start_position();
 	} else {
-		p = m_file->end_position(lock);
+		p = m_file->end_position(l);
 		log_info() << "STREM Seeked to end at offset " << p.m_physical_offset << std::endl;
 	}
-	set_position(lock, p);
+	set_position(l, p);
 }
 
 
