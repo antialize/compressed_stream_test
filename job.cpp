@@ -247,6 +247,7 @@ void process_run() {
 			block_size_t serialized_size;
 
 			if (file->m_serialized) {
+				assert(b->m_serialized_size <= sizeof(_data1));
 				file->m_outer->do_serialize(current_buffer, h.logical_size, next_buffer, &serialized_size);
 				assert(serialized_size == b->m_serialized_size);
 				std::swap(current_buffer, next_buffer);
@@ -256,7 +257,7 @@ void process_run() {
 
 			size_t compressed_size;
 			if (file->m_compressed) {
-				compressed_size = sizeof(_data1) - sizeof(block_header);
+				assert(snappy::MaxCompressedLength(serialized_size) <= sizeof(_data1) - sizeof(block_header));
 				snappy::RawCompress(current_buffer, serialized_size, next_buffer + sizeof(block_header), &compressed_size);
 			} else {
 				memcpy(next_buffer + sizeof(block_header), current_buffer, serialized_size);
