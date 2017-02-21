@@ -629,17 +629,19 @@ int main(int argc, char ** argv) {
 	};
 
 	std::stringstream usage;
-	usage << "Usage: t [-h] [-C] [-t threads] test_name\n"
+	usage << "Usage: t [-h] [-C] [-t threads] [-x excluded] test_name\n"
 		  << "Available tests:\n";
 	usage << "\t" << "all - Runs all tests\n";
 	for (auto p : tests) {
 		usage << "\t" << p.first << "\n";
 	}
 
+	std::set<std::string> excluded;
+
 	int job_threads = default_job_threads;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "hCt:")) != -1) {
+	while ((opt = getopt(argc, argv, "hCt:x:")) != -1) {
 		switch (opt) {
 		case 'h':
 			std::cout << usage.str();
@@ -650,24 +652,54 @@ int main(int argc, char ** argv) {
 		case 't':
 			job_threads = std::stoi(optarg);
 			break;
+		case 'x':
+			if (tests.count(optarg) == 0) {
+				std::cerr << "Invalid test name: " << optarg << "\n\n";
+				std::cerr << usage.str();
+				return EXIT_FAILURE;
+			}
+			excluded.insert(optarg);
+			break;
 		case '?':
 			return EXIT_FAILURE;
 		}
 	}
 
-	std::string test = optind < argc ? argv[optind] : "";
-	auto it = tests.find(test);
-
-	std::map<std::string, test_fun_t> tests_to_run;
-	if (it != tests.end()) {
-		tests_to_run = {*it};
-	} else if (test == "all") {
-		tests_to_run = tests;
-	}
-
-	if (tests_to_run.empty() || optind + 1 != argc) {
+	if (optind + 1 != argc) {
 		std::cerr << usage.str();
 		return EXIT_FAILURE;
+	}
+
+	std::string test = argv[optind];
+	bool is_all = test == "all";
+	std::map<std::string, test_fun_t> tests_to_run;
+
+	if (!is_all) {
+		auto it = tests.find(test);
+
+		if (it == tests.end()) {
+			std::cerr << "No such test: " << test << "\n\n";
+			std::cerr << usage.str();
+			return EXIT_FAILURE;
+		}
+		if (excluded.size()) {
+			std::cerr << "Can only use exclusion with 'all' test.\n\n";
+			std::cerr << usage.str();
+			return EXIT_FAILURE;
+		}
+
+		tests_to_run = {*it};
+	} else {
+		for (auto p : tests) {
+			if (excluded.count(p.first) == 0) {
+				tests_to_run.insert(p);
+			}
+		}
+		if (tests_to_run.empty()) {
+			std::cerr << "No tests to run.\n\n";
+			std::cerr << usage.str();
+			return EXIT_FAILURE;
+		}
 	}
 
 	for (auto p : tests_to_run) {
