@@ -596,9 +596,17 @@ int truncate() {
 }
 
 int open_truncate_close() {
-	file<int> f;
+	file<uint8_t> f;
 	f.open(TMP_FILE, compression_flag);
 	f.truncate(0);
+	f.close();
+
+	f.open(TMP_FILE, compression_flag);
+	auto s = f.stream();
+	for (block_size_t i = 0; i < block_size(); i++)
+		s.write((uint8_t)i);
+
+	f.truncate(s.get_position());
 	f.close();
 
 	f.open(TMP_FILE, compression_flag);

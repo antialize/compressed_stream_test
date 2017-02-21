@@ -274,6 +274,7 @@ void file_base_base::truncate(stream_position pos) {
 		m_last_block = m_impl->m_last_block = new_last_block;
 	} else {
 		m_impl->free_block(l, new_last_block);
+		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 	}
 
 	m_impl->m_blocks = pos.m_block + 1;
@@ -282,6 +283,9 @@ void file_base_base::truncate(stream_position pos) {
 
 	assert(pos.m_index <= b->m_logical_size);
 	block_size_t truncated_items = b->m_logical_size - pos.m_index;
+
+	b->m_next_physical_size = no_block_size;
+	b->m_logical_size = pos.m_index;
 
 	file_size_t truncate_size;
 
@@ -301,12 +305,17 @@ void file_base_base::truncate(stream_position pos) {
 
 		truncate_size = b->m_physical_offset;
 	} else {
-		// We just include the whole block
-		truncate_size = b->m_physical_offset + b->m_physical_size;
+		// Two possibilities, either the block is empty and b->m_logical_size = pos.m_index = 0
+		// or the block is full and we're at the past the end of the block
+		// In the first case we should truncate the block, in the last case we should include it
+		if (pos.m_index == 0) {
+			truncate_size = b->m_physical_offset - sizeof(block_header);
+		} else {
+			// We have freed this block, so it should have been written out
+			assert(is_known(b->m_physical_size));
+			truncate_size = b->m_physical_offset + b->m_physical_size;
+		}
 	}
-
-	b->m_next_physical_size = no_block_size;
-	b->m_logical_size = pos.m_index;
 
 	log_info() << "FILE  trunc       " << truncate_size << std::endl;
 	{
