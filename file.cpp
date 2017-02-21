@@ -252,13 +252,17 @@ void file_base_base::truncate(stream_position pos) {
 	// Wait for all jobs to be completed for this file
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
-	// Make sure no one uses blocks past this one
+	// Make sure no one uses blocks past this one and kill them all
 	// Exception: the last block is always used by the file
 	for (auto p : m_impl->m_block_map) {
 		block *b = p.second;
-		if (b->m_usage != 0 && b->m_block > pos.m_block) {
-			assert(b == m_last_block);
-			assert(b->m_usage == 1);
+		if (b->m_block > pos.m_block) {
+			if (b->m_usage != 0) {
+				assert(b == m_last_block);
+				assert(b->m_usage == 1);
+			} else {
+				m_impl->kill_block(l, b);
+			}
 		}
 	}
 
