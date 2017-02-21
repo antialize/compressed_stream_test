@@ -27,6 +27,7 @@ file_impl::file_impl()
 
 file_base_base::~file_base_base() {
 	destroy_available_block();
+	delete m_impl;
 }
 
 file_base_base::file_base_base(bool serialized, block_size_t item_size)

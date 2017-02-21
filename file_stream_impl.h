@@ -104,7 +104,6 @@ public:
 	file_header m_header;
 
 	file_impl();
-	~file_impl();
 
 	bool direct() {
 		return !m_compressed && !m_serialized;
