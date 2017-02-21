@@ -245,7 +245,10 @@ int serialized_string() {
 	block_size_t m = max_serialized_block_size();
 	int N = 8;
 
-	auto get_string = [=](double i){ return std::string(size_t(m * (0.2 + (i / N) * 0.4)), 'A'); };
+	std::vector<std::string> strings;
+	for (int i = 0; i < N; i++) {
+		strings.push_back(std::string(size_t(m * (0.2 + (i / N) * 0.4)), 'A'));
+	}
 
 	{
 		serialized_file<std::string> f;
@@ -253,7 +256,7 @@ int serialized_string() {
 		auto s = f.stream();
 
 		for (int i = 0; i < N; i++) {
-			s.write(get_string(i));
+			s.write(strings[i]);
 		}
 	}
 
@@ -264,7 +267,7 @@ int serialized_string() {
 
 		for (int i = 0; i < N; i++) {
 			std::string str = s.read();
-			std::string expected = get_string(i);
+			std::string expected = strings[i];
 			ensure(expected.size(), str.size(), "read (size)");
 			ensure(expected, str, "read");
 		}
@@ -279,7 +282,7 @@ int serialized_string() {
 
 		for (int i = N - 1; i >= 0; i--) {
 			std::string str = s.read_back();
-			std::string expected = get_string(i);
+			std::string expected = strings[i];
 			ensure(expected.size(), str.size(), "read (size)");
 			ensure(expected, str, "read");
 		}
