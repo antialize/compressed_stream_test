@@ -330,6 +330,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	block * b = get_available_block(l, p.m_block);
 	if (b) {
 		log_info() << "FILE  fetch      " << *b << std::endl;
+		assert(b->m_block < m_blocks);
 		assert(b->m_block == p.m_block);
 		block_ref_inc(l, b);
 		return b;
@@ -476,13 +477,14 @@ void file_impl::free_block(lock_t & l, block * t) {
 		log_info() << "      free block " << *t << " avail" << std::endl;
 		//log_info() << "avail block " << *t << std::endl;
 
+		push_available_block(t);
+
 		// If this is the last block and it's size is 0
-		// We shouldn't count this block
+		// We shouldn't count this block and we don't want to reuse it later
 		if (t->m_file->m_last_block == t && t->m_logical_size == 0) {
 			t->m_file->m_blocks--;
+			kill_block(l, t);
 		}
-
-		push_available_block(t);
 	}
 }
 
