@@ -54,6 +54,14 @@ struct stream_position {
 	block_size_t m_index;
 	file_size_t m_logical_offset;
 	file_size_t m_physical_offset;
+
+	bool operator==(const stream_position & o) const {
+		return m_block == o.m_block && m_index == o.m_index;
+	}
+
+	bool operator<(const stream_position & o) const {
+		return (m_block < o.m_block) || (m_block == o.m_block && m_index < o.m_index);
+	}
 };
 
 namespace open_flags {

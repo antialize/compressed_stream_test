@@ -15,6 +15,10 @@ struct internal_file {
 	internal_stream<T> stream();
 
 	file_size_t size() const noexcept {return m_items.size();}
+	void truncate(file_size_t offset) {
+		assert(offset <= size());
+		m_items.resize(offset);
+	}
 
 	void open(open_flags::open_flags flags = open_flags::default_flags) {
 		if (flags & open_flags::truncate) {
@@ -98,6 +102,7 @@ void task_title(std::string title, size_t stream = (size_t)-1) {
 	X(close_file), \
 	X(get_position), \
 	X(set_position), \
+	X(truncate), \
 
 enum class task {
 #define X(t) t
@@ -150,6 +155,8 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				add_task(task::get_size, 20);
 
 				add_task(task::get_position, 20);
+
+				add_task(task::truncate, 20);
 
 				if (pos.size())
 					add_task(task::set_position, 20);
@@ -285,7 +292,6 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				break;
 			}
 			case task::set_position: {
-				if (pos.size() == 0) break;
 				task_title("Set position", s);
 				auto p1 = pos[p];
 				s1[s].set_position(p1);
@@ -293,6 +299,22 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				ensure(p1.m_logical_offset + p1.m_index, o, "offset");
 				s2[s].set_offset(o);
 				break;
+			}
+			case task::truncate: {
+				stream_position largest_pos = {0, 0, 0, 0};
+				size_t i = 0;
+				size_t largest_i;
+				for (auto & s : s1) {
+					auto pos = s.get_position();
+					if (largest_pos < pos) {
+						largest_pos = pos;
+						largest_i = i;
+					}
+					i++;
+				}
+				task_title("Truncate to logical size " + std::to_string(largest_pos.m_logical_offset), largest_i);
+				f1.truncate(largest_pos);
+				f2.truncate(s2[largest_i].offset());
 			}
 			}
 			break;
