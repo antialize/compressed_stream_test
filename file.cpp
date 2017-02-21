@@ -323,8 +323,12 @@ void file_base_base::truncate(stream_position pos) {
 }
 
 void file_base_base::truncate(file_size_t offset) {
-	lock_t l(m_impl->m_mut);
-	truncate(m_impl->position_from_offset(l, offset));
+	stream_position p;
+	{
+		lock_t l(m_impl->m_mut);
+		p = m_impl->position_from_offset(l, offset);
+	}
+	truncate(p);
 }
 
 stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) const {
