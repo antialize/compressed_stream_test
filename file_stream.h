@@ -338,17 +338,60 @@ protected:
 template <typename T, bool serialized>
 class file_stream_base {
 public:
-	void close() {return m_file.close();}
-	
-	bool can_read() {return m_stream.can_read();}
-	void skip() {m_stream.skip();}
-	
-	const T & read() {return m_stream.read();}
-	const T & peek() {return m_stream.peek();}
-	void write(const T & item) {m_stream.write(item);}
+	// == file_base_base functions ==
+	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0) {
+		m_file.open(path, flags, max_user_data_size);
+		m_stream = new stream_base<T, serialized>(m_file.stream());
+	}
+	void open(const std::string & path, std::underlying_type<open_flags::open_flags>::type flags, size_t max_user_data_size = 0) {
+		open(path, static_cast<open_flags::open_flags>(flags), max_user_data_size);
+	}
+
+	void close() {
+		delete m_stream;
+		m_file.close();
+	}
+
+	~file_stream_base() {
+		if (m_stream) delete m_stream;
+	}
+
+	bool is_open() const noexcept {return m_file.is_open();}
+	bool is_readable() const noexcept {return m_file.is_readable();}
+	bool is_writable() const noexcept {return m_file.is_writable();}
+	size_t user_data_size() const noexcept {return m_file.user_data_size();}
+	size_t max_user_data_size() const noexcept {return m_file.max_user_data_size();}
+	void read_user_data(void * data, size_t count) {m_file.read_user_data(data, count);}
+	void write_user_data(const void *data, size_t count) {m_file.write_user_data(data, count);}
+	const std::string & path() const noexcept {return m_file.path();}
+	void truncate(file_size_t offset) {return m_file.truncate(offset);}
+	void truncate(stream_position pos) {return m_file.truncate(pos);}
+	template <typename TT>
+	void read_user_data(TT & data) {m_file.read_user_data(data);}
+	template <typename TT>
+	void write_user_data(const TT & data) {m_file.write_user_data(data);}
+	file_size_t size() const noexcept {return m_file.size();}
+
+	// == stream_base_base functions ==
+	bool can_read() const noexcept {return m_stream->can_read();}
+	bool can_read_back() const noexcept {return m_stream->can_read_back();}
+	void skip() {m_stream->skip();}
+	void skip_back() {m_stream->skip_back();}
+	void seek(file_size_t offset, whence w = whence::set) {m_stream->seek(offset, w);}
+	file_size_t offset() const noexcept {return m_stream->offset();}
+	stream_position get_position() {return m_stream->get_position();}
+	void set_position(stream_position p) {m_stream->set_position(p);}
+
+	// == stream_base functions ==
+	const T & read() {return m_stream->read();}
+	const T & peek() {return m_stream->peek();}
+	const T & read_back() {return m_stream->read_back();}
+	const T & peek_back() {return m_stream->peek_back();}
+	void write(T item) {m_stream->write(item);}
+
 private:
 	file_base<T, serialized> m_file;
-	stream_base<T, serialized> m_stream;
+	stream_base<T, serialized> * m_stream;
 };
 
 // Actual types

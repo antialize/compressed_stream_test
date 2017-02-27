@@ -619,6 +619,24 @@ int open_truncate_close() {
 	f.close();
 
 	f.open(TMP_FILE, compression_flag);
+
+	return EXIT_SUCCESS;
+}
+
+int file_stream_test() {
+	file_stream<int> f;
+	f.open(TMP_FILE, compression_flag);
+
+	for (int i = 0; i < 1000; i++)
+		f.write(i);
+
+	f.close();
+	f.open(TMP_FILE, compression_flag);
+
+	for (int i = 0; i < 1000; i++)
+		ensure(i, f.read(), "read");
+
+	return EXIT_SUCCESS;
 }
 
 typedef int(*test_fun_t)();
@@ -666,6 +684,7 @@ int main(int argc, char ** argv) {
 		{"get_set_position", get_set_position},
 		{"truncate", truncate},
 		{"open_truncate_close", open_truncate_close},
+		{"file_stream", file_stream_test},
 	};
 
 	std::stringstream usage;
