@@ -335,7 +335,7 @@ void process_run() {
 				auto & offsets = block_offsets[file->m_file_id];
 				auto it = offsets.lower_bound(file->m_blocks - 1);
 				if (it != offsets.end()) {
-					if (it->second == std::make_pair(file->m_file_id, file->m_blocks - 1)) {
+					if (it->first == file->m_blocks - 1) {
 						it->second.second = no_file_size;
 						it = std::next(it);
 					}
