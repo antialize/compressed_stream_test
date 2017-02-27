@@ -17,5 +17,8 @@ target_link_libraries(t stream)
 add_executable(random_test random_test.cpp)
 target_link_libraries(random_test stream)
 
+add_executable(speed_test speed_test.cpp)
+target_link_libraries(speed_test stream)
+
 add_executable(dump_file dump_file.cpp)
 target_link_libraries(dump_file stream)
