@@ -41,6 +41,8 @@ struct internal_stream {
 	const T & read() noexcept {assert(can_read()); return m_file->m_items[m_offset++];}
 	const T & peek_back() const noexcept {assert(can_read_back()); return m_file->m_items[m_offset-1];}
 	const T & read_back() noexcept {assert(can_read_back()); return m_file->m_items[--m_offset];}
+	void skip() noexcept {assert(can_read()); m_offset++;}
+	void skip_back() noexcept {assert(can_read_back()); m_offset--;}
 	bool can_read() const noexcept {return m_offset != m_file->m_items.size();}
 	bool can_read_back() const noexcept {return m_offset != 0;}
 	file_size_t offset() const noexcept {return m_offset;}
@@ -92,6 +94,8 @@ void task_title(std::string title, size_t stream = (size_t)-1) {
 	X(peek), \
 	X(read_back), \
 	X(peek_back), \
+	X(skip), \
+	X(skip_back), \
 	X(seek_start), \
 	X(get_offset), \
 	X(get_size), \
@@ -153,6 +157,8 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				add_task(task::peek, 20);
 				add_task(task::read_back, 20);
 				add_task(task::peek_back, 20);
+				add_task(task::skip, 2);
+				add_task(task::skip_back, 2);
 				add_task(task::seek_start, 6);
 				add_task(task::get_offset, 20);
 				add_task(task::can_read, 20);
@@ -258,6 +264,26 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				if (s2[s].offset() == 0) break;
 				task_title("Peek back at " + std::to_string(s1[s].offset()), s);
 				ensure(s1[s].peek_back(), s2[s].peek_back(), "peek_back");
+				break;
+			}
+			case task::skip: {
+				if (s2[s].offset() == f2.size()) break;
+				auto count = std::uniform_int_distribution<size_t>(1, std::min(file_size_t(1024), f2.size() - s2[s].offset()))(rng);
+				task_title("Skip " + std::to_string(count) + " at " + std::to_string(s1[s].offset()), s);
+				for (size_t i=0; i < count; ++i) {
+					s1[s].skip();
+					s2[s].skip();
+				}
+				break;
+			}
+			case task::skip_back: {
+				if (s2[s].offset() == 0) break;
+				auto count = std::uniform_int_distribution<size_t>(1, std::min(file_size_t(1024), s2[s].offset()))(rng);
+				task_title("Skip back " + std::to_string(count) + " at " + std::to_string(s1[s].offset()), s);
+				for (size_t i=0; i < count; ++i) {
+					s1[s].skip_back();
+					s2[s].skip_back();
+				}
 				break;
 			}
 			case task::seek_start:
