@@ -530,9 +530,8 @@ void file_impl::free_block(lock_t & l, block * t) {
 	// - Its usage should be 0 or it should be full. Even if the usage > 1, we need to write the block if it's full.
 	//   We need to do this to get this blocks physical size, so we can write to the next block.
 	if (t->m_dirty && t->m_logical_size != 0 && (t->m_usage == 0 || t->m_logical_size == t->m_maximal_logical_size)) {
+		assert(t->m_file->m_outer->is_writable());
 
-		//TODO check that we are allowed to write to this block
-		
 		log_info() << "      free block " << *t << " write" << std::endl;
 
 		m_job_count++;
