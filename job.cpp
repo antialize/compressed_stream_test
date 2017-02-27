@@ -7,8 +7,7 @@
 #include <atomic>
 
 #ifndef NDEBUG
-#include <tuple>
-std::map<std::pair<size_t, block_idx_t>, std::pair<file_size_t, file_size_t>> block_offsets;
+std::map<size_t, std::map<block_idx_t, std::pair<file_size_t, file_size_t>>> block_offsets;
 #endif
 
 std::queue<job> jobs;
@@ -301,18 +300,19 @@ void process_run() {
 
 #ifndef NDEBUG
 			{
+				auto & offsets = block_offsets[file->m_file_id];
 				if (b->m_block + 1 != file->m_blocks) {
-					auto it = block_offsets.find({file->m_file_id, b->m_block + 1});
-					if (it != block_offsets.end()) {
+					auto it = offsets.find(b->m_block + 1);
+					if (it != offsets.end()) {
 						assert(it->second.first == off + bs);
 					}
 				}
-				auto it = block_offsets.find({file->m_file_id, b->m_block - 1});
-				if (it != block_offsets.end() && is_known(it->second.second)) {
+				auto it = offsets.find(b->m_block - 1);
+				if (it != offsets.end() && is_known(it->second.second)) {
 					assert(it->second.second == off);
 				}
 
-				block_offsets[{file->m_file_id, b->m_block}] = {off, off + bs};
+				offsets[b->m_block] = {off, off + bs};
 			}
 #endif
 
@@ -332,13 +332,14 @@ void process_run() {
 
 #ifndef NDEBUG
 			{
-				auto it = block_offsets.lower_bound({file->m_file_id, file->m_blocks - 1});
-				if (it != block_offsets.end()) {
+				auto & offsets = block_offsets[file->m_file_id];
+				auto it = offsets.lower_bound(file->m_blocks - 1);
+				if (it != offsets.end()) {
 					if (it->second == std::make_pair(file->m_file_id, file->m_blocks - 1)) {
 						it->second.second = no_file_size;
 						it = std::next(it);
 					}
-					block_offsets.erase(it, block_offsets.end());
+					offsets.erase(it, offsets.end());
 				}
 			}
 #endif
