@@ -228,11 +228,13 @@ size_t file_base_base::max_user_data_size() const noexcept {
 }
 
 void file_base_base::read_user_data(void *data, size_t count) {
+	assert(is_open());
 	assert(count <= user_data_size());
 	_pread(m_impl->m_fd, data, count, sizeof(file_header));
 }
 
 void file_base_base::write_user_data(const void *data, size_t count) {
+	assert(is_open() && is_readable());
 	assert(count <= max_user_data_size());
 	_pwrite(m_impl->m_fd, data, count, sizeof(file_header));
 	m_impl->m_header.user_data_size = std::max(user_data_size(), count);
@@ -243,6 +245,7 @@ const std::string &file_base_base::path() const noexcept {
 }
 
 void file_base_base::truncate(stream_position pos) {
+	assert(is_open() && is_writable());
 	lock_t l(m_impl->m_mut);
 
 	block * new_last_block = m_impl->get_block(l, pos);

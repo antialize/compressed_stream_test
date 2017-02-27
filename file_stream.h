@@ -101,7 +101,7 @@ public:
 	size_t user_data_size() const noexcept;
 	size_t max_user_data_size() const noexcept;
 	void read_user_data(void * data, size_t count);
-	void write_user_data (const void *data, size_t count);
+	void write_user_data(const void *data, size_t count);
 
 	const std::string & path() const noexcept;
 
