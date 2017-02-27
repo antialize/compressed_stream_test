@@ -517,9 +517,13 @@ void file_impl::free_block(lock_t & l, block * t) {
 	assert(t->m_usage != 0);
 	--t->m_usage;
 
-	// Even if t->m_usage > 1, we need to write the block if it's dirty and its full
-	// This is not a problem as we only support appending to a file
-	if (t->m_dirty && (t->m_usage == 0 || t->m_logical_size == t->m_maximal_logical_size)) {
+	// We should only write a block to disk if the following are all true:
+	// - It should be dirty.
+	// - It should have size greater than 0, as a dirty block can only have size 0
+	//   if it has been truncated. In this case, we shouldn't write the block to disk.
+	// - Its usage should be 0 or it should be full. Even if the usage > 1, we need to write the block if it's full.
+	//   We need to do this to get this blocks physical size, so we can write to the next block.
+	if (t->m_dirty && t->m_logical_size != 0 && (t->m_usage == 0 || t->m_logical_size == t->m_maximal_logical_size)) {
 
 		//TODO check that we are allowed to write to this block
 		

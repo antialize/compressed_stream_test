@@ -601,7 +601,11 @@ int truncate() {
 int open_truncate_close() {
 	file<uint8_t> f;
 	f.open(TMP_FILE, compression_flag);
-	f.truncate(0);
+	{
+		auto s = f.stream();
+		s.write(11);
+		f.truncate(0);
+	}
 	f.close();
 
 	f.open(TMP_FILE, compression_flag);
