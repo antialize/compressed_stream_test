@@ -269,11 +269,23 @@ void file_base_base::truncate(stream_position pos) {
 		}
 	}
 
+	block * old_last_block = m_impl->m_last_block;
+
 	// If new_last_block != m_last_block, we need to free the current last block
 	if (new_last_block != m_last_block) {
+		// If the last block is empty then freeing it will also automatically kill it
+		// We need to make sure we don't kill it twice
+		bool empty = m_last_block->m_logical_size == 0;
+
 		m_impl->free_block(l, m_impl->m_last_block);
 		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
-		m_impl->kill_block(l, m_impl->m_last_block);
+
+		if (!empty) {
+			m_impl->kill_block(l, m_impl->m_last_block);
+		} else {
+			assert(m_impl->m_last_block->m_file == nullptr);
+		}
+
 		m_last_block = m_impl->m_last_block = new_last_block;
 	} else {
 		m_impl->free_block(l, new_last_block);
@@ -312,11 +324,20 @@ void file_base_base::truncate(stream_position pos) {
 		// or the block is full and we're at the past the end of the block
 		// In the first case we should truncate the block, in the last case we should include it
 		if (pos.m_index == 0) {
-			truncate_size = b->m_physical_offset - sizeof(block_header);
+			truncate_size = b->m_physical_offset;
 		} else {
-			// We have freed this block, so it should have been written out
-			assert(is_known(b->m_physical_size));
-			truncate_size = b->m_physical_offset + b->m_physical_size;
+			// We have freed this block, so it should have been written out if
+			// it was dirty and had reached its maximal size
+			// If it has not reached its maximal size, this must be the last block
+			// and so we shouldn't actually truncate at all
+			if (b->m_logical_size < b->m_maximal_logical_size) {
+				assert(b == old_last_block);
+				assert(pos.m_logical_offset + pos.m_index == size());
+				return;
+			} else {
+				assert(!b->m_dirty);
+				truncate_size = b->m_physical_offset + b->m_physical_size;
+			}
 		}
 	}
 
@@ -332,6 +353,8 @@ void file_base_base::truncate(stream_position pos) {
 		jobs.push(j);
 		job_cond.notify_all();
 	}
+
+	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 }
 
 void file_base_base::truncate(file_size_t offset) {
