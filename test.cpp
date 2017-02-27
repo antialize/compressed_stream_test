@@ -546,51 +546,54 @@ int get_set_position() {
 int truncate() {
 	file<int> f;
 	f.open(TMP_FILE, compression_flag);
-	auto s = f.stream();
-	auto b = s.logical_block_size();
 
-	int ctr = 0;
+	{
+		auto s = f.stream();
+		auto b = s.logical_block_size();
 
-	for (; ctr < 10 * b + 2; ctr++)
-		s.write(ctr);
+		int ctr = 0;
 
-	// Not on block boundary
-	auto p1 = s.get_position();
+		for (; ctr < 10 * b + 2; ctr++)
+			s.write(ctr);
 
-	for (; ctr < 20 * b; ctr++)
-		s.write(ctr);
+		// Not on block boundary
+		auto p1 = s.get_position();
 
-	// On block boundary
-	auto p2 = s.get_position();
+		for (; ctr < 20 * b; ctr++)
+			s.write(ctr);
 
-	for (; ctr < 30 * b; ctr++)
-		s.write(ctr);
+		// On block boundary
+		auto p2 = s.get_position();
 
-	s.seek(0, whence::set);
-	f.truncate(p2);
+		for (; ctr < 30 * b; ctr++)
+			s.write(ctr);
 
-	assert(f.size() == 20 * b);
+		s.seek(0, whence::set);
+		f.truncate(p2);
 
-	for (int i = 0; i < 20 * b; i++)
-		ensure(i, s.read(), "read");
+		assert(f.size() == 20 * b);
 
-	s.write(123546);
+		for (int i = 0; i < 20 * b; i++)
+			ensure(i, s.read(), "read");
 
-	s.seek(0, whence::set);
-	f.truncate(p1);
+		s.write(123546);
 
-	assert(f.size() == 10 * b + 2);
+		s.seek(0, whence::set);
+		f.truncate(p1);
 
-	for (int i = 0; i < 10 * b + 2; i++)
-		ensure(i, s.read(), "read");
+		assert(f.size() == 10 * b + 2);
 
-	s.write(789);
-	auto p3 = s.get_position();
-	f.truncate(p3);
-	s.write(987);
+		for (int i = 0; i < 10 * b + 2; i++)
+			ensure(i, s.read(), "read");
 
-	ensure(987, s.read_back(), "read_back");
-	ensure(789, s.read_back(), "read_back");
+		s.write(789);
+		auto p3 = s.get_position();
+		f.truncate(p3);
+		s.write(987);
+
+		ensure(987, s.read_back(), "read_back");
+		ensure(789, s.read_back(), "read_back");
+	}
 
 	return EXIT_SUCCESS;
 }
