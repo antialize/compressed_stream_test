@@ -98,6 +98,8 @@ public:
 	bool is_readable() const noexcept;
 	bool is_writable() const noexcept;
 
+	bool direct() const noexcept;
+
 	size_t user_data_size() const noexcept;
 	size_t max_user_data_size() const noexcept;
 	void read_user_data(void * data, size_t count);
@@ -248,8 +250,8 @@ public:
 		}
 
 #ifndef NDEBUG
-		assert(get_last_block() == m_block);
-		assert(m_block->m_logical_size == m_cur_index);
+		assert(m_file_base->direct() || get_last_block() == m_block);
+		assert(m_file_base->direct() || m_block->m_logical_size == m_cur_index);
 #endif
 
 		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);

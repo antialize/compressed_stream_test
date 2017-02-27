@@ -639,6 +639,36 @@ int file_stream_test() {
 	return EXIT_SUCCESS;
 }
 
+int direct_file() {
+	file<block_size_t> f;
+	f.open(TMP_FILE, open_flags::no_compress);
+	{
+		auto s = f.stream();
+		auto b = s.logical_block_size();
+		for (block_size_t i = 0; i < 10 * b; i++)
+			s.write(i);
+
+		s.seek(5 * b + 9, whence::set);
+		ensure(5 * b + 9, s.read(), "read");
+
+		s.write(987);
+
+		f.truncate(8 * b + 123);
+		s.seek(0, whence::end);
+		ensure(8 * b + 122, s.read_back(), "read_back");
+	}
+	f.close();
+	f.open(TMP_FILE, open_flags::no_compress);
+	{
+		auto s = f.stream();
+		auto b = s.logical_block_size();
+		for (block_size_t i = 0; i < 10 * b; i++)
+			ensure((i == 5 * b + 10)? 987: i, s.read(), "read");
+	}
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -685,6 +715,7 @@ int main(int argc, char ** argv) {
 		{"truncate", truncate},
 		{"open_truncate_close", open_truncate_close},
 		{"file_stream", file_stream_test},
+		{"direct_file", direct_file},
 	};
 
 	std::stringstream usage;

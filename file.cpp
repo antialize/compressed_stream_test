@@ -226,6 +226,10 @@ bool file_base_base::is_writable() const noexcept {
 	return !m_impl->m_readonly;
 }
 
+bool file_base_base::direct() const noexcept {
+	return m_impl->direct();
+}
+
 size_t file_base_base::user_data_size() const noexcept {
 	return m_impl->m_header.user_data_size;
 }
@@ -531,6 +535,14 @@ void file_impl::free_block(lock_t & l, block * t) {
 	//   We need to do this to get this blocks physical size, so we can write to the next block.
 	if (t->m_dirty && t->m_logical_size != 0 && (t->m_usage == 0 || t->m_logical_size == t->m_maximal_logical_size)) {
 		assert(t->m_file->m_outer->is_writable());
+
+		if (direct()) {
+			t->m_physical_size = m_item_size * t->m_logical_size + 2 * sizeof(block_header);
+			auto it = m_block_map.find(t->m_block + 1);
+			if (it != m_block_map.end()) {
+				it->second->m_physical_offset = t->m_physical_offset + t->m_physical_size;
+			}
+		}
 
 		log_info() << "      free block " << *t << " write" << std::endl;
 
