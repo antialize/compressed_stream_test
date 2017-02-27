@@ -662,7 +662,7 @@ int direct_file() {
 	{
 		auto s = f.stream();
 		auto b = s.logical_block_size();
-		for (block_size_t i = 0; i < 10 * b; i++)
+		for (block_size_t i = 0; i < 8 * b + 123; i++)
 			ensure((i == 5 * b + 10)? 987: i, s.read(), "read");
 	}
 
