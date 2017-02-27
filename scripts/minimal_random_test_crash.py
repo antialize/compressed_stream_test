@@ -5,12 +5,12 @@ import progressbar
 
 TIMEOUT = 2
 
-def args_for_tasks(tasks, max_threads='1', max_streams='1', seed='1'):
-	return [random_test, '-t', max_threads, '-s', max_streams, '-r', seed, '-w', *tasks]
+def args_for_tasks(tasks, threads, max_streams, seed='0'):
+	return [random_test, '-t', threads, '-s', max_streams, '-r', seed, '-w', *tasks]
 
-def crashes(tasks):
+def crashes(tasks, threads, max_streams):
 	try:
-		subprocess.run(args_for_tasks(tasks), check=True, timeout=TIMEOUT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+		subprocess.run(args_for_tasks(tasks, threads=threads, max_streams=max_streams), check=True, timeout=TIMEOUT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 	except subprocess.CalledProcessError:
 		return True
 	except subprocess.TimeoutExpired:
@@ -52,9 +52,16 @@ if __name__ == '__main__':
 	_, tasks_string = help_string.split('Task names:')
 	tasks = tasks_string.strip().split()
 
-	if not crashes(tasks):
+	print('Determining how many threads and max streams are needed...')
+
+	for threads, max_streams in ('11', '12', '21', '22'):
+		if crashes(tasks, threads=threads, max_streams=max_streams):
+			break
+	else:
 		print("random_test doesn't seem to crash with all tasks enabled.")
 		sys.exit()
+
+	print('Running random_test with %s threads and %s max streams' % (threads, max_streams))
 
 	print('Finding minimal set of tasks that causes random_test to crash...')
 	
@@ -65,7 +72,7 @@ if __name__ == '__main__':
 			t = enabled_tasks[i]
 			s = enabled_tasks[:]
 			s.remove(t)
-			if crashes(s):
+			if crashes(s, threads=threads, max_streams=max_streams):
 				enabled_tasks = s
 			else:
 				i += 1
@@ -81,7 +88,7 @@ if __name__ == '__main__':
 	bar = progressbar.ProgressBar()
 	for i in bar(range(100)):
 		try:
-			p = subprocess.run(args_for_tasks(enabled_tasks, seed=str(i)), timeout=TIMEOUT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+			p = subprocess.run(args_for_tasks(enabled_tasks, threads=threads, max_streams=max_streams, seed=str(i)), timeout=TIMEOUT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 		except subprocess.TimeoutExpired:
 			continue
 
@@ -95,5 +102,5 @@ if __name__ == '__main__':
 	print()
 
 	print('Command-line to run random_test:')
-	print(*args_for_tasks(enabled_tasks, seed=best[1]))
+	print(*args_for_tasks(enabled_tasks, threads=threads, max_streams=max_streams, seed=best[1]))
 
