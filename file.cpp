@@ -156,6 +156,18 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	m_impl->m_last_block->m_usage--;
 }
 
+#include <algorithm>
+
+void file_impl::foreach_block(const std::function<void (block *)> & f) {
+	for (auto it = m_block_map.begin(); it != m_block_map.end();) {
+		auto itnext = std::next(it);
+		block *b = it->second;
+		it = itnext;
+
+		f(b);
+	}
+}
+
 void file_base_base::close() {
 	assert(is_open());
 	lock_t l(m_impl->m_mut);
@@ -164,14 +176,13 @@ void file_base_base::close() {
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
 	// Free all blocks, possibly creating some write jobs
-	for (auto p : m_impl->m_block_map) {
-		block *b = p.second;
+	m_impl->foreach_block([&](block * b){
 		if (b->m_usage != 0) {
 			// Make sure that no streams are open
 			assert(b->m_usage == 1 && b == m_last_block);
 			m_impl->free_block(l, b);
 		}
-	}
+	});
 
 	// Wait for all freed dirty blocks to be written
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
@@ -179,14 +190,10 @@ void file_base_base::close() {
 	m_last_block = m_impl->m_last_block = nullptr;
 
 	// Kill all blocks
-	// Note: kill_block invalidates it
-	for (auto it = m_impl->m_block_map.begin(); it != m_impl->m_block_map.end();) {
-		auto itnext = std::next(it);
-		block *b = it->second;
+	m_impl->foreach_block([&](block * b){
 		assert(b->m_usage == 0);
 		m_impl->kill_block(l, b);
-		it = itnext;
-	}
+	});
 
 	assert(m_impl->m_block_map.size() == 0);
 
@@ -257,8 +264,7 @@ void file_base_base::truncate(stream_position pos) {
 
 	// Make sure no one uses blocks past this one and kill them all
 	// Exception: the last block is always used by the file
-	for (auto p : m_impl->m_block_map) {
-		block *b = p.second;
+	m_impl->foreach_block([&](block * b){
 		if (b->m_block > pos.m_block) {
 			if (b->m_usage != 0) {
 				assert(b == m_last_block);
@@ -267,7 +273,7 @@ void file_base_base::truncate(stream_position pos) {
 				m_impl->kill_block(l, b);
 			}
 		}
-	}
+	});
 
 	block * old_last_block = m_impl->m_last_block;
 

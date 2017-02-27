@@ -168,6 +168,10 @@ public:
 		return no_file_size;
 	}
 
+	// Calls a function for each block in m_block_map
+	// Makes sure that if f kills any of the blocks, then it still works
+	void foreach_block(const std::function<void (block *)> & f);
+
 	block * get_first_block(lock_t & lock) {return get_block(lock, start_position());}
 	block * get_last_block(lock_t & lock) {return get_block(lock, end_position(lock));}
 	block * get_successor_block(lock_t & lock, block * block);
