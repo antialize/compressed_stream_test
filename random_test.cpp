@@ -167,13 +167,12 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 
 				add_task(task::get_position, 20);
 
-				add_task(task::truncate, 20);
-
 				if (pos.size())
 					add_task(task::set_position, 20);
 
 				if (!readonly) {
 					add_task(task::write_end, 20);
+					add_task(task::truncate, 20);
 				}
 			} else {
 				add_task(task::close_file, 2);
