@@ -602,11 +602,13 @@ int open_truncate_close() {
 	f.close();
 
 	f.open(TMP_FILE, compression_flag);
-	auto s = f.stream();
-	for (block_size_t i = 0; i < block_size(); i++)
-		s.write((uint8_t)i);
+	{
+		auto s = f.stream();
+		for (block_size_t i = 0; i < block_size(); i++)
+			s.write((uint8_t) i);
 
-	f.truncate(s.get_position());
+		f.truncate(s.get_position());
+	}
 	f.close();
 
 	f.open(TMP_FILE, compression_flag);
