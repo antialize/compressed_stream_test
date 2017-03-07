@@ -25,8 +25,11 @@ file_impl::file_impl()
 	create_available_block();
 }
 
-file_base_base::~file_base_base() {
+file_impl::~file_impl() {
 	destroy_available_block();
+}
+
+file_base_base::~file_base_base() {
 	delete m_impl;
 }
 
@@ -48,6 +51,17 @@ file_base_base::file_base_base(file_base_base &&o)
 	o.m_impl = nullptr;
 	o.m_last_block = nullptr;
 	m_impl->m_outer = this;
+}
+
+file_base_base & file_base_base::operator=(file_base_base && o) {
+	m_impl = o.m_impl;
+	m_last_block = o.m_last_block;
+
+	o.m_impl = nullptr;
+	o.m_last_block = nullptr;
+	m_impl->m_outer = this;
+
+	return *this;
 }
 
 void file_base_base::open(const std::string & path, open_flags::open_flags flags, size_t max_user_data_size) {
@@ -175,6 +189,8 @@ void file_base_base::close() {
 	// Wait for all jobs to be completed for this file
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
+	assert(m_impl->m_streams.empty());
+
 	// Free all blocks, possibly creating some write jobs
 	m_impl->foreach_block([&](block * b){
 		if (b->m_usage != 0) {
@@ -215,6 +231,7 @@ void file_base_base::close() {
 }
 
 bool file_base_base::is_open() const noexcept {
+	if (!m_impl) return false;
 	return m_impl->m_fd != -1;
 }
 
@@ -267,9 +284,20 @@ void file_base_base::truncate(stream_position pos) {
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
 	// Make sure no one uses blocks past this one and kill them all
+	// First free all readahead blocks...
+	for (stream_impl * s : m_impl->m_streams) {
+		block *b = s->m_readahead_block;
+		if (b && b->m_block > pos.m_block) {
+			m_impl->free_readahead_block(l, b);
+			s->m_readahead_block = nullptr;
+		}
+	}
+
+	// ... then kill all others
 	// Exception: the last block is always used by the file
 	m_impl->foreach_block([&](block * b){
 		if (b->m_block > pos.m_block) {
+			assert(b->m_readahead_usage == 0);
 			if (b->m_usage != 0) {
 				assert(b == m_last_block);
 				assert(b->m_usage == 1);
@@ -532,6 +560,12 @@ block * file_impl::get_predecessor_block(lock_t & l, block * t) {
 	return get_block(l, p, false, t);
 }
 
+void file_impl::free_readahead_block(lock_t & l, block * t) {
+	if (t == nullptr) return;
+	assert(t->m_readahead_usage != 0);
+	t->m_readahead_usage--;
+	free_block(l, t);
+}
 
 void file_impl::free_block(lock_t & l, block * t) {
 	if (t == nullptr) return;

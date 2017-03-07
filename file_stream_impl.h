@@ -8,6 +8,7 @@
 #include <limits>
 #include <map>
 #include <queue>
+#include <unordered_set>
 
 typedef std::mutex mutex_t;
 typedef std::unique_lock<mutex_t> lock_t;
@@ -55,6 +56,7 @@ public:
 	block_idx_t m_block;
 	file_impl * m_file;
 	uint32_t m_usage;
+	uint32_t m_readahead_usage;
 	cond_t m_cond;
 	bool m_io; // false = owned by main thread, true = owned by job thread
 
@@ -103,7 +105,10 @@ public:
 	bool m_readonly;
 	file_header m_header;
 
+	std::unordered_set<stream_impl *> m_streams;
+
 	file_impl();
+	~file_impl();
 
 	bool direct() const {
 		return !m_compressed && !m_serialized;
@@ -176,6 +181,7 @@ public:
 	block * get_last_block(lock_t & lock) {return get_block(lock, end_position(lock));}
 	block * get_successor_block(lock_t & lock, block * block);
 	block * get_predecessor_block(lock_t & lock, block * block);
+	void free_readahead_block(lock_t & lock, block * block);
 	void free_block(lock_t & lock, block * block);
 	void kill_block(lock_t & lock, block * block);
 
@@ -187,6 +193,7 @@ public:
 	stream_base_base * m_outer;
 	file_impl * m_file;
 	block * m_cur_block;
+	block * m_readahead_block;
 
 	void close();
 	void next_block();

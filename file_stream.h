@@ -84,7 +84,9 @@ public:
 	friend void process_run();
 
 	file_base_base(const file_base_base &) = delete;
+	file_base_base & operator=(const file_base_base &) = delete;
 	file_base_base(file_base_base &&);
+	file_base_base & operator=(file_base_base &&);
 
 	// TODO more magic open methods here
 	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0);
@@ -143,6 +145,7 @@ enum class whence {set, cur, end};
 class stream_base_base {
 public:
 	stream_base_base(const stream_base_base &) = delete;
+	stream_base_base & operator=(const stream_base_base &) = delete;
 	stream_base_base(stream_base_base &&);
 	stream_base_base & operator=(stream_base_base &&);
 	~stream_base_base();
@@ -280,6 +283,8 @@ public:
 	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
 
 	file_base(): file_base_base(serialized, sizeof(T)) {}
+
+	file_base(file_base &&) = default;
 
 	// We can't close the file in file_base_base's dtor
 	// as the job thread might need to serialize some items before we close the file.

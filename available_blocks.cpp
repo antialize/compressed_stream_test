@@ -97,6 +97,7 @@ block * pop_available_block() {
 		b->m_block = 0;
 		b->m_dirty = false;
 		b->m_usage = 0;
+		b->m_readahead_usage = 0;
 		b->m_physical_offset = no_file_size;
 		b->m_physical_size = no_block_size;
 		b->m_next_physical_size = no_block_size;

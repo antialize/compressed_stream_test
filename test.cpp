@@ -669,6 +669,19 @@ int direct_file() {
 	return EXIT_SUCCESS;
 }
 
+int move_file_object() {
+	file<int> f;
+	f.open(TMP_FILE, compression_flag);
+	auto f2 = std::move(f);
+	auto s = f2.stream();
+	s.write(1);
+	auto s2 = std::move(s);
+
+	s2.write(2);
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -717,6 +730,7 @@ int main(int argc, char ** argv) {
 		{"open_truncate_close", open_truncate_close},
 		{"file_stream", file_stream_test},
 		{"direct_file", direct_file},
+		{"move_file_object", move_file_object},
 	};
 
 	std::stringstream usage;

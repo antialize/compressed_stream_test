@@ -38,7 +38,7 @@ int main() {
 	for (open_flags::open_flags flags : {open_flags::default_flags, open_flags::no_compress}) {
 		std::cerr << "With" << (flags == open_flags::no_compress? "out": "") << " compression:\n";
 
-		size_t N = 100 * 1000 * 1000;
+		size_t N = 10 * 1000 * 1000;
 
 		unlink(FILE_NAME);
 
