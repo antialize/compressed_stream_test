@@ -693,6 +693,7 @@ void signal_handler(int signal) {
 int main(int argc, char ** argv) {
 	std::signal(SIGABRT, signal_handler);
 	std::signal(SIGINT, signal_handler);
+	std::signal(SIGSEGV, signal_handler);
 
 	int default_job_threads = 4;
 
