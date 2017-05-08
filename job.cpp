@@ -48,8 +48,9 @@ void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_
 
 void process_run() {
 	auto id = tid.fetch_add(1);
-	thread_local char _data1[1024*1024];
-	thread_local char _data2[1024*1024];
+	size_t max_buffer_size = 1024*1024;
+	char * _data1 = new char[max_buffer_size];
+	char * _data2 = new char[max_buffer_size];
 	char * current_buffer = _data1;
 	char * next_buffer = _data2;
 	lock_t job_lock(job_mutex);
@@ -176,7 +177,7 @@ void process_run() {
 			if (file->m_compressed) {
 				bool ok = snappy::GetUncompressedLength(compressed_data, compressed_size, &uncompressed_size);
 				assert(ok);
-				assert(uncompressed_size <= sizeof(_data1));
+				assert(uncompressed_size <= max_buffer_size);
 				ok = snappy::RawUncompress(compressed_data, compressed_size, uncompressed_data);
 				assert(ok);
 			} else {
@@ -246,7 +247,7 @@ void process_run() {
 			block_size_t serialized_size;
 
 			if (file->m_serialized) {
-				assert(b->m_serialized_size <= sizeof(_data1));
+				assert(b->m_serialized_size <= max_buffer_size);
 				file->m_outer->do_serialize(current_buffer, h.logical_size, next_buffer, &serialized_size);
 				assert(serialized_size == b->m_serialized_size);
 				std::swap(current_buffer, next_buffer);
@@ -256,7 +257,7 @@ void process_run() {
 
 			size_t compressed_size;
 			if (file->m_compressed) {
-				assert(snappy::MaxCompressedLength(serialized_size) <= sizeof(_data1) - sizeof(block_header));
+				assert(snappy::MaxCompressedLength(serialized_size) <= max_buffer_size - sizeof(block_header));
 				snappy::RawCompress(current_buffer, serialized_size, next_buffer + sizeof(block_header), &compressed_size);
 			} else {
 				memcpy(next_buffer + sizeof(block_header), current_buffer, serialized_size);
@@ -352,5 +353,7 @@ void process_run() {
 		if (b) b->m_cond.notify_all();
 		job_lock.lock();
 	}
+	delete[] _data1;
+	delete[] _data2;
 	log_info() << "JOB " << id << " end" << std::endl;
 }
