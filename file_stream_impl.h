@@ -9,6 +9,7 @@
 #include <map>
 #include <queue>
 #include <unordered_set>
+#include <functional>
 
 typedef std::mutex mutex_t;
 typedef std::unique_lock<mutex_t> lock_t;
