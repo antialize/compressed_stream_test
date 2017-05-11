@@ -48,7 +48,8 @@ void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_
 
 void process_run() {
 	auto id = tid.fetch_add(1);
-	size_t max_buffer_size = 1024*1024;
+	// TODO: Tweak this
+	size_t max_buffer_size = max_serialized_block_size() * 10;
 	char * _data1 = new char[max_buffer_size];
 	char * _data2 = new char[max_buffer_size];
 	char * current_buffer = _data1;
