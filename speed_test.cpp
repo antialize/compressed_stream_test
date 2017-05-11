@@ -6,6 +6,32 @@
 #include <file_stream.h>
 #include <unistd.h>
 
+/**
+ * Speed test matrix:
+ * - Compression on/off
+ * - Readahead on/off
+ * - Block size: 1/16, 1/8, ..., 4 MiB
+ * - Item type:
+ *   - int
+ *   - std::string
+ *   - struct { int32_t key; char data[60]; }
+ *
+ * - Test:
+ *   - Write single
+ *   - Write single chunked
+ *   - Read single
+ *   - Read back single
+ *   - k-way merge, k = 2, 4, ..., 1024
+ *   - k-way merge using one file and multiple streams
+ *   - 2-way distribute
+ *   - Binary search (direct, uncompressed)
+ *
+ * Tricks:
+ * - No SSD, No swap
+ * - Limit RAM to 1-2 GB
+ * - Clear cache between tests
+ */
+
 #define FILE_NAME "/tmp/speed.tst"
 
 void write_ints(size_t amount, std::underlying_type<open_flags::open_flags>::type flags = 0) {
