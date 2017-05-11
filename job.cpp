@@ -65,10 +65,10 @@ void process_run() {
 		}
 		block * b = nullptr;
 		if (j.type == job_type::trunc) {
-			log_info() << "JOB " << id << " pop job    " << j.truncate_size << " " << j.type << '\n';
+			log_info() << "JOB " << id << " pop job    " << j.type << " " << j.truncate_size << '\n';
 		} else {
 			b = j.buff;
-			log_info() << "JOB " << id << " pop job    " << *b << " " << j.type << " " << b->m_logical_size << '\n';
+			log_info() << "JOB " << id << " pop job    " << j.type << " " << b->m_logical_size << '\n';
 		}
 
 		jobs.pop();
