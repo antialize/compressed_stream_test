@@ -1,5 +1,10 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
+
+///////////////////////////////////////////////////////////////////////////////
+/// \file file_stream.h  File streams for POD and serializable items
+///////////////////////////////////////////////////////////////////////////////
+
 #pragma once
 #include <cstdint>
 #include <string>
