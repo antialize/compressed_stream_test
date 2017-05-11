@@ -103,6 +103,8 @@ public:
 	bool m_serialized;
 	bool m_compressed;
 
+	bool m_readahead;
+
 	bool m_readonly;
 	file_header m_header;
 

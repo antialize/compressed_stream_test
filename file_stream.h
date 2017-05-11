@@ -70,6 +70,7 @@ enum open_flags {
 	read_only = 1 << 0,
 	truncate = 1 << 1,
 	no_compress = 1 << 2,
+	no_readahead = 1 << 3,
 
 	// Alias for other flags
 	read_write = default_flags,
