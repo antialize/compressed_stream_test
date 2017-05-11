@@ -4,6 +4,7 @@
 #include <vector>
 #include <thread>
 #include <cassert>
+#include <exception>
 
 std::vector<std::thread> process_threads;
 
@@ -17,7 +18,9 @@ size_t available_blocks(size_t threads) {
 }
 
 void file_stream_init(size_t threads) {
-	assert(threads >= 1);
+	if (threads < 1) {
+		throw exception("Need at least one file job thread");
+	}
 	void_block.m_logical_offset = 0;
 	void_block.m_logical_size = 0;
 	void_block.m_maximal_logical_size = 0;

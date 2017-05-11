@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <cassert>
+#include <cstring>
 
 const uint64_t file_header::magicConst;
 const uint64_t file_header::versionConst;
@@ -65,8 +66,10 @@ file_base_base & file_base_base::operator=(file_base_base && o) {
 }
 
 void file_base_base::open(const std::string & path, open_flags::open_flags flags, size_t max_user_data_size) {
-	assert(!is_open());
-	assert(!(flags & open_flags::read_only && flags & open_flags::truncate));
+	if (is_open())
+		throw exception("File is already open");
+	if ((flags & open_flags::read_only) && (flags && open_flags::truncate))
+		throw exception("Can't open file as truncated with read only flag");
 
 	m_impl->m_path = path;
 
@@ -84,7 +87,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 
 	int fd = ::open(path.c_str(), posix_flags, 00660);
 	if (fd == -1)
-		perror("open failed: ");
+		throw exception("Failed to open file: " + std::string(std::strerror(errno)));
 
 	lock_t l(m_impl->m_mut);
 	m_impl->m_fd = fd;
@@ -93,28 +96,28 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	file_size_t fsize = (file_size_t)::lseek(fd, 0, SEEK_END);
 	file_header & header = m_impl->m_header;
 	if (fsize > 0) {
-		assert(fsize >= sizeof(file_header));
+		if (fsize < sizeof(file_header))
+			throw exception("Invalid TPIE file (too small)");
 		_pread(fd, &header, sizeof header, 0);
 		if (header.magic != file_header::magicConst) {
-			std::cout << file_header::magicConst;
 			log_info() << "Header magic was wrong, expected " << file_header::magicConst
 					   << ", got " << header.magic << "\n";
-			abort();
+			throw exception("Invalid TPIE file (wrong magic)");
 		}
 		if (header.version != file_header::versionConst) {
 			log_info() << "Header version was wrong, expected " << file_header::versionConst
 					   << ", got " << header.version << "\n";
-			abort();
+			throw exception("Invalid TPIE file (wrong version)");
 		}
 		if (header.isCompressed != m_impl->m_compressed) {
 			log_info() << "Opened file is " << (header.isCompressed? "": "not ") << "compressed"
 					   << ", but file was opened with" << (m_impl->m_compressed? "": "out") << " compression\n";
-			abort();
+			throw exception("Invalid TPIE file (wrong compression)");
 		}
 		if (header.isSerialized != m_impl->m_serialized) {
 			log_info() << "Opened file is " << (header.isSerialized? "": "not ") << "serialized"
 					   << ", a " << (header.isSerialized? "": "non-") << "serialized file was required\n";
-			abort();
+			throw exception("Invalid TPIE file (wrong serialized)");
 		}
 
 		assert(max_user_data_size == 0 || header.max_user_data_size == max_user_data_size);
@@ -183,13 +186,16 @@ void file_impl::foreach_block(const std::function<void (block *)> & f) {
 }
 
 void file_base_base::close() {
-	assert(is_open());
+	if (!is_open())
+		throw exception("File is already closed");
+
 	lock_t l(m_impl->m_mut);
 
 	// Wait for all jobs to be completed for this file
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
-	assert(m_impl->m_streams.empty());
+	if (!m_impl->m_streams.empty())
+		throw exception("Tried to close a file with open streams");
 
 	// Free all blocks, possibly creating some write jobs
 	m_impl->foreach_block([&](block * b){
@@ -299,7 +305,8 @@ void file_base_base::truncate(stream_position pos) {
 		if (b->m_block > pos.m_block) {
 			assert(b->m_readahead_usage == 0);
 			if (b->m_usage != 0) {
-				assert(b == m_last_block);
+				if (b != m_last_block)
+					throw exception("Trying to truncate before an open streams position");
 				assert(b->m_usage == 1);
 			} else {
 				m_impl->kill_block(l, b);

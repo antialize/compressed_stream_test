@@ -7,6 +7,7 @@
 #include <cassert>
 
 #include <tpie/serialization2.h>
+#include "exception.h"
 using namespace tpie;
 
 // Declare all types
@@ -244,6 +245,12 @@ public:
 			block_size_t serialized_size = get_serialized_size(item);
 
 			if (m_block->m_serialized_size + serialized_size > max_serialized_block_size()) {
+				if (serialized_size > max_serialized_block_size()) {
+					throw exception("Serialized item is too big, size="
+										+ std::to_string(serialized_size) + ", max="
+										+ std::to_string(max_serialized_block_size()));
+				}
+
 				m_block->m_maximal_logical_size = m_cur_index;
 				next_block();
 			}
@@ -251,10 +258,8 @@ public:
 			m_block->m_serialized_size += serialized_size;
 		}
 
-#ifndef NDEBUG
 		assert(m_file_base->direct() || get_last_block() == m_block);
 		assert(m_file_base->direct() || m_block->m_logical_size == m_cur_index);
-#endif
 
 		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
