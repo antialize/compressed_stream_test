@@ -131,9 +131,9 @@ protected:
 	file_base_base(bool serialized, block_size_t item_size);
 	virtual ~file_base_base();
 private:
-	virtual void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) = 0;
-	virtual void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) = 0;
-	virtual void do_destruct(char * data, block_size_t size) = 0;
+	virtual void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) {}
+	virtual void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) {}
+	virtual void do_destruct(char * data, block_size_t size) {}
 
 	file_impl * m_impl;
 	block_base * m_last_block;
@@ -275,14 +275,28 @@ private:
 	}
 };
 
-
 template <typename T, bool serialized>
 class file_base final: public file_base_base {
+	static_assert(std::is_trivially_copyable<T>::value, "Non-serialized stream must have trivially copyable items");
+
 public:
 	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
-
 	file_base(): file_base_base(serialized, sizeof(T)) {}
+	file_base(file_base &&) = default;
 
+	// We can't close the file in file_base_base's dtor
+	// as the job thread might need to serialize some items before we close the file.
+	~file_base() override {
+		if (is_open())
+			close();
+	}
+};
+
+template <typename T>
+class file_base<T, true> final: public file_base_base {
+public:
+	stream_base<T, true> stream() {return stream_base<T, true>(this);}
+	file_base(): file_base_base(true, sizeof(T)) {}
 	file_base(file_base &&) = default;
 
 	// We can't close the file in file_base_base's dtor
@@ -294,9 +308,6 @@ public:
 
 protected:
 	void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) override {
-		assert(serialized);
-		if (!serialized) return;
-
 		struct W {
 			char * o;
 			block_size_t s = 0;
@@ -313,9 +324,6 @@ protected:
 	}
 
 	void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) override {
-		assert(serialized);
-		if (!serialized) return;
-
 		struct R {
 			const char * i;
 			block_size_t s = 0;
@@ -333,9 +341,6 @@ protected:
 		*out_size = sizeof(T) * in_items;
 	}
 	void do_destruct(char * data, block_size_t size) override {
-		assert(serialized);
-		if (!serialized) return;
-
 		for (size_t i=0; i < size; ++i)
 			reinterpret_cast<T *>(data)[i].~T();
 	}

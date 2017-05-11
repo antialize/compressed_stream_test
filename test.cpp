@@ -682,6 +682,19 @@ int move_file_object() {
 	return EXIT_SUCCESS;
 }
 
+class non_serializable {
+	int a;
+};
+template <typename D>
+void serialize(D & dst, const non_serializable & o) = delete;
+
+int test_non_serializable() {
+	file<non_serializable> f;
+	f.open(TMP_FILE, compression_flag);
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -731,6 +744,7 @@ int main(int argc, char ** argv) {
 		{"file_stream", file_stream_test},
 		{"direct_file", direct_file},
 		{"move_file_object", move_file_object},
+		{"non_serializable", test_non_serializable},
 	};
 
 	std::stringstream usage;
