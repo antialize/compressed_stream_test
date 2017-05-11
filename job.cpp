@@ -48,8 +48,7 @@ void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_
 
 void process_run() {
 	auto id = tid.fetch_add(1);
-	// TODO: Tweak this
-	size_t max_buffer_size = max_serialized_block_size() * 10;
+	size_t max_buffer_size = snappy::MaxCompressedLength(max_serialized_block_size()) + 2*sizeof(block_header);
 	char * _data1 = new char[max_buffer_size];
 	char * _data2 = new char[max_buffer_size];
 	char * current_buffer = _data1;

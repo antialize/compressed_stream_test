@@ -30,8 +30,7 @@ class stream_base;
 // Constexpr methods
 constexpr block_size_t block_size() {return 1024;}
 
-// TODO: Tweak this or calculate another way
-constexpr block_size_t max_serialized_block_size() {return block_size() * 64;}
+constexpr block_size_t max_serialized_block_size() {return block_size();}
 
 // Some free standing methods
 void file_stream_init(size_t threads);
