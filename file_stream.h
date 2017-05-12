@@ -207,24 +207,20 @@ protected:
 };
 
 template <typename T, bool serialized>
-class stream_base: public stream_base_base {
+class stream_base_: public stream_base_base {
 public:
 	constexpr block_size_t logical_block_size() const {return block_size() / sizeof(T);}
 
 protected:
-	stream_base(file_base_base * imp): stream_base_base(imp) {}
-	
-	friend class file_base<T, serialized>;
+	stream_base_(file_base_base * imp): stream_base_base(imp) {}
+
 public:
-	stream_base(stream_base &&) = default;
-	stream_base & operator=(stream_base &&) = default;
-	
 	const T & read() {
 		assert(m_file_base->is_open() && m_file_base->is_readable());
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index++];
 	}
-	
+
 	const T & peek() {
 		assert(m_file_base->is_open() && m_file_base->is_readable());
 		if (m_cur_index == m_block->m_logical_size) next_block();
@@ -246,34 +242,86 @@ public:
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index - 1];
 	}
 
-	void write(T item) {
+public:
+	void write_start() {
 		assert(m_file_base->is_open() && m_file_base->is_writable());
 
 		if (m_cur_index == m_block->m_maximal_logical_size) next_block();
+	}
 
-		if (serialized) {
-			block_size_t serialized_size = get_serialized_size(item);
-
-			if (m_block->m_serialized_size + serialized_size > max_serialized_block_size()) {
-				if (serialized_size > max_serialized_block_size()) {
-					throw exception("Serialized item is too big, size="
-										+ std::to_string(serialized_size) + ", max="
-										+ std::to_string(max_serialized_block_size()));
-				}
-
-				m_block->m_maximal_logical_size = m_cur_index;
-				next_block();
-			}
-
-			m_block->m_serialized_size += serialized_size;
-		}
-
+	void write_end(T item) {
 		assert(m_file_base->direct() || get_last_block() == m_block);
 		assert(m_file_base->direct() || m_block->m_logical_size == m_cur_index);
 
 		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
 		m_block->m_dirty = true;
+	}
+};
+
+template <typename T, bool serialized>
+class stream_base: public stream_base_<T, serialized> {
+protected:
+	stream_base(file_base_base * imp): stream_base_<T, serialized>(imp) {}
+	
+	friend class file_base<T, serialized>;
+public:
+	stream_base(stream_base &&) = default;
+	stream_base & operator=(stream_base &&) = default;
+
+	void write(T item) {
+		this->write_start();
+		this->write_end(std::move(item));
+	}
+
+	void write(T * items, size_t n) {
+		assert(this->m_file_base->is_open() && this->m_file_base->is_writable());
+
+		size_t written = 0;
+		while (written < n) {
+			if (this->m_cur_index == this->m_block->m_maximal_logical_size) this->next_block();
+			block_size_t remaining = static_cast<block_size_t>(std::min(this->m_block->m_maximal_logical_size - this->m_cur_index, n - written));
+			memcpy(this->m_block->m_data, items, sizeof(T) * remaining);
+			this->m_cur_index += remaining;
+			written += remaining;
+		}
+
+	}
+};
+
+template <typename T>
+class stream_base<T, true>: public stream_base_<T, true> {
+protected:
+	stream_base(file_base_base * imp): stream_base_<T, true>(imp) {}
+
+	friend class file_base<T, true>;
+public:
+	stream_base(stream_base &&) = default;
+	stream_base & operator=(stream_base &&) = default;
+
+	void write(T item) {
+		this->write_start();
+
+		block_size_t serialized_size = get_serialized_size(item);
+
+		if (this->m_block->m_serialized_size + serialized_size > max_serialized_block_size()) {
+			if (serialized_size > max_serialized_block_size()) {
+				throw exception("Serialized item is too big, size="
+									+ std::to_string(serialized_size) + ", max="
+									+ std::to_string(max_serialized_block_size()));
+			}
+
+			this->m_block->m_maximal_logical_size = this->m_cur_index;
+			this->next_block();
+		}
+
+		this->m_block->m_serialized_size += serialized_size;
+
+		this->write_end(std::move(item));
+	}
+
+	void write(T * items, size_t n) {
+		for (size_t i = 0; i < n; i++) write(items[i]);
 	}
 
 private:
@@ -414,6 +462,7 @@ public:
 	const T & read_back() {return m_stream->read_back();}
 	const T & peek_back() {return m_stream->peek_back();}
 	void write(T item) {m_stream->write(item);}
+	void write(T * items, size_t n) {m_stream->write(items, n);}
 
 private:
 	file_base<T, serialized> m_file;

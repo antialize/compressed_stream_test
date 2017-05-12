@@ -691,6 +691,9 @@ void serialize(D & dst, const non_serializable & o) = delete;
 int test_non_serializable() {
 	file<non_serializable> f;
 	f.open(TMP_FILE, compression_flag);
+	auto s = f.stream();
+	s.write(non_serializable());
+	s.read_back();
 
 	return EXIT_SUCCESS;
 }
