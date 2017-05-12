@@ -415,6 +415,15 @@ protected:
 template <typename T, bool serialized>
 class file_stream_base {
 public:
+	file_stream_base() = default;
+	file_stream_base(const file_stream_base &) = delete;
+	file_stream_base & operator=(const file_stream_base &) = delete;
+	file_stream_base(file_stream_base &&) = default;
+	file_stream_base & operator=(file_stream_base &&) = default;
+	~file_stream_base() {
+		if (m_stream) delete m_stream;
+	}
+
 	// == file_base_base functions ==
 	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0) {
 		m_file.open(path, flags, max_user_data_size);
@@ -427,10 +436,6 @@ public:
 	void close() {
 		delete m_stream;
 		m_file.close();
-	}
-
-	~file_stream_base() {
-		if (m_stream) delete m_stream;
 	}
 
 	bool is_open() const noexcept {return m_file.is_open();}
