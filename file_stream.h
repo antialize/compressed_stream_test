@@ -33,8 +33,12 @@ class file_base;
 template <typename T, bool serialized>
 class stream_base;
 
+#ifndef FILE_STREAM_BLOCK_SIZE
+#define FILE_STREAM_BLOCK_SIZE 1024
+#endif
+
 // Constexpr methods
-constexpr block_size_t block_size() {return 1024;}
+constexpr block_size_t block_size() {return FILE_STREAM_BLOCK_SIZE;}
 
 constexpr block_size_t max_serialized_block_size() {return block_size();}
 
