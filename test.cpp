@@ -698,6 +698,41 @@ int test_non_serializable() {
 	return EXIT_SUCCESS;
 }
 
+int write_chunked() {
+	size_t buf_size = block_size() / sizeof(int) * 2;
+	int * buf = new int[buf_size];
+	std::iota(buf, buf + buf_size, 0);
+
+	file<int> f;
+	f.open(TMP_FILE, compression_flag);
+	{
+		auto s = f.stream();
+
+		s.write(buf, buf_size);
+		s.write(1337);
+		s.write(buf, buf_size);
+		s.write(4880);
+		s.write(buf, buf_size / 10);
+
+		ensure<size_t>(2 * buf_size + buf_size / 10 + 2, f.size(), "size");
+	}
+	f.close();
+	f.open(TMP_FILE, compression_flag);
+	{
+		auto s = f.stream();
+		for (size_t i = 0; i < buf_size; i++) ensure(buf[i], s.read(), "read");
+		ensure(1337, s.read(), "read");
+		for (size_t i = 0; i < buf_size; i++) ensure(buf[i], s.read(), "read");
+		ensure(4880, s.read(), "read");
+		for (size_t i = 0; i < buf_size / 10; i++) ensure(buf[i], s.read(), "read");
+		ensure(false, s.can_read(), "can_read");
+	}
+
+	delete[] buf;
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -748,6 +783,7 @@ int main(int argc, char ** argv) {
 		{"direct_file", direct_file},
 		{"move_file_object", move_file_object},
 		{"non_serializable", test_non_serializable},
+		{"write_chunked", write_chunked},
 	};
 
 	std::stringstream usage;

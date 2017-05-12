@@ -280,9 +280,12 @@ public:
 		size_t written = 0;
 		while (written < n) {
 			if (this->m_cur_index == this->m_block->m_maximal_logical_size) this->next_block();
-			block_size_t remaining = static_cast<block_size_t>(std::min(this->m_block->m_maximal_logical_size - this->m_cur_index, n - written));
-			memcpy(this->m_block->m_data, items, sizeof(T) * remaining);
+			block_size_t remaining = static_cast<block_size_t>(
+				std::min<size_t>(this->m_block->m_maximal_logical_size - this->m_cur_index, n - written));
+			memcpy(this->m_block->m_data + this->m_cur_index * sizeof(T), items + written, remaining * sizeof(T));
 			this->m_cur_index += remaining;
+			this->m_block->m_logical_size = std::max(this->m_block->m_logical_size, this->m_cur_index); //Hopefully this is a cmove
+			this->m_block->m_dirty = true;
 			written += remaining;
 		}
 
