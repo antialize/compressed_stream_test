@@ -45,7 +45,8 @@ stream_base_base & stream_base_base::operator=(stream_base_base && o) {
 	m_impl = o.m_impl;
 	m_cur_index = o.m_cur_index;
 
-	m_impl->m_outer = this;
+	if (m_impl)
+		m_impl->m_outer = this;
 
 	o.m_block = nullptr;
 	o.m_file_base = nullptr;

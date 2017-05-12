@@ -60,7 +60,8 @@ file_base_base & file_base_base::operator=(file_base_base && o) {
 
 	o.m_impl = nullptr;
 	o.m_last_block = nullptr;
-	m_impl->m_outer = this;
+	if (m_impl)
+		m_impl->m_outer = this;
 
 	return *this;
 }
