@@ -4,6 +4,7 @@
 #include <mutex>
 #include <iostream>
 
+#ifndef NDEBUG
 struct crapper {
 	static std::mutex m;
 	std::unique_lock<std::mutex> l;
@@ -21,6 +22,18 @@ const crapper & operator <<(const crapper & c, const T & t) {
 	std::cout << t;
 	return c;
 }
+#else
+struct crapper {
+	const crapper & operator <<(std::ostream & (*f)(std::ostream &)) const {
+		return *this;
+	}
+};
+
+template <typename T>
+const crapper & operator <<(const crapper & c, const T & t) {
+	return c;
+}
+#endif
 
 inline crapper log_info() {
 	return crapper();

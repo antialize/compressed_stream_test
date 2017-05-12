@@ -59,5 +59,7 @@ void file_stream_term() {
 	assert(jobs.size() == 0);
 }
 
+#ifndef NDEBUG
 mutex_t crapper::m;
+#endif
 
