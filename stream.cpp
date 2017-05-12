@@ -15,8 +15,10 @@ stream_base_base::stream_base_base(file_base_base * file_base)
 	m_impl->m_file = file_base->m_impl;
 	m_impl->m_file->m_streams.insert(m_impl);
 	m_block = &void_block;
+
 	create_available_block();
-	create_available_block();
+	if (m_impl->m_file->m_readahead)
+		create_available_block();
 }
 
 stream_base_base::stream_base_base(stream_base_base && o)
@@ -106,8 +108,11 @@ void stream_impl::close() {
 		lock_t lock(m_file->m_mut);
 		m_file->free_readahead_block(lock, m_readahead_block);
 	}
+
 	destroy_available_block();
-	destroy_available_block();
+	if (m_file->m_readahead)
+		destroy_available_block();
+
 	size_t c = m_file->m_streams.erase(this);
 	assert(c == 1);
 }
