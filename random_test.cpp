@@ -9,7 +9,7 @@
 #include <algorithm>
 
 template <typename T>
-class internal_stream;
+struct internal_stream;
 
 template <typename T>
 struct internal_file {

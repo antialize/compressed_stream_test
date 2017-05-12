@@ -21,7 +21,7 @@ class file_impl;
 class file_base_base;
 class stream_impl;
 class stream_base_base;
-class stream_position;
+struct stream_position;
 
 typedef uint64_t block_idx_t; // Used for numbering blocks from 0 to n-1
 typedef uint64_t file_size_t; // Used for absolute physical and logical sizes and offsets from the beginning of the file
