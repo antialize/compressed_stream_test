@@ -343,6 +343,7 @@ private:
 
 template <typename T, bool serialized>
 class file_base final: public file_base_base {
+	static_assert(sizeof(T) <= block_size(), "Size of item must be lower than the block size");
 	static_assert(std::is_trivially_copyable<T>::value, "Non-serialized stream must have trivially copyable items");
 
 public:
