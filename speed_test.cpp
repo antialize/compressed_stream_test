@@ -94,6 +94,7 @@ int main(int argc, char ** argv) {
 	test = std::atoi(argv[4]);
 
 	std::cerr << "Test info:\n"
+			  << "  Block size:  " << block_size() << "\n"
 			  << "  Compression: " << compression << "\n"
 			  << "  Readahead:   " << readahead << "\n"
 			  << "  Item type:   " << item_type << "\n"
