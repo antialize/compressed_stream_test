@@ -138,9 +138,9 @@ protected:
 	file_base_base(bool serialized, block_size_t item_size);
 	virtual ~file_base_base();
 private:
-	virtual void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) {}
-	virtual void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) {}
-	virtual void do_destruct(char * data, block_size_t size) {}
+	virtual void do_serialize(const char * /*in*/, block_size_t /*in_items*/, char * /*out*/, block_size_t * /*out_size*/) {}
+	virtual void do_unserialize(const char * /*in*/, block_size_t /*in_items*/, char * /*out*/, block_size_t * /*out_size*/) {}
+	virtual void do_destruct(char * /*data*/, block_size_t /*size*/) {}
 
 	file_impl * m_impl;
 	block_base * m_last_block;
@@ -276,7 +276,7 @@ private:
 	block_size_t get_serialized_size(const T & item) {
 		struct Counter {
 			block_size_t s = 0;
-			void write(const char * data, size_t size) {
+			void write(const char *, size_t size) {
 				s += size;
 			}
 		};

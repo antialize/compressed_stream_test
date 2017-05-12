@@ -431,7 +431,7 @@ stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) c
 	return p;
 }
 
-void file_impl::update_physical_size(lock_t & lock, block_idx_t block, block_size_t size) {
+void file_impl::update_physical_size(lock_t &, block_idx_t block, block_size_t size) {
 	if (block == 0) m_first_physical_size = size;
 	else {
 		auto it = m_block_map.find(block - 1);

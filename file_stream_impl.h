@@ -119,7 +119,7 @@ public:
 
 	// Note: if you want to keep this block alive after unlocking the lock,
 	// you have to increment its m_usage
-	block * get_available_block(lock_t & lock, block_idx_t block) const {
+	block * get_available_block(lock_t &, block_idx_t block) const {
 		auto it = m_block_map.find(block);
 		if (it == m_block_map.end()) return nullptr;
 		assert(it->second->m_block == block);
@@ -132,7 +132,7 @@ public:
 		return stream_position{0, 0, 0, sizeof(file_header) + m_outer->max_user_data_size()};
 	}
 
-	void block_ref_inc(lock_t & l, block * b) const noexcept {
+	void block_ref_inc(lock_t &, block * b) const noexcept {
 		if (b->m_usage == 0) make_block_unavailable(b);
 		b->m_usage++;
 	}
@@ -155,7 +155,7 @@ public:
 
 	// Returns the offset of the successor block to b if known
 	// Doesn't block
-	file_size_t get_next_physical_offset(lock_t & l, block * b) const {
+	file_size_t get_next_physical_offset(lock_t &, block * b) const {
 		if (!b->m_io &&
 			!b->m_dirty &&
 			is_known(b->m_physical_size) &&
@@ -168,7 +168,7 @@ public:
 
 	// Returns the offset of the predecessor block to b if known
 	// Doesn't block
-	file_size_t get_prev_physical_offset(lock_t & l, block * b) const {
+	file_size_t get_prev_physical_offset(lock_t &, block * b) const {
 		if (is_known(b->m_physical_offset) &&
 			is_known(b->m_prev_physical_size)) {
 			return b->m_physical_offset - b->m_prev_physical_size;
