@@ -5,6 +5,7 @@
 #include <chrono>
 #include <file_stream.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 /**
  * Speed test matrix:
@@ -32,60 +33,98 @@
  * - Clear cache between tests
  */
 
-#define FILE_NAME "/tmp/speed.tst"
+#define TEST_DIR "/tmp/tpie_new_speed_test/"
 
-void write_ints(size_t amount, std::underlying_type<open_flags::open_flags>::type flags = 0) {
-	file<int> f;
-	f.open(FILE_NAME, flags);
+size_t file_size = 1024 * 1024 * 1024;
+size_t blocks = file_size / block_size();
 
-	{
-		auto s = f.stream();
-		for (int i = 0; i < amount; i++) {
-			s.write(i);
-		}
+bool compression = true;
+bool readahead = true;
+int item_type;
+int test;
+
+template <typename F>
+F open_file(open_flags::open_flags flags) {
+	static int file_ctr = 0;
+	F f;
+	f.open(TEST_DIR + std::to_string(file_ctr++), flags);
+	return f;
+}
+
+template <typename T, typename F>
+void write_single(open_flags::open_flags flags) {
+	F f = open_file<F>(flags);
+
+	size_t writes = file_size / sizeof(T);
+	T item{};
+	for (size_t i = 0; i < writes; i++) f.write(item++);
+}
+
+template <typename T, typename F>
+void read_single(open_flags::open_flags flags) {
+	F f = open_file<F>(flags);
+
+	size_t reads = file_size / sizeof(T);
+	for (size_t i = 0; i < reads; i++) f.read();
+};
+
+template <typename T, typename F>
+void run_test(int n, open_flags::open_flags flags) {
+	system("rm -rf " TEST_DIR);
+	mkdir(TEST_DIR, 0755);
+
+	switch (n) {
+	case 0: write_single<T, F>(flags); break;
+	case 1: read_single<T, F>(flags); break;
 	}
 }
 
-void read_ints(size_t amount, std::underlying_type<open_flags::open_flags>::type flags = 0) {
-	file<int> f;
-	f.open(FILE_NAME, flags);
+struct key_struct {
+	int32_t key;
+	char data[60];
+};
 
-	{
-		auto s = f.stream();
-		for (int i = 0; i < amount; i++) {
-			s.read();
-		}
-	}
-}
 
-int main() {
+
+
+int main(int argc, char ** argv) {
+	compression = (bool)std::atoi(argv[1]);
+	readahead = (bool)std::atoi(argv[2]);
+	item_type = std::atoi(argv[3]);
+	test = std::atoi(argv[4]);
+
+	std::cerr << "Test info:\n"
+			  << "  Compression: " << compression << "\n"
+			  << "  Readahead:   " << readahead << "\n"
+			  << "  Item type:   " << item_type << "\n"
+			  << "  Test:        " << test << "\n";
+
+	int flags = 0;
+	if (!compression) flags = flags | open_flags::no_compress;
+	if (!readahead) flags = flags | open_flags::no_readahead;
+
+	open_flags::open_flags oflags = open_flags::open_flags(flags);
+
 	file_stream_init(4);
 
-	for (open_flags::open_flags flags : {open_flags::default_flags, open_flags::no_compress}) {
-		std::cerr << "With" << (flags == open_flags::no_compress? "out": "") << " compression:\n";
+	auto start = std::chrono::steady_clock::now();
 
-		size_t N = 10 * 1000 * 1000;
-
-		unlink(FILE_NAME);
-
-		auto start = std::chrono::steady_clock::now();
-		write_ints(N, flags);
-		auto end = std::chrono::steady_clock::now();
-
-		std::chrono::duration<double> duration = end - start;
-
-		std::cerr << "Time to write " << N << " ints sequentially: " << duration.count() << "s\n";
-
-		start = std::chrono::steady_clock::now();
-		read_ints(N, flags);
-		end = std::chrono::steady_clock::now();
-
-		duration = end - start;
-
-		std::cerr << "Time to read " << N << " ints sequentially: " << duration.count() << "s\n";
+	switch (item_type) {
+	case 0:
+		run_test<int, file_stream<int>>(test, oflags);
+		break;
+	/*case 1:
+		run_test<std::string, serialized_file_stream<std::string>>(test, oflags);
+		break;
+	case 2:
+		run_test<key_struct, file_stream<key_struct>>(test, oflags);
+		break;*/
 	}
 
-	unlink(FILE_NAME);
+	auto end = std::chrono::steady_clock::now();
+	std::chrono::duration<double> duration = end - start;
+
+	std::cerr << "Duration: " << duration.count() << "s\n";
 
 	file_stream_term();
 }
