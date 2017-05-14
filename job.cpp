@@ -294,9 +294,10 @@ void process_run() {
 
 			auto r = _pwrite(file->m_fd, physical_data, bs, off);
 			assert(r == bs);
-			log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 
 			file_lock.lock();
+
+			log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 
 #ifndef NDEBUG
 			{
