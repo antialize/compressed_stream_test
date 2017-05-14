@@ -69,7 +69,7 @@ file_base_base & file_base_base::operator=(file_base_base && o) {
 void file_base_base::open(const std::string & path, open_flags::open_flags flags, size_t max_user_data_size) {
 	if (is_open())
 		throw exception("File is already open");
-	if ((flags & open_flags::read_only) && (flags && open_flags::truncate))
+	if ((flags & open_flags::read_only) && (flags & open_flags::truncate))
 		throw exception("Can't open file as truncated with read only flag");
 
 	m_impl->m_path = path;

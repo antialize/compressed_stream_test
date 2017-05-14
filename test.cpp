@@ -733,6 +733,23 @@ int write_chunked() {
 	return EXIT_SUCCESS;
 }
 
+int test_read_only() {
+	file<int> f;
+	f.open(TMP_FILE, compression_flag);
+	{
+		auto s = f.stream();
+		s.write(1);
+	}
+	f.close();
+	f.open(TMP_FILE, open_flags::read_only | compression_flag);
+	{
+		auto s = f.stream();
+		ensure(1, s.read(), "read");
+	}
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -784,6 +801,7 @@ int main(int argc, char ** argv) {
 		{"move_file_object", move_file_object},
 		{"non_serializable", test_non_serializable},
 		{"write_chunked", write_chunked},
+		{"read_only", test_read_only},
 	};
 
 	std::stringstream usage;
