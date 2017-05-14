@@ -672,12 +672,22 @@ int direct_file() {
 int move_file_object() {
 	file<int> f;
 	f.open(TMP_FILE, compression_flag);
-	auto f2 = std::move(f);
-	auto s = f2.stream();
-	s.write(1);
-	auto s2 = std::move(s);
 
-	s2.write(2);
+	auto s = f.stream();
+	s.write(1);
+
+	auto f2 = std::move(f);
+	s.write(2);
+
+	auto s2 = f2.stream();
+	s2.seek(0, whence::end);
+	s2.write(3);
+
+	auto s3 = std::move(s);
+	ensure(3, s3.read(), "read");
+	s3.write(4);
+
+	ensure<file_size_t>(4, f2.size(), "size");
 
 	return EXIT_SUCCESS;
 }

@@ -146,6 +146,8 @@ private:
 	virtual void do_unserialize(const char * /*in*/, block_size_t /*in_items*/, char * /*out*/, block_size_t * /*out_size*/) {}
 	virtual void do_destruct(char * /*data*/, block_size_t /*size*/) {}
 
+	void impl_changed();
+
 	file_impl * m_impl;
 	block_base * m_last_block;
 };
@@ -195,6 +197,7 @@ public:
 	void set_position(stream_position p);
 	
 	friend class stream_impl;
+	friend class file_base_base;
 protected:
 	void next_block();
 	void prev_block();
@@ -266,6 +269,8 @@ protected:
 	
 	friend class file_base<T, serialized>;
 public:
+	stream_base(const stream_base &) = delete;
+	stream_base & operator=(const stream_base &) = delete;
 	stream_base(stream_base &&) = default;
 	stream_base & operator=(stream_base &&) = default;
 
@@ -299,6 +304,8 @@ protected:
 
 	friend class file_base<T, true>;
 public:
+	stream_base(const stream_base &) = delete;
+	stream_base & operator=(const stream_base &) = delete;
 	stream_base(stream_base &&) = default;
 	stream_base & operator=(stream_base &&) = default;
 
@@ -349,7 +356,10 @@ class file_base final: public file_base_base {
 public:
 	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
 	file_base(): file_base_base(serialized, sizeof(T)) {}
+	file_base(const file_base &) = delete;
+	file_base & operator=(const file_base &) = delete;
 	file_base(file_base &&) = default;
+	file_base & operator=(file_base &&) = default;
 
 	// We can't close the file in file_base_base's dtor
 	// as the job thread might need to serialize some items before we close the file.
@@ -364,7 +374,10 @@ class file_base<T, true> final: public file_base_base {
 public:
 	stream_base<T, true> stream() {return stream_base<T, true>(this);}
 	file_base(): file_base_base(true, sizeof(T)) {}
+	file_base(const file_base &) = delete;
+	file_base & operator=(const file_base &) = delete;
 	file_base(file_base &&) = default;
+	file_base & operator=(file_base &&) = default;
 
 	// We can't close the file in file_base_base's dtor
 	// as the job thread might need to serialize some items before we close the file.

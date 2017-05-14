@@ -45,25 +45,36 @@ file_base_base::file_base_base(bool serialized, block_size_t item_size)
 	impl->m_serialized = serialized;
 }
 
-file_base_base::file_base_base(file_base_base &&o)
+file_base_base::file_base_base(file_base_base && o)
 	: m_impl(o.m_impl)
 	, m_last_block(o.m_last_block)
 {
+	impl_changed();
+
 	o.m_impl = nullptr;
 	o.m_last_block = nullptr;
-	m_impl->m_outer = this;
 }
 
 file_base_base & file_base_base::operator=(file_base_base && o) {
 	m_impl = o.m_impl;
 	m_last_block = o.m_last_block;
 
+	impl_changed();
+
 	o.m_impl = nullptr;
 	o.m_last_block = nullptr;
-	if (m_impl)
-		m_impl->m_outer = this;
 
 	return *this;
+}
+
+void file_base_base::impl_changed() {
+	if (!m_impl) return;
+
+	m_impl->m_outer = this;
+	for (auto s : m_impl->m_streams) {
+		s->m_file = m_impl;
+		s->m_outer->m_file_base = this;
+	}
 }
 
 void file_base_base::open(const std::string & path, open_flags::open_flags flags, size_t max_user_data_size) {

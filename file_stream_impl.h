@@ -198,7 +198,8 @@ public:
 	block * m_cur_block;
 	block * m_readahead_block;
 
-	void close();
+	~stream_impl();
+
 	void next_block();
 	void prev_block();
 	void seek(file_size_t offset, whence w);

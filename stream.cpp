@@ -27,7 +27,8 @@ stream_base_base::stream_base_base(stream_base_base && o)
 	, m_impl(o.m_impl)
 	, m_cur_index(o.m_cur_index) {
 
-	m_impl->m_outer = this;
+	if (m_impl)
+		m_impl->m_outer = this;
 
 	o.m_block = nullptr;
 	o.m_file_base = nullptr;
@@ -37,10 +38,8 @@ stream_base_base::stream_base_base(stream_base_base && o)
 
 
 stream_base_base & stream_base_base::operator=(stream_base_base && o) {
-	if (m_impl) {
-		m_impl->close();
-		delete m_impl;
-	}
+	assert(this != &o);
+	delete m_impl;
 
 	m_block = o.m_block;
 	m_file_base = o.m_file_base;
@@ -59,10 +58,7 @@ stream_base_base & stream_base_base::operator=(stream_base_base && o) {
 
 
 stream_base_base::~stream_base_base() {
-	if (m_impl) {
-		m_impl->close();
-		delete m_impl;
-	}
+	delete m_impl;
 }
 
 void stream_base_base::next_block() {
@@ -99,7 +95,7 @@ void stream_base_base::set_position(stream_position p) {
 	m_impl->set_position(l, p);
 }
 
-void stream_impl::close() {
+stream_impl::~stream_impl() {
 	if (m_cur_block) {
 		lock_t lock(m_file->m_mut);
 		m_file->free_block(lock, m_cur_block);
