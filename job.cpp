@@ -167,7 +167,6 @@ void process_run() {
 			if (should_read_next_physical_size) {
 				block_header h;
 				memcpy(&h, physical_data, sizeof(block_header));
-				physical_data += sizeof(block_header);
 				next_physical_size = h.physical_size;
 			}
 
