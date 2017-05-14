@@ -2,8 +2,28 @@ import os
 import subprocess
 from contextlib import contextmanager
 import datetime
-import json
 import itertools
+from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
+
+
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
+os.chdir('..')
+
+db = SqliteDatabase('timing.db')
+
+
+class Timing(Model):
+	block_size = IntegerField()
+	compression = BooleanField()
+	readahead = BooleanField()
+	item_type = IntegerField()
+	test = IntegerField()
+	duration = DoubleField()
+	timestamp = IntegerField()
+
+	class Meta:
+		database = db
+
 
 MB = 2**20
 min_bs = MB // 16
@@ -57,32 +77,27 @@ def run_test(bs, compression=True, readahead=True, item=0, test=0):
 	return (end - start).total_seconds()
 
 
-def runall(data):
+def runall():
 	bins = [False, True]
 	for args in itertools.product(blocksizes, bins, bins, range(items), range(tests)):
 		kill_cache()
 		time = run_test(*args)
 
-		key = ','.join(str(int(v)) for v in args)
-		if key not in data:
-			data[key] = []
-
-		data[key].append({'timing': time, 'timestamp': int(now().timestamp())})
-		with open('timing.json', 'w') as f:
-			json.dump(data, f)
+		Timing.create(
+			block_size=args[0],
+			compression=args[1],
+			readahead=args[2],
+			item_type=args[3],
+			test=args[4],
+			duration=time,
+			timestamp=int(now().timestamp()),
+		)
 
 
 if __name__ == '__main__':
-	os.chdir(os.path.dirname(os.path.realpath(__file__)))
-	os.chdir('..')
+	db.connect()
+	db.create_table(Timing, safe=True)
+
 	buildall()
 
-	try:
-		with open('timing.json', 'r') as f:
-			data = json.load(f)
-	except:
-		data = {}
-		with open('timing.json', 'w') as f:
-			json.dump(data, f)
-
-	runall(data)
+	runall()
