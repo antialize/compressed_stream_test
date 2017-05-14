@@ -56,6 +56,9 @@ file_base_base::file_base_base(file_base_base && o)
 }
 
 file_base_base & file_base_base::operator=(file_base_base && o) {
+	assert(this != &o);
+	delete m_impl;
+
 	m_impl = o.m_impl;
 	m_last_block = o.m_last_block;
 

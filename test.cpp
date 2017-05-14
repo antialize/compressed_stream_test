@@ -687,7 +687,12 @@ int move_file_object() {
 	ensure(3, s3.read(), "read");
 	s3.write(4);
 
-	ensure<file_size_t>(4, f2.size(), "size");
+	f = std::move(f2);
+	s3.write(5);
+	s = std::move(s3);
+	s.write(6);
+
+	ensure<file_size_t>(6, f.size(), "size");
 
 	return EXIT_SUCCESS;
 }
