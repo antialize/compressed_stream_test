@@ -157,6 +157,27 @@ struct read_single : speed_test_t<T, F> {
 };
 
 template <typename T, typename F>
+struct read_back_single : speed_test_t<T, F> {
+	F f;
+
+	void init() override {
+		f = this->open_file();
+	}
+
+	void setup() override {
+		size_t writes = file_size / sizeof(T);
+		T item{};
+		for (size_t i = 0; i < writes; i++) f.write(item++);
+	}
+
+	void run() override {
+		f.seek(0, whence::end);
+		size_t reads = file_size / sizeof(T);
+		for (size_t i = 0; i < reads; i++) f.read_back();
+	}
+};
+
+template <typename T, typename F>
 void run_test(bool setup, int n, open_flags::open_flags flags) {
 	system("mkdir -p " TEST_DIR);
 
@@ -165,6 +186,7 @@ void run_test(bool setup, int n, open_flags::open_flags flags) {
 	switch (n) {
 	case 0: test = new write_single<T, F>(); break;
 	case 1: test = new read_single<T, F>(); break;
+	case 2: test = new read_back_single<T, F>(); break;
 	default: die("test index out of range");
 	}
 
