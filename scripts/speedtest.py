@@ -72,7 +72,8 @@ def run_test(bs, compression=True, readahead=True, item=0, test=0):
 	start = now()
 	path = 'build-speed-test/bs-' + str(bs)
 	with chdir(path):
-		subprocess.check_call(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test]])
+		for setup in [True, False]:
+			subprocess.check_call(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, setup]])
 	end = now()
 	return (end - start).total_seconds()
 
