@@ -432,10 +432,19 @@ public:
 	file_stream_base() = default;
 	file_stream_base(const file_stream_base &) = delete;
 	file_stream_base & operator=(const file_stream_base &) = delete;
-	file_stream_base(file_stream_base &&) = default;
-	file_stream_base & operator=(file_stream_base &&) = default;
+
+	file_stream_base(file_stream_base && o) : m_file(std::move(o.m_file)), m_stream(o.m_stream) {
+		o.m_stream = nullptr;
+	}
+
+	file_stream_base & operator=(file_stream_base && o) {
+		m_file = std::move(o.m_file);
+		m_stream = o.m_stream;
+		o.m_stream = nullptr;
+	}
+
 	~file_stream_base() {
-		if (m_stream) delete m_stream;
+		delete m_stream;
 	}
 
 	// == file_base_base functions ==
@@ -488,7 +497,7 @@ public:
 
 private:
 	file_base<T, serialized> m_file;
-	stream_base<T, serialized> * m_stream;
+	stream_base<T, serialized> * m_stream = nullptr;
 };
 
 // Actual types

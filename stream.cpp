@@ -27,8 +27,10 @@ stream_base_base::stream_base_base(stream_base_base && o)
 	, m_impl(o.m_impl)
 	, m_cur_index(o.m_cur_index) {
 
-	if (m_impl)
+	if (m_impl) {
 		m_impl->m_outer = this;
+		assert(m_impl->m_file->m_streams.count(m_impl) == 1);
+	}
 
 	o.m_block = nullptr;
 	o.m_file_base = nullptr;
@@ -46,8 +48,10 @@ stream_base_base & stream_base_base::operator=(stream_base_base && o) {
 	m_impl = o.m_impl;
 	m_cur_index = o.m_cur_index;
 
-	if (m_impl)
+	if (m_impl) {
 		m_impl->m_outer = this;
+		assert(m_impl->m_file->m_streams.count(m_impl) == 1);
+	}
 
 	o.m_block = nullptr;
 	o.m_file_base = nullptr;
