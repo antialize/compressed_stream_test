@@ -85,6 +85,16 @@ enum open_flags {
 	read_write = default_flags,
 	write_only = read_write,
 };
+#define T std::underlying_type<open_flags>::type
+#define OP_IMPL(op) \
+    inline open_flags operator op(open_flags f1, open_flags f2) { return static_cast<open_flags>(T(f1) op T(f2)); } \
+    inline open_flags & operator op##=(open_flags & f1, open_flags f2) { return f1 = f1 | f2; }
+OP_IMPL(|)
+OP_IMPL(&)
+OP_IMPL(^)
+#undef OP_IMPL
+inline open_flags operator~(open_flags f) { return static_cast<open_flags>(~T(f)); }
+#undef T
 }
 
 class file_base_base {
@@ -100,9 +110,6 @@ public:
 
 	// TODO more magic open methods here
 	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0);
-	void open(const std::string & path, std::underlying_type<open_flags::open_flags>::type flags, size_t max_user_data_size = 0) {
-		open(path, static_cast<open_flags::open_flags>(flags), max_user_data_size);
-	}
 	void close();
 
 	bool is_open() const noexcept;
@@ -451,9 +458,6 @@ public:
 	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0) {
 		m_file.open(path, flags, max_user_data_size);
 		m_stream = new stream_base<T, serialized>(m_file.stream());
-	}
-	void open(const std::string & path, std::underlying_type<open_flags::open_flags>::type flags, size_t max_user_data_size = 0) {
-		open(path, static_cast<open_flags::open_flags>(flags), max_user_data_size);
 	}
 
 	void close() {
