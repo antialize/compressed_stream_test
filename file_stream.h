@@ -178,11 +178,13 @@ public:
 	}
 
 	void skip() {
+		assert(m_file_base->is_open() && can_read());
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		++m_cur_index;
 	}
 	
 	void skip_back() {
+		assert(m_file_base->is_open() && can_read_back());
 		if (m_cur_index == 0) prev_block();
 		--m_cur_index;
 	}
@@ -226,25 +228,25 @@ protected:
 
 public:
 	const T & read() {
-		assert(m_file_base->is_open() && m_file_base->is_readable());
+		assert(m_file_base->is_open() && m_file_base->is_readable() && can_read());
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index++];
 	}
 
 	const T & peek() {
-		assert(m_file_base->is_open() && m_file_base->is_readable());
+		assert(m_file_base->is_open() && m_file_base->is_readable() && can_read());
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index];
 	}
 
 	const T & read_back() {
-		assert(m_file_base->is_open() && m_file_base->is_readable());
+		assert(m_file_base->is_open() && m_file_base->is_readable() && can_read_back());
 		if (m_cur_index == 0) prev_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[--m_cur_index];
 	}
 
 	const T & peek_back() {
-		assert(m_file_base->is_open() && m_file_base->is_readable());
+		assert(m_file_base->is_open() && m_file_base->is_readable() && can_read_back());
 		// If prev_block is called, the index is set to the logical size
 		// so even if we change the block, we will still use the correct block
 		// on reading forward
