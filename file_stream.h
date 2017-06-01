@@ -254,7 +254,7 @@ public:
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index - 1];
 	}
 
-public:
+protected:
 	void write_start() {
 		assert(m_file_base->is_open() && m_file_base->is_writable());
 
