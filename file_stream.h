@@ -265,7 +265,7 @@ protected:
 		assert(m_file_base->direct() || get_last_block() == m_block);
 		assert(m_file_base->direct() || m_block->m_logical_size == m_cur_index);
 
-		reinterpret_cast<T*>(m_block->m_data)[m_cur_index++] = std::move(item);
+		new (&reinterpret_cast<T*>(m_block->m_data)[m_cur_index++]) T(std::move(item));
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
 		m_block->m_dirty = true;
 	}
