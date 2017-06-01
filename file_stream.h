@@ -450,6 +450,7 @@ public:
 		m_file = std::move(o.m_file);
 		m_stream = o.m_stream;
 		o.m_stream = nullptr;
+		return *this;
 	}
 
 	~file_stream_base() {
