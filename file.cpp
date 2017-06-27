@@ -480,13 +480,23 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	buff->m_block = p.m_block;
 	if (direct()) {
 		auto p2 = position_from_offset(l, p.m_logical_offset + p.m_index);
-		assert(p.m_index == p2.m_index);
-		assert(p.m_logical_offset == p2.m_logical_offset);
-		assert(p.m_block == p2.m_block);
-		if (is_known(p.m_physical_offset)) {
-			assert(p.m_physical_offset == p2.m_physical_offset);
+
+		if (p.m_index == block_size() / m_item_size) {
+			assert(p2.m_index == 0);
+			assert(p2.m_block == p.m_block + 1);
+			assert(p2.m_logical_offset == p.m_logical_offset + p.m_index);
+			assert(is_known(p.m_physical_offset));
+		} else {
+			assert(p.m_index == p2.m_index);
+			assert(p.m_logical_offset == p2.m_logical_offset);
+			assert(p.m_block == p2.m_block);
+			if (is_known(p.m_physical_offset)) {
+				assert(p.m_physical_offset == p2.m_physical_offset);
+			} else {
+				p.m_physical_offset = p2.m_physical_offset;
+			}
 		}
-		buff->m_physical_offset = p2.m_physical_offset;
+		buff->m_physical_offset = p.m_physical_offset;
 	} else {
 		buff->m_physical_offset = p.m_physical_offset;
 	}

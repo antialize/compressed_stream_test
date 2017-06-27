@@ -765,6 +765,27 @@ int test_read_only() {
 	return EXIT_SUCCESS;
 }
 
+int direct_file2() {
+	file<int> f;
+	f.open(TMP_FILE, open_flags::no_compress);
+	f.close();
+	f.open(TMP_FILE, open_flags::no_compress);
+	{
+		auto s = f.stream();
+		for (int i = 0; i < s.logical_block_size(); i++)
+			s.write(i);
+	}
+	f.close();
+	f.open(TMP_FILE, open_flags::no_compress);
+	{
+		auto s = f.stream();
+		for (int i = 0; i < s.logical_block_size(); i++)
+			ensure(i, s.read(), "read");
+	}
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -817,6 +838,7 @@ int main(int argc, char ** argv) {
 		{"non_serializable", test_non_serializable},
 		{"write_chunked", write_chunked},
 		{"read_only", test_read_only},
+		{"direct_file2", direct_file2},
 	};
 
 	std::stringstream usage;
