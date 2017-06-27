@@ -84,7 +84,9 @@ public:
 
 	// An unique id for the entire run of the program
 	// Should change when the file is closed/opened
+#ifndef NDEBUG
 	size_t m_file_id;
+#endif
 
 	block * m_last_block; // A pointer to the last active block
 

@@ -15,7 +15,9 @@ const uint64_t file_header::versionConst;
 file_impl::file_impl()
 	: m_outer(nullptr)
 	, m_fd(-1)
+#ifndef NDEBUG
 	, m_file_id(file_ctr++)
+#endif
 	, m_last_block(nullptr)
 	, m_blocks(0)
 	, m_job_count(0)
@@ -107,7 +109,10 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 
 	lock_t l(m_impl->m_mut);
 	m_impl->m_fd = fd;
+
+#ifndef NDEBUG
 	m_impl->m_file_id = file_ctr++;
+#endif
 
 	file_size_t fsize = (file_size_t)::lseek(fd, 0, SEEK_END);
 	file_header & header = m_impl->m_header;
@@ -249,7 +254,9 @@ void file_base_base::close() {
 	m_impl->m_first_physical_size = no_block_size;
 	m_impl->m_last_physical_size = no_block_size;
 
+#ifndef NDEBUG
 	m_impl->m_file_id = file_ctr++;
+#endif
 }
 
 bool file_base_base::is_open() const noexcept {
