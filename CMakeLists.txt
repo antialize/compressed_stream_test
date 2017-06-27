@@ -8,8 +8,13 @@ find_package(Snappy)
 find_package(Threads REQUIRED)
 include_directories(${Snappy_INCLUDE_DIR} .)
 
+find_package(Boost COMPONENTS filesystem system REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
+
+
 add_library(stream STATIC file_stream.h available_blocks.cpp stream.cpp file.cpp job.cpp misc.cpp file_utils.cpp exception.h)
-target_link_libraries(stream ${Snappy_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(stream ${Snappy_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(t test.cpp)
 target_link_libraries(t stream)

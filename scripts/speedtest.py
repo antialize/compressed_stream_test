@@ -1,9 +1,12 @@
+import sys
 import os
-import subprocess
+import signal
+from subprocess import run, check_call, Popen, PIPE
 from contextlib import contextmanager
 import datetime
 import itertools
 from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
+import progressbar
 
 
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
@@ -18,6 +21,7 @@ class Timing(Model):
 	readahead = BooleanField()
 	item_type = IntegerField()
 	test = IntegerField()
+	parameter = IntegerField()
 	duration = DoubleField()
 	timestamp = IntegerField()
 
@@ -25,17 +29,31 @@ class Timing(Model):
 		database = db
 
 
+def exprange(start, stop):
+	val = start
+	while val != stop:
+		yield val
+		val *= 2
+
+	yield val
+
+
 MB = 2**20
 min_bs = MB // 16
-max_bs = 4 * MB
+#max_bs = 4 * MB
+max_bs = min_bs
 
-blocksizes = [min_bs]
-while blocksizes[-1] < max_bs:
-	blocksizes.append(blocksizes[-1] * 2)
+blocksizes = list(exprange(min_bs, max_bs))
 
+items = 3
+tests = 8
 
-items = 1
-tests = 2
+def parameters(test):
+	# Merge tests
+	if test in [4, 5]: 
+		return exprange(2, 512)
+	else:
+		return [0]
 
 
 @contextmanager
@@ -50,10 +68,10 @@ def chdir(path):
 
 def build(bs):
 	path = 'build-speed-test/bs-' + str(bs)
-	subprocess.check_call(['mkdir', '-p', path])
+	check_call(['mkdir', '-p', path])
 	with chdir(path):
-		subprocess.check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
-		subprocess.check_call(['make', '-j2'])
+		check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
+		check_call(['make', '-j8'])
 
 
 def buildall():
@@ -62,37 +80,53 @@ def buildall():
 
 
 def kill_cache():
-	subprocess.check_call(['./killcache'])
+	p = run(['./killcache'])
+	if p.returncode not in [0, -signal.SIGKILL]:
+		print('killcache failed', file=sys.stderr)
+		sys.exit(1)
 
 
 now = datetime.datetime.utcnow
 
 
-def run_test(bs, compression=True, readahead=True, item=0, test=0):
+def run_test(bs, compression, readahead, item, test, parameter):
 	start = now()
 	path = 'build-speed-test/bs-' + str(bs)
 	with chdir(path):
 		for setup in [True, False]:
-			subprocess.check_call(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, setup]])
+			p = Popen(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, setup, parameter]], stdout=PIPE, stderr=PIPE)
+			stdout, stderr = p.communicate()
+			if stderr.endswith(b'SKIP\n'):
+				return None
 	end = now()
 	return (end - start).total_seconds()
 
 
 def runall():
 	bins = [False, True]
-	for args in itertools.product(blocksizes, bins, bins, range(items), range(tests)):
-		kill_cache()
-		time = run_test(*args)
 
-		Timing.create(
-			block_size=args[0],
-			compression=args[1],
-			readahead=args[2],
-			item_type=args[3],
-			test=args[4],
-			duration=time,
-			timestamp=int(now().timestamp()),
-		)
+	bar = progressbar.ProgressBar()
+
+	for args in bar(itertools.product(blocksizes, bins, bins, range(items), range(tests))):
+		for parameter in parameters(args[-1]):
+			pargs = args + (parameter,)
+			kill_cache()
+			time = run_test(*pargs)
+
+			if time == None:
+				print('Skipped', *pargs)
+				continue
+
+			Timing.create(
+				block_size=pargs[0],
+				compression=pargs[1],
+				readahead=pargs[2],
+				item_type=pargs[3],
+				test=pargs[4],
+				parameter=pargs[5],
+				duration=time,
+				timestamp=int(now().timestamp()),
+			)
 
 
 if __name__ == '__main__':
