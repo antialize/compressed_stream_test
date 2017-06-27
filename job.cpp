@@ -327,7 +327,8 @@ void process_run() {
 		}
 		break;
 		case job_type::trunc: {
-			::ftruncate(file->m_fd, j.truncate_size);
+			int r = ::ftruncate(file->m_fd, j.truncate_size);
+			assert(r == 0);
 
 			log_info() << "JOB " << id << " truncated  " << file->m_path << " to size " << j.truncate_size << std::endl;
 
