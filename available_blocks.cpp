@@ -14,20 +14,39 @@ std::unordered_set<block *> available_blocks;
 size_t ctr = 0;
 
 #ifndef NDEBUG
+#include <unordered_map>
 std::unordered_set<block *> all_blocks;
-void print_available_blocks() {
-	log_info() << "Total number of blocks: " << all_blocks.size() << "\n"
-			   << "free: " << available_blocks.size() << ", "
-			   << "non-free: " << (all_blocks.size() - available_blocks.size()) << "\n";
-
-	log_info() << "Free:\n";
-	for (block * b : available_blocks) {
-		log_info() << "\t" << *b << "\n";
-	}
-	log_info() << "Non-free:\n";
+void print_debug() {
+	std::unordered_set<file_impl *> files;
+	std::unordered_map<file_impl *, std::vector<block *>> owned_blocks;
 	for (block * b : all_blocks) {
-		if (available_blocks.count(b)) continue;
-		log_info() << "\t" << *b << "\n";
+		files.insert(b->m_file);
+		owned_blocks[b->m_file].push_back(b);
+	}
+
+	std::cerr << "Blocks: " << all_blocks.size() << "\n"
+			  << "  Non-free: " << (all_blocks.size() - available_blocks.size()) << "\n"
+			  << "  Free: " << available_blocks.size() << ", "
+			  << "  Belonging to a file: " << (all_blocks.size() - owned_blocks[nullptr].size()) << ", "
+			  << "  Not belonging to a file: " << owned_blocks[nullptr].size() << "\n";
+
+	std::cerr << "\n";
+
+	std::cerr << "Files: " << (files.size() - files.count(nullptr)) << "\n";
+	for (file_impl * f : files) {
+		if (!f) continue;
+		std::cerr << f->m_path << "\n";
+		std::cerr << "  Streams: " << f->m_streams.size() << "\n";
+		std::cerr << "  Blocks:  " << owned_blocks[f].size() << "\n";
+		for (block * b : owned_blocks[f]) {
+			std::cerr << "    " << *b << "\n";
+		}
+		std::cerr << "\n";
+	}
+
+	std::cerr << "Blocks not owned by a file:\n";
+	for (block * b : owned_blocks[nullptr]) {
+		std::cerr << "  " << *b << "\n";
 	}
 }
 #endif
