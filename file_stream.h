@@ -471,6 +471,7 @@ public:
 	bool is_open() const noexcept {return m_file.is_open();}
 	bool is_readable() const noexcept {return m_file.is_readable();}
 	bool is_writable() const noexcept {return m_file.is_writable();}
+	bool direct() const noexcept {return m_file.direct();}
 	size_t user_data_size() const noexcept {return m_file.user_data_size();}
 	size_t max_user_data_size() const noexcept {return m_file.max_user_data_size();}
 	void read_user_data(void * data, size_t count) {m_file.read_user_data(data, count);}
