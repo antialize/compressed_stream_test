@@ -9,7 +9,7 @@ from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleFiel
 import progressbar
 
 
-os.chdir(os.path.dirname(os.path.realpath(__file__)))
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 os.chdir('..')
 
 db = SqliteDatabase('timing.db')
