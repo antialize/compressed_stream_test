@@ -25,7 +25,7 @@ struct {
 	int item_type;
 	int test;
 	bool setup;
-	int K;
+	size_t K;
 } cmd_options;
 
 void speed_test_init(int argc, char ** argv) {
@@ -38,7 +38,7 @@ void speed_test_init(int argc, char ** argv) {
 	int item_type = std::atoi(argv[3]);
 	int test = std::atoi(argv[4]);
 	bool setup = (bool)std::atoi(argv[5]);
-	int K = (argc == 7)? std::atoi(argv[6]): 0;
+	size_t K = (argc == 7)? std::atoi(argv[6]): 0;
 
 	std::cerr << "Test info:\n"
 			  << "  Block size:  " << block_size() << "\n"
@@ -508,6 +508,19 @@ struct binary_search : speed_test_t<T, FS> {
 		die("Needle not found");
 	}
 };
+
+// Disable binary_search test for old serialization streams
+#ifdef TEST_OLD_STREAMS
+template <typename T>
+struct serialization_adapter;
+
+template <typename T>
+struct binary_search<T, serialization_adapter<typename T::item_type>> : speed_test_t<T, serialization_adapter<typename T::item_type>> {
+	void init() override {skip();}
+	void setup() override {}
+	void run() override {}
+};
+#endif
 
 template <typename T, typename FS>
 void run_test() {
