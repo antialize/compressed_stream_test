@@ -3,7 +3,7 @@ import os
 import signal
 from subprocess import run, check_call, Popen, PIPE
 from contextlib import contextmanager
-import datetime
+import time
 import itertools
 from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
 import progressbar
@@ -70,7 +70,7 @@ def build(bs):
 	path = 'build-speed-test/bs-' + str(bs)
 	check_call(['mkdir', '-p', path])
 	with chdir(path):
-		check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
+		check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-march=native -DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
 		check_call(['make', '-j8', 'speed_test'])
 
 
@@ -86,16 +86,17 @@ def kill_cache():
 		sys.exit(1)
 
 
-now = datetime.datetime.utcnow
+now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
 
 
 def run_test(bs, compression, readahead, item, test, parameter):
-	start = now()
+	# TODO: Run mkfs somewhere
 	path = 'build-speed-test/bs-' + str(bs)
 	with chdir(path):
 		for setup in [True, False]:
 			if not setup:
 				kill_cache()
+				start = now()
 			p = Popen(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, setup, parameter]], stdout=PIPE, stderr=PIPE)
 			stdout, stderr = p.communicate()
 			if stderr.endswith(b'SKIP\n'):
