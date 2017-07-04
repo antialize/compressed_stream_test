@@ -1,7 +1,7 @@
 import sys
 import os
 import signal
-from subprocess import run, check_call, Popen, PIPE, DEVNULL
+from subprocess import run, check_call, PIPE, DEVNULL
 from contextlib import contextmanager
 import datetime
 import time
@@ -14,6 +14,9 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 os.chdir('..')
 
 db = SqliteDatabase('timing.db')
+
+SHOULD_VALIDATE = True
+action_args = range(3) if SHOULD_VALIDATE else range(2)
 
 
 class Timing(Model):
@@ -98,7 +101,7 @@ def format_partition():
     check_call(['sudo', 'mkfs.ext4', '-F', device], stdout=DEVNULL, stderr=DEVNULL)
     check_call(['sudo', 'mount', device, mountpoint])
     check_call(['sudo', 'mkdir', mountpoint + '/tmp'])
-    check_call(['sudo', 'chown', 'madalgo:madalgo', mountpoint + '/tmp'])
+    check_call(['sudo', 'chown', '%s:%s' % tuple([os.getlogin()] * 2), mountpoint + '/tmp'])
 
 
 def kill_cache():
@@ -115,16 +118,19 @@ def run_test(bs, compression, readahead, item, test, parameter):
 	format_partition()
 	path = 'build-speed-test/bs-' + str(bs)
 	with chdir(path):
-		for setup in [True, False]:
-			if not setup:
+		for action in action_args:
+			if action == 1:
 				kill_cache()
 				start = now()
-			p = Popen(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, setup, parameter]], stdout=PIPE, stderr=PIPE)
-			stdout, stderr = p.communicate()
-			if not setup:
+			p = run(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, action, parameter]], check=True, stdout=DEVNULL, stderr=PIPE)
+			if p.returncode != 0:
+				print('', file=sys.stderr)
+				sys.exit(1)
+			if action == 1:
 				end = now()
-			if stderr.endswith(b'SKIP\n'):
+			if p.stderr.endswith(b'SKIP\n'):
 				return None
+
 	return end - start
 
 
