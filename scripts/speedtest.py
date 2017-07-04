@@ -39,15 +39,22 @@ def exprange(start, stop):
 	yield val
 
 
+bins = [False, True]
+
+items = 3
+tests = 8
+
 MB = 2**20
 min_bs = MB // 16
 #max_bs = 4 * MB
 max_bs = min_bs
 
 blocksizes = list(exprange(min_bs, max_bs))
+compression_args = bins
+readahead_args = bins
+item_args = range(items)
+test_args = range(tests)
 
-items = 3
-tests = 8
 
 def parameters(test):
 	# Merge tests
@@ -122,11 +129,9 @@ def run_test(bs, compression, readahead, item, test, parameter):
 
 
 def runall():
-	bins = [False, True]
-
 	arg_combinations = []
-	
-	for args in itertools.product(blocksizes, bins, bins, range(items), range(tests)):
+
+	for args in itertools.product(blocksizes, compression_args, readahead_args, item_args, test_args):
 		for parameter in parameters(args[-1]):
 			arg_combinations.append(args + (parameter,))
 	
