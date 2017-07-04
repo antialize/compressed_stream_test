@@ -203,7 +203,7 @@ struct speed_test_t {
 #ifdef TEST_NEW_STREAMS
 		f.open(get_fname(), get_flags(), max_user_data_size);
 #else
-		f.open(get_fname(), access_type::access_read_write, max_user_data_size, access_normal);
+		f.open(get_fname(), cmd_options.compression? open::compression_all: open::defaults, max_user_data_size);
 #endif
 	}
 };
