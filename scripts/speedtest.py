@@ -80,7 +80,7 @@ def buildall():
 
 
 def kill_cache():
-	p = run(['./killcache'])
+	p = run(['killcache'])
 	if p.returncode not in [0, -signal.SIGKILL]:
 		print('killcache failed', file=sys.stderr)
 		sys.exit(1)
@@ -94,6 +94,8 @@ def run_test(bs, compression, readahead, item, test, parameter):
 	path = 'build-speed-test/bs-' + str(bs)
 	with chdir(path):
 		for setup in [True, False]:
+			if not setup:
+				kill_cache()
 			p = Popen(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, setup, parameter]], stdout=PIPE, stderr=PIPE)
 			stdout, stderr = p.communicate()
 			if stderr.endswith(b'SKIP\n'):
@@ -114,7 +116,6 @@ def runall():
 	bar = progressbar.ProgressBar()
 
 	for args in bar(arg_combinations):
-		kill_cache()
 		time = run_test(*args)
 
 		if time == None:
