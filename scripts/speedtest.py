@@ -105,28 +105,32 @@ def run_test(bs, compression, readahead, item, test, parameter):
 def runall():
 	bins = [False, True]
 
+	arg_combinations = []
+	
+	for args in itertools.product(blocksizes, bins, bins, range(items), range(tests)):
+		for parameter in parameters(args[-1]):
+			arg_combinations.append(args + (parameter,))
+	
 	bar = progressbar.ProgressBar()
 
-	for args in bar(itertools.product(blocksizes, bins, bins, range(items), range(tests))):
-		for parameter in parameters(args[-1]):
-			pargs = args + (parameter,)
-			kill_cache()
-			time = run_test(*pargs)
+	for args in bar(arg_combinations):
+		kill_cache()
+		time = run_test(*args)
 
-			if time == None:
-				print('Skipped', *pargs)
-				continue
+		if time == None:
+			print('Skipped', *args)
+			continue
 
-			Timing.create(
-				block_size=pargs[0],
-				compression=pargs[1],
-				readahead=pargs[2],
-				item_type=pargs[3],
-				test=pargs[4],
-				parameter=pargs[5],
-				duration=time,
-				timestamp=int(now().timestamp()),
-			)
+		Timing.create(
+			block_size=args[0],
+			compression=args[1],
+			readahead=args[2],
+			item_type=args[3],
+			test=args[4],
+			parameter=args[5],
+			duration=time,
+			timestamp=int(now().timestamp()),
+		)
 
 
 if __name__ == '__main__':
