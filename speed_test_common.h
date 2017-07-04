@@ -6,6 +6,7 @@
 #endif
 #endif
 
+#include <random>
 #include <iostream>
 #include <fstream>
 #include <chrono>
@@ -13,9 +14,19 @@
 
 #include <boost/filesystem/operations.hpp>
 
-//size_t file_size = 1ull * 1024 * 1024 * 1024;
-size_t file_size = 1ull * 1024 * 1024;
-size_t blocks = file_size / block_size();
+template <typename FS>
+void ensure_open_write(FS &) {};
+template <typename FS>
+void ensure_open_read(FS &) {};
+template <typename FS>
+void ensure_open_read_back(FS &) {};
+
+#ifndef SPEED_TEST_FILE_SIZE_MB
+#define SPEED_TEST_FILE_SIZE_MB 1
+#endif
+
+constexpr size_t MB = 1024 * 1024;
+constexpr size_t file_size = SPEED_TEST_FILE_SIZE_MB * MB;
 
 std::vector<std::string> words;
 
@@ -79,9 +90,7 @@ struct int_generator {
 	size_t i = 0;
 
 	int next() {
-		int tmp = i;
-		i++;
-		return tmp;
+		return i++;
 	}
 };
 
@@ -134,7 +143,7 @@ struct keyed_generator {
 
 	keyed_struct next() {
 		auto tmp = current;
-		current.key += 1;
+		current.key++;
 		return tmp;
 	}
 };
@@ -143,9 +152,6 @@ template <typename T, typename FS>
 struct speed_test_t {
 	size_t item_size = sizeof(typename T::item_type);
 	size_t total_items = file_size / item_size;
-
-#ifdef TEST_NEW_STREAMS
-#endif
 
 	int file_ctr = 0;
 
@@ -215,6 +221,8 @@ struct write_single : speed_test_t<T, FS> {
 	}
 
 	void run() override {
+		ensure_open_write(f);
+
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) f.write(gen.next());
 	}
@@ -233,6 +241,8 @@ struct write_single_chunked : speed_test_t<T, FS> {
 	}
 
 	void run() override {
+		ensure_open_write(f);
+
 		const size_t N = 1024;
 		T gen;
 		typename T::item_type items[N];
@@ -258,11 +268,15 @@ struct read_single : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
+		ensure_open_write(f);
+
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) f.write(gen.next());
 	}
 
 	void run() override {
+		ensure_open_read(f);
+
 		for (size_t i = 0; i < this->total_items; i++) f.read();
 	}
 };
@@ -276,11 +290,15 @@ struct read_back_single : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
+		ensure_open_write(f);
+
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) f.write(gen.next());
 	}
 
 	void run() override {
+		ensure_open_read_back(f);
+
 #ifdef TEST_NEW_STREAMS
 		f.seek(0, whence::end);
 #else
@@ -313,15 +331,26 @@ struct merge : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
+		for (size_t i = 0; i < cmd_options.K; i++) {
+			ensure_open_write(inputs[i]);
+		}
+
+		std::mt19937_64 rng;
+		std::uniform_int_distribution<size_t> dist(0, cmd_options.K - 1);
+
 		T gen;
-		for (size_t i = 0; i < this->total_items / cmd_options.K; i++) {
-			for (size_t j = 0; j < cmd_options.K; j++) {
-				inputs[i].write(gen.next());
-			}
+		for (size_t i = 0; i < this->total_items; i++) {
+			inputs[dist(rng)].write(gen.next());
 		}
 	}
 
 	void run() override {
+		ensure_open_write(output);
+
+		for (size_t i = 0; i < cmd_options.K; i++) {
+			ensure_open_read(inputs[i]);
+		}
+
 		using item_t = std::pair<typename T::item_type, size_t>;
 		std::priority_queue<item_t, std::vector<item_t>, std::greater<item_t>> pq;
 		for (size_t i = 0; i < cmd_options.K; i++) {
@@ -361,16 +390,18 @@ struct merge_single_file : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
-		T gen;
 		auto * inputs = new FS[cmd_options.K];
 		for (size_t i = 0; i < cmd_options.K; i++) {
 			this->open_file_stream(inputs[i]);
 		}
+
 		// Write to individual files then concat
-		for (size_t i = 0; i < this->total_items / cmd_options.K; i++) {
-			for (size_t j = 0; j < cmd_options.K; j++) {
-				inputs[j].write(gen.next());
-			}
+		std::mt19937_64 rng;
+		std::uniform_int_distribution<size_t> dist(0, cmd_options.K - 1);
+
+		T gen;
+		for (size_t i = 0; i < this->total_items; i++) {
+			inputs[dist(rng)].write(gen.next());
 		}
 
 		auto input_stream = input.stream();
@@ -439,6 +470,8 @@ struct distribute : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
+		ensure_open_write(input);
+
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) {
 			input.write(gen.next());
@@ -446,6 +479,10 @@ struct distribute : speed_test_t<T, FS> {
 	}
 
 	void run() override {
+		ensure_open_read(input);
+		ensure_open_write(outputs[0]);
+		ensure_open_write(outputs[1]);
+
 		for (size_t i = 0; i < this->total_items; i++) {
 			outputs[(i % 3) % 2].write(input.read());
 		}
