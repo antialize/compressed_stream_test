@@ -1,8 +1,9 @@
 import sys
 import os
 import signal
-from subprocess import run, check_call, Popen, PIPE
+from subprocess import run, check_call, Popen, PIPE, DEVNULL
 from contextlib import contextmanager
+import datetime
 import time
 import itertools
 from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
@@ -79,6 +80,20 @@ def buildall():
 		build(bs)
 
 
+def format_partition():
+    mountpoint = '/hdd'
+    device = '/dev/sdb1'
+
+    p = run(['mountpoint', '-q', mountpoint])
+    if p.returncode == 0:
+        check_call(['sudo', 'umount', device])
+
+    check_call(['sudo', 'mkfs.ext4', '-F', device], stdout=DEVNULL, stderr=DEVNULL)
+    check_call(['sudo', 'mount', device, mountpoint])
+    check_call(['sudo', 'mkdir', mountpoint + '/tmp'])
+    check_call(['sudo', 'chown', 'madalgo:madalgo', mountpoint + '/tmp'])
+
+
 def kill_cache():
 	p = run(['killcache'])
 	if p.returncode not in [0, -signal.SIGKILL]:
@@ -90,7 +105,7 @@ now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
 
 
 def run_test(bs, compression, readahead, item, test, parameter):
-	# TODO: Run mkfs somewhere
+	format_partition()
 	path = 'build-speed-test/bs-' + str(bs)
 	with chdir(path):
 		for setup in [True, False]:
@@ -99,10 +114,11 @@ def run_test(bs, compression, readahead, item, test, parameter):
 				start = now()
 			p = Popen(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, setup, parameter]], stdout=PIPE, stderr=PIPE)
 			stdout, stderr = p.communicate()
+			if not setup:
+				end = now()
 			if stderr.endswith(b'SKIP\n'):
 				return None
-	end = now()
-	return (end - start).total_seconds()
+	return end - start
 
 
 def runall():
@@ -131,7 +147,7 @@ def runall():
 			test=args[4],
 			parameter=args[5],
 			duration=time,
-			timestamp=int(now().timestamp()),
+			timestamp=int(datetime.datetime.utcnow().timestamp()),
 		)
 
 
