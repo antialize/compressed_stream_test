@@ -88,7 +88,7 @@ enum open_flags {
 #define T std::underlying_type<open_flags>::type
 #define OP_IMPL(op) \
     inline open_flags operator op(open_flags f1, open_flags f2) { return static_cast<open_flags>(T(f1) op T(f2)); } \
-    inline open_flags & operator op##=(open_flags & f1, open_flags f2) { return f1 = f1 | f2; }
+    inline open_flags & operator op##=(open_flags & f1, open_flags f2) { return f1 = f1 op f2; }
 OP_IMPL(|)
 OP_IMPL(&)
 OP_IMPL(^)
