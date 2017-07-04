@@ -17,6 +17,8 @@
 template <typename FS>
 void ensure_open_write(FS &) {};
 template <typename FS>
+void ensure_open_write_back(FS &) {};
+template <typename FS>
 void ensure_open_read(FS &) {};
 template <typename FS>
 void ensure_open_read_back(FS &) {};
@@ -30,12 +32,18 @@ constexpr size_t file_size = SPEED_TEST_FILE_SIZE_MB * MB;
 
 std::vector<std::string> words;
 
+enum action_t {
+	SETUP,
+	RUN,
+	VALIDATE,
+};
+
 struct {
 	bool compression;
 	bool readahead;
 	int item_type;
 	int test;
-	bool setup;
+	action_t action;
 	size_t K;
 } cmd_options;
 
@@ -48,7 +56,7 @@ void speed_test_init(int argc, char ** argv) {
 	bool readahead = (bool)std::atoi(argv[2]);
 	int item_type = std::atoi(argv[3]);
 	int test = std::atoi(argv[4]);
-	bool setup = (bool)std::atoi(argv[5]);
+	int action = std::atoi(argv[5]);
 	size_t K = (argc == 7)? std::atoi(argv[6]): 0;
 
 	std::cerr << "Test info:\n"
@@ -57,13 +65,13 @@ void speed_test_init(int argc, char ** argv) {
 			  << "  Readahead:   " << readahead << "\n"
 			  << "  Item type:   " << item_type << "\n"
 			  << "  Test:        " << test << "\n"
-			  << "  Action:      " << (setup? "Setup": "Run") << "\n";
+			  << "  Action:      " << (action == 0? "Setup": (action == 1? "Run" : "Validate")) << "\n";
 
 	if (K) {
 		std::cerr << "  Parameter:   " << K << "\n";
 	}
 
-	cmd_options = {compression, readahead, item_type, test, setup, K};
+	cmd_options = {compression, readahead, item_type, test, action_t(action), K};
 
 	{
 		std::ifstream word_stream("/usr/share/dict/words");
@@ -89,29 +97,24 @@ struct int_generator {
 
 	size_t i = 0;
 
-	int next() {
-		return i++;
+	int next(ssize_t inc = 1) {
+		int tmp = i;
+		i += inc;
+		return tmp;
 	}
 };
 
 struct string_generator {
 	using item_type = std::string;
 
+	size_t N;
 	size_t i = 0;
-	size_t j = 0;
 
-	std::string next() {
-		auto tmp = words[i] + "_" + words[j];
+	string_generator() : N(words.size()) {}
 
-		i++;
-		if (i == words.size()) {
-			i = 0;
-			j++;
-			if (j == words.size()) {
-				j = 0;
-			}
-		}
-
+	std::string next(ssize_t inc = 1) {
+		auto tmp = words[i % N] + "_" + words[i / N];
+		i += inc;
 		return tmp;
 	}
 };
@@ -123,6 +126,10 @@ struct keyed_generator {
 
 		bool operator==(const keyed_struct & o) const {
 			return key == o.key;
+		}
+
+		bool operator!=(const keyed_struct & o) const {
+			return key != o.key;
 		}
 
 		bool operator<(const keyed_struct & o) const {
@@ -141,9 +148,9 @@ struct keyed_generator {
 		}
 	}
 
-	keyed_struct next() {
+	keyed_struct next(ssize_t inc = 1) {
 		auto tmp = current;
-		current.key++;
+		current.key += inc;
 		return tmp;
 	}
 };
@@ -157,9 +164,25 @@ struct speed_test_t {
 
 	virtual ~speed_test_t() = default;
 
-	virtual void init() {}
-	virtual void setup() {}
-	virtual void run() {}
+	virtual void init() = 0;
+	virtual void setup() = 0;
+	virtual void run() = 0;
+	virtual bool validate() {}
+
+	bool validate_sequential(FS & f) {
+		ensure_open_read(f);
+
+		if (f.size() != this->total_items) return false;
+
+		T gen;
+		for (size_t i = 0; i < this->total_items; i++) {
+			if (f.read() != gen.next()) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 
 	std::string get_fname() {
 		return TEST_DIR +
@@ -196,7 +219,7 @@ struct speed_test_t {
 
 	void open_file_stream(FS & f, size_t max_user_data_size = 0) {
 		// Truncate files during setup
-		if (cmd_options.setup) {
+		if (cmd_options.action == SETUP) {
 			boost::filesystem::remove(get_fname());
 			file_ctr--;
 		}
@@ -225,6 +248,10 @@ struct write_single : speed_test_t<T, FS> {
 
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) f.write(gen.next());
+	}
+
+	bool validate() override {
+		return this->validate_sequential(f);
 	}
 };
 
@@ -257,6 +284,10 @@ struct write_single_chunked : speed_test_t<T, FS> {
 #endif
 		}
 	}
+
+	bool validate() override {
+		return this->validate_sequential(f);
+	}
 };
 
 template <typename T, typename FS>
@@ -279,6 +310,10 @@ struct read_single : speed_test_t<T, FS> {
 
 		for (size_t i = 0; i < this->total_items; i++) f.read();
 	}
+
+	bool validate() override {
+		return this->validate_sequential(f);
+	}
 };
 
 template <typename T, typename FS>
@@ -290,7 +325,7 @@ struct read_back_single : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
-		ensure_open_write(f);
+		ensure_open_write_back(f);
 
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) f.write(gen.next());
@@ -305,6 +340,28 @@ struct read_back_single : speed_test_t<T, FS> {
 		f.seek(0, FS::end);
 #endif
 		for (size_t i = 0; i < this->total_items; i++) f.read_back();
+	}
+
+	bool validate() override {
+		ensure_open_read_back(f);
+
+#ifdef TEST_NEW_STREAMS
+		f.seek(0, whence::end);
+#else
+		f.seek(0, FS::end);
+#endif
+
+		if (f.size() != this->total_items) return false;
+
+		T gen;
+		gen.next(this->total_items);
+		for (size_t i = 0; i < this->total_items; i++) {
+			if (f.read_back() != gen.next(-1)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 };
 
@@ -367,6 +424,10 @@ struct merge : speed_test_t<T, FS> {
 				pq.push({input.read(), p.second});
 			}
 		}
+	}
+
+	bool validate() override {
+		return this->validate_sequential(output);
 	}
 };
 
@@ -455,6 +516,10 @@ struct merge_single_file : speed_test_t<T, FS> {
 
 		delete[] stream_infos;
 	}
+
+	bool validate() override {
+		return this->validate_sequential(output);
+	}
 };
 #endif
 
@@ -486,6 +551,35 @@ struct distribute : speed_test_t<T, FS> {
 		for (size_t i = 0; i < this->total_items; i++) {
 			outputs[(i % 3) % 2].write(input.read());
 		}
+	}
+
+	bool validate() override {
+		ensure_open_read(outputs[0]);
+		ensure_open_read(outputs[1]);
+
+		if (outputs[0].size() + outputs[1].size() != this->total_items) return false;
+
+		typename T::item_type item1, item2;
+		bool has_prev = false;
+
+		item1 = outputs[0].read();
+		item2 = outputs[1].read();
+
+		T gen;
+		for (size_t i = 0; i < this->total_items; i++) {
+			auto n = gen.next();
+			if (n == item1) {
+				if (outputs[0].can_read())
+					item1 = outputs[0].read();
+			} else if (n == item2) {
+				if (outputs[1].can_read())
+					item2 = outputs[1].read();
+			} else {
+				return false;
+			}
+		}
+
+		return true;
 	}
 };
 
@@ -544,6 +638,10 @@ struct binary_search : speed_test_t<T, FS> {
 
 		die("Needle not found");
 	}
+
+	bool validate() override {
+		return true;
+	}
 };
 
 // Disable binary_search test for old serialization streams
@@ -586,10 +684,18 @@ void run_test() {
 	}
 
 	test->init();
-	if (cmd_options.setup) {
-		test->setup();
-	} else {
-		test->run();
+	switch (cmd_options.action) {
+	case SETUP: test->setup(); break;
+	case RUN: test->run(); break;
+	case VALIDATE: {
+		bool result = test->validate();
+
+		if (!result) {
+			die("Validation failed");
+		}
+
+		break;
+	}
 	}
 
 	delete test;
