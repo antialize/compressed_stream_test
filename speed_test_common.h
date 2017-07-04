@@ -110,7 +110,7 @@ struct string_generator {
 struct keyed_generator {
 	struct keyed_struct {
 		uint32_t key;
-		char data[60];
+		unsigned char data[60];
 
 		bool operator==(const keyed_struct & o) const {
 			return key == o.key;
@@ -127,7 +127,7 @@ struct keyed_generator {
 
 	keyed_generator() {
 		current.key = 0;
-		for (char i = 0; i < sizeof(current.data); i++) {
+		for (unsigned char i = 0; i < sizeof(current.data); i++) {
 			current.data[i] = 'A' + i;
 		}
 	}
