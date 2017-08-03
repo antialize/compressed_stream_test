@@ -595,7 +595,7 @@ block * file_impl::get_predecessor_block(lock_t & l, block * t) {
 	p.m_index = 0;
 	// We can't assume that all blocks have same max logical size,
 	// because of serialization
-	p.m_logical_offset = no_file_size;
+	p.m_logical_offset = direct()? t->m_logical_offset - t->m_maximal_logical_size: no_file_size;
 	p.m_physical_offset = get_prev_physical_offset(l, t);
 	return get_block(l, p, false, t);
 }
