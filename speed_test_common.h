@@ -213,6 +213,11 @@ struct speed_test_t {
 	using F = typename file_type<FS>::type;
 
 	void open_file(F & f, size_t max_user_data_size = 0) {
+		// Truncate files during setup
+		if (cmd_options.action == SETUP) {
+			boost::filesystem::remove(get_fname());
+			file_ctr--;
+		}
 		f.open(get_fname(), get_flags(), max_user_data_size);
 	}
 #endif
