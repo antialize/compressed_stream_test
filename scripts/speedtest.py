@@ -84,7 +84,7 @@ def build(bs):
 	check_call(['mkdir', '-p', path])
 	with chdir(path):
 		check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-march=native -DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
-		check_call(['make', '-j8', 'speed_test'])
+		check_call(['make', '-j1', 'speed_test'])
 
 
 def buildall():
