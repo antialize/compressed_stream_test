@@ -113,7 +113,7 @@ struct string_generator {
 	string_generator() : N(words.size()) {}
 
 	std::string next(ssize_t inc = 1) {
-		auto tmp = words[i % N] + "_" + words[i / N];
+		auto tmp = words[i / N] + "-" + words[i % N];
 		i += inc;
 		return tmp;
 	}
