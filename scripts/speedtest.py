@@ -91,17 +91,17 @@ def buildall():
 
 
 def format_partition():
-    mountpoint = '/hdd'
-    device = '/dev/sdb1'
+	mountpoint = '/hdd'
+	device = '/dev/sdb1'
 
-    p = run(['mountpoint', '-q', mountpoint])
-    if p.returncode == 0:
-        check_call(['sudo', 'umount', device])
+	p = run(['mountpoint', '-q', mountpoint])
+	if p.returncode == 0:
+		check_call(['sudo', 'umount', device])
 
-    check_call(['sudo', 'mkfs.ext4', '-F', device], stdout=DEVNULL, stderr=DEVNULL)
-    check_call(['sudo', 'mount', device, mountpoint])
-    check_call(['sudo', 'mkdir', mountpoint + '/tmp'])
-    check_call(['sudo', 'chown', '%s:%s' % tuple([os.getlogin()] * 2), mountpoint + '/tmp'])
+	check_call(['sudo', 'mkfs.ext4', '-F', device], stdout=DEVNULL, stderr=DEVNULL)
+	check_call(['sudo', 'mount', device, mountpoint])
+	check_call(['sudo', 'mkdir', mountpoint + '/tmp'])
+	check_call(['sudo', 'chown', '%s:%s' % tuple([os.getlogin()] * 2), mountpoint + '/tmp'])
 
 
 def kill_cache():
