@@ -15,6 +15,7 @@ os.chdir('..')
 
 db = SqliteDatabase('timing.db')
 
+DEBUG = True
 SHOULD_KILLCACHE = False
 SHOULD_FORMAT = False
 SHOULD_VALIDATE = True
@@ -83,7 +84,9 @@ def build(bs):
 	path = 'build-speed-test/bs-' + str(bs)
 	check_call(['mkdir', '-p', path])
 	with chdir(path):
-		check_call(['cmake', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_CXX_FLAGS=-march=native -DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
+		build_type = 'Debug' if DEBUG else 'Release'
+
+		check_call(['cmake', '-DCMAKE_BUILD_TYPE=' + build_type, '-DCMAKE_CXX_FLAGS=-march=native -DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
 		check_call(['make', '-j1', 'speed_test'])
 
 
