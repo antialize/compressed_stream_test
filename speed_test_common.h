@@ -17,11 +17,11 @@
 template <typename FS>
 void ensure_open_write(FS &) {};
 template <typename FS>
-void ensure_open_write_back(FS &) {};
+void ensure_open_write_reverse(FS &) {};
 template <typename FS>
 void ensure_open_read(FS &) {};
 template <typename FS>
-void ensure_open_read_back(FS &) {};
+void ensure_open_read_reverse(FS &) {};
 
 #ifndef SPEED_TEST_FILE_SIZE_MB
 #define SPEED_TEST_FILE_SIZE_MB 1
@@ -29,6 +29,8 @@ void ensure_open_read_back(FS &) {};
 
 constexpr size_t MB = 1024 * 1024;
 constexpr size_t file_size = SPEED_TEST_FILE_SIZE_MB * MB;
+
+constexpr size_t no_file_size = std::numeric_limits<size_t>::max();
 
 std::vector<std::string> words;
 
@@ -172,7 +174,7 @@ struct speed_test_t {
 	bool validate_sequential(FS & f) {
 		ensure_open_read(f);
 
-		if (f.size() != this->total_items) return false;
+		if (f.size() != no_file_size && f.size() != this->total_items) return false;
 
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) {
@@ -330,14 +332,14 @@ struct read_back_single : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
-		ensure_open_write(f);
+		ensure_open_write_reverse(f);
 
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) f.write(gen.next());
 	}
 
 	void run() override {
-		ensure_open_read_back(f);
+		ensure_open_read_reverse(f);
 
 #ifdef TEST_NEW_STREAMS
 		f.seek(0, whence::end);
@@ -348,7 +350,7 @@ struct read_back_single : speed_test_t<T, FS> {
 	}
 
 	bool validate() override {
-		ensure_open_read_back(f);
+		ensure_open_read_reverse(f);
 
 #ifdef TEST_NEW_STREAMS
 		f.seek(0, whence::end);
@@ -356,7 +358,7 @@ struct read_back_single : speed_test_t<T, FS> {
 		f.seek(0, FS::end);
 #endif
 
-		if (f.size() != this->total_items) return false;
+		if (f.size() != no_file_size && f.size() != this->total_items) return false;
 
 		T gen;
 		gen.next(this->total_items - 1);
@@ -562,7 +564,7 @@ struct distribute : speed_test_t<T, FS> {
 		ensure_open_read(outputs[0]);
 		ensure_open_read(outputs[1]);
 
-		if (outputs[0].size() + outputs[1].size() != this->total_items) return false;
+		if (outputs[0].size() != no_file_size && outputs[1].size() != no_file_size && outputs[0].size() + outputs[1].size() != this->total_items) return false;
 
 		typename T::item_type item1, item2;
 		bool has_prev = false;
