@@ -15,6 +15,8 @@ os.chdir('..')
 
 db = SqliteDatabase('timing.db')
 
+SHOULD_KILLCACHE = False
+SHOULD_FORMAT = False
 SHOULD_VALIDATE = True
 action_args = range(3) if SHOULD_VALIDATE else range(2)
 
@@ -91,6 +93,9 @@ def buildall():
 
 
 def format_partition():
+	if not SHOULD_FORMAT:
+		return
+
 	mountpoint = '/hdd'
 	device = '/dev/sdb1'
 
@@ -105,6 +110,9 @@ def format_partition():
 
 
 def kill_cache():
+	if not SHOULD_KILLCACHE:
+		return
+
 	p = run(['killcache'])
 	if p.returncode not in [0, -signal.SIGKILL]:
 		print('killcache failed', file=sys.stderr)
