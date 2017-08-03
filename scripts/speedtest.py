@@ -130,9 +130,13 @@ def run_test(bs, compression, readahead, item, test, parameter):
 			if action == 1:
 				kill_cache()
 				start = now()
-			p = run(['./speed_test'] + [str(int(v)) for v in [compression, readahead, item, test, action, parameter]], check=True, stdout=DEVNULL, stderr=PIPE)
+			args = [str(int(v)) for v in [compression, readahead, item, test, action, parameter]]
+			p = run(['./speed_test'] + args, stdout=PIPE, stderr=PIPE)
 			if p.returncode != 0:
-				print('', file=sys.stderr)
+				print('\nFailed to run speed_test with arguments: %s' % args, file=sys.stderr)
+				print('Exit code:', p.returncode)
+				print(str(p.stderr, 'utf-8'), file=sys.stderr)
+				print(str(p.stdout, 'utf-8'), file=sys.stderr)
 				sys.exit(1)
 			if action == 1:
 				end = now()
