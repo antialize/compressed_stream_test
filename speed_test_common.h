@@ -330,7 +330,7 @@ struct read_back_single : speed_test_t<T, FS> {
 	}
 
 	void setup() override {
-		ensure_open_write_back(f);
+		ensure_open_write(f);
 
 		T gen;
 		for (size_t i = 0; i < this->total_items; i++) f.write(gen.next());
@@ -359,7 +359,7 @@ struct read_back_single : speed_test_t<T, FS> {
 		if (f.size() != this->total_items) return false;
 
 		T gen;
-		gen.next(this->total_items);
+		gen.next(this->total_items - 1);
 		for (size_t i = 0; i < this->total_items; i++) {
 			if (f.read_back() != gen.next(-1)) {
 				return false;
