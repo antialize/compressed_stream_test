@@ -18,7 +18,7 @@ max_fs = 128 * 1024
 blocksizes = list(exprange(min_bs, max_bs))
 filesizes = list(exprange(min_fs, max_fs))
 
-compression_args = [False]
-readahead_args = [False]
+compression_args = [True]
+readahead_args = [not USING_TPIE]
 item_args = range(items)
 test_args = range(tests)

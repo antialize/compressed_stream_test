@@ -18,6 +18,9 @@ else:
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 os.chdir('..')
 
+project = os.path.basename(os.getcwd())
+USING_TPIE = project == 'tpie'
+
 db = SqliteDatabase('timing.db')
 
 class Timing(Model):
