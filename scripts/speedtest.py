@@ -22,6 +22,7 @@ db = SqliteDatabase('timing.db')
 
 class Timing(Model):
 	block_size = IntegerField()
+	file_size = IntegerField()
 	compression = BooleanField()
 	readahead = BooleanField()
 	item_type = IntegerField()
@@ -173,11 +174,12 @@ def runall():
 
 		Timing.create(
 			block_size=args[0],
-			compression=args[1],
-			readahead=args[2],
-			item_type=args[3],
-			test=args[4],
-			parameter=args[5],
+			file_size=args[1],
+			compression=args[2],
+			readahead=args[3],
+			item_type=args[4],
+			test=args[5],
+			parameter=args[6],
 			duration=time,
 			timestamp=int(datetime.datetime.utcnow().timestamp()),
 		)
