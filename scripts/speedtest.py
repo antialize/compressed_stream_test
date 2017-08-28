@@ -86,8 +86,12 @@ def chdir(path):
 		os.chdir(cwd)
 
 
+def build_path(bs, fs):
+	return 'build-speed-test/bs-' + str(bs) + '-' + str(fs)
+
+
 def build(bs, fs):
-	path = 'build-speed-test/bs-' + str(bs) + '-' + str(fs)
+	path = build_path(bs, fs)
 	check_call(['mkdir', '-p', path])
 	with chdir(path):
 		build_type = 'Debug' if DEBUG else 'Release'
@@ -134,7 +138,7 @@ now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
 
 def run_test(bs, fs, compression, readahead, item, test, parameter):
 	format_partition()
-	path = 'build-speed-test/bs-' + str(bs)
+	path = build_path(bs, fs)
 	with chdir(path):
 		for action in action_args:
 			if action == 1:
