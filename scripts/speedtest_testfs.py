@@ -11,8 +11,13 @@ MB = 2**20
 min_bs = MB // 16
 max_bs = 4 * MB
 
+# In megabytes
+min_fs = 1024
+max_fs = 128 * 1024
+
 blocksizes = list(exprange(min_bs, max_bs))
-filesizes = list(exprange(2 ** 10, 2 ** 17))
+filesizes = list(exprange(min_fs, max_fs))
+
 compression_args = [False]
 readahead_args = [False]
 item_args = range(items)
