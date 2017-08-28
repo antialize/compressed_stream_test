@@ -1,6 +1,3 @@
-items = 1
-tests = 1
-
 DEBUG = False
 SHOULD_KILLCACHE = True
 SHOULD_FORMAT = True
@@ -20,5 +17,5 @@ filesizes = list(exprange(min_fs, max_fs))
 
 compression_args = [True]
 readahead_args = [not USING_TPIE]
-item_args = range(items)
-test_args = range(tests)
+item_args = [0]
+test_args = [2]
