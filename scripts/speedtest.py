@@ -21,7 +21,8 @@ os.chdir('..')
 project = os.path.basename(os.getcwd())
 USING_TPIE = project == 'tpie'
 
-db = SqliteDatabase('timing.db')
+dt = datetime.datetime.now()
+db = SqliteDatabase('timing_%s.db' % dt.isoformat())
 
 class Timing(Model):
 	block_size = IntegerField()
