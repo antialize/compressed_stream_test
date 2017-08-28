@@ -10,17 +10,15 @@ from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleFiel
 import progressbar
 
 
+if len(sys.argv) >= 2:
+	config_filename = os.path.abspath(sys.argv[1])
+else:
+	config_filename = None
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 os.chdir('..')
 
 db = SqliteDatabase('timing.db')
-
-DEBUG = True
-SHOULD_KILLCACHE = False
-SHOULD_FORMAT = False
-SHOULD_VALIDATE = True
-action_args = range(3) if SHOULD_VALIDATE else range(2)
-
 
 class Timing(Model):
 	block_size = IntegerField()
@@ -50,12 +48,19 @@ bins = [False, True]
 items = 3
 tests = 8
 
+DEBUG = True
+SHOULD_KILLCACHE = False
+SHOULD_FORMAT = False
+SHOULD_VALIDATE = True
+action_args = range(3) if SHOULD_VALIDATE else range(2)
+
 MB = 2**20
 min_bs = MB // 16
-#max_bs = 4 * MB
+# max_bs = 4 * MB
 max_bs = min_bs
 
 blocksizes = list(exprange(min_bs, max_bs))
+filesizes = [1]
 compression_args = bins
 readahead_args = bins
 item_args = range(items)
@@ -64,7 +69,7 @@ test_args = range(tests)
 
 def parameters(test):
 	# Merge tests
-	if test in [4, 5]: 
+	if test in [4, 5]:
 		return exprange(2, 512)
 	else:
 		return [0]
@@ -80,19 +85,20 @@ def chdir(path):
 		os.chdir(cwd)
 
 
-def build(bs):
-	path = 'build-speed-test/bs-' + str(bs)
+def build(bs, fs):
+	path = 'build-speed-test/bs-' + str(bs) + '-' + str(fs)
 	check_call(['mkdir', '-p', path])
 	with chdir(path):
 		build_type = 'Debug' if DEBUG else 'Release'
 
-		check_call(['cmake', '-DCMAKE_BUILD_TYPE=' + build_type, '-DCMAKE_CXX_FLAGS=-march=native -DFILE_STREAM_BLOCK_SIZE=' + str(bs), '../..'])
+		check_call(['cmake', '-DCMAKE_BUILD_TYPE=' + build_type, '-DCMAKE_CXX_FLAGS=-march=native -DFILE_STREAM_BLOCK_SIZE=' + str(bs) + ' -DSPEED_TEST_FILE_SIZE_MB=' + str(fs), '../..'])
 		check_call(['make', '-j1', 'speed_test'])
 
 
 def buildall():
 	for bs in blocksizes:
-		build(bs)
+		for fs in filesizes:
+			build(bs, fs)
 
 
 def format_partition():
@@ -125,7 +131,7 @@ def kill_cache():
 now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
 
 
-def run_test(bs, compression, readahead, item, test, parameter):
+def run_test(bs, fs, compression, readahead, item, test, parameter):
 	format_partition()
 	path = 'build-speed-test/bs-' + str(bs)
 	with chdir(path):
@@ -152,10 +158,10 @@ def run_test(bs, compression, readahead, item, test, parameter):
 def runall():
 	arg_combinations = []
 
-	for args in itertools.product(blocksizes, compression_args, readahead_args, item_args, test_args):
+	for args in itertools.product(blocksizes, filesizes, compression_args, readahead_args, item_args, test_args):
 		for parameter in parameters(args[-1]):
 			arg_combinations.append(args + (parameter,))
-	
+
 	bar = progressbar.ProgressBar()
 
 	for args in bar(arg_combinations):
@@ -178,6 +184,13 @@ def runall():
 
 
 if __name__ == '__main__':
+	if config_filename:
+		print('Loading config from %s' % sys.argv[1])
+		with open(config_filename) as f:
+			exec(f.read())
+	else:
+		print('Using default config')
+
 	db.connect()
 	db.create_table(Timing, safe=True)
 
