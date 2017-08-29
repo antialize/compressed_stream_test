@@ -10,21 +10,24 @@ from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleFiel
 import progressbar
 
 
+DIRS = ['tpie', 'compressed_stream_test']
+
 if len(sys.argv) >= 2:
 	config_filename = os.path.abspath(sys.argv[1])
 else:
 	config_filename = None
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-os.chdir('..')
+os.chdir('../..')
 
-project = os.path.basename(os.getcwd())
-USING_TPIE = project == 'tpie'
+# project = os.path.basename(os.getcwd())
+# USING_TPIE = project == 'tpie'
 
 dt = datetime.datetime.now()
 db = SqliteDatabase('timing_%s.db' % dt.isoformat())
 
 class Timing(Model):
+	old_streams = BooleanField()
 	block_size = IntegerField()
 	file_size = IntegerField()
 	compression = BooleanField()
@@ -93,12 +96,12 @@ def chdir(path):
 		os.chdir(cwd)
 
 
-def build_path(bs, fs):
-	return 'build-speed-test/bs-' + str(bs) + '-' + str(fs)
+def build_path(d, bs, fs):
+	return '%s/build-speed-test/bs-%s-%s' % (d, bs, fs)
 
 
-def build(bs, fs):
-	path = build_path(bs, fs)
+def build(d, bs, fs):
+	path = build_path(d, bs, fs)
 	check_call(['mkdir', '-p', path])
 	with chdir(path):
 		build_type = 'Debug' if DEBUG else 'Release'
@@ -108,9 +111,10 @@ def build(bs, fs):
 
 
 def buildall():
-	for bs in blocksizes:
-		for fs in filesizes:
-			build(bs, fs)
+	for d in DIRS:
+		for bs in blocksizes:
+			for fs in filesizes:
+				build(d, bs, fs)
 
 
 def format_partition():
@@ -143,9 +147,9 @@ def kill_cache():
 now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
 
 
-def run_test(bs, fs, compression, readahead, item, test, parameter):
+def run_test(bs, fs, compression, readahead, item, test, parameter, old_streams):
 	format_partition()
-	path = build_path(bs, fs)
+	path = build_path(DIRS[old_streams], bs, fs)
 	with chdir(path):
 		for action in action_args:
 			if action == 1:
@@ -170,8 +174,8 @@ def run_test(bs, fs, compression, readahead, item, test, parameter):
 def get_arg_combinations():
 	arg_combinations = []
 
-	for args in itertools.product(blocksizes, filesizes, compression_args, readahead_args, item_args, test_args):
-		for parameter in parameters(args[-1]):
+	for args in itertools.product(blocksizes, filesizes, compression_args, readahead_args, item_args, test_args, bins):
+		for parameter in parameters(args[-2]):
 			arg_combinations.append(args + (parameter,))
 
 	return arg_combinations
@@ -190,6 +194,7 @@ def runall():
 			continue
 
 		Timing.create(
+			old_streams=args[7],
 			block_size=args[0],
 			file_size=args[1],
 			compression=args[2],
