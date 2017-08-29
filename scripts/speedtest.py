@@ -167,12 +167,18 @@ def run_test(bs, fs, compression, readahead, item, test, parameter):
 	return end - start
 
 
-def runall():
+def get_arg_combinations():
 	arg_combinations = []
 
 	for args in itertools.product(blocksizes, filesizes, compression_args, readahead_args, item_args, test_args):
 		for parameter in parameters(args[-1]):
 			arg_combinations.append(args + (parameter,))
+
+	return arg_combinations
+
+
+def runall():
+	arg_combinations = get_arg_combinations()
 
 	bar = progressbar.ProgressBar()
 
@@ -203,6 +209,8 @@ if __name__ == '__main__':
 			exec(f.read())
 	else:
 		print('Using default config')
+
+	print('Test matrix size: %s' % len(get_arg_combinations()))
 
 	db.connect()
 	db.create_table(Timing, safe=True)
