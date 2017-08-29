@@ -174,9 +174,11 @@ def run_test(bs, fs, compression, readahead, item, test, parameter, old_streams)
 def get_arg_combinations():
 	arg_combinations = []
 
-	for args in itertools.product(blocksizes, filesizes, compression_args, readahead_args, item_args, test_args, bins):
-		for parameter in parameters(args[-2]):
-			arg_combinations.append(args + (parameter,))
+	for args in itertools.product(blocksizes, filesizes, compression_args, readahead_args, item_args, test_args):
+		for parameter in parameters(args[-1]):
+			# Add old_streams as last argument
+			for old_streams in bins:
+				arg_combinations.append(args + (parameter, old_streams))
 
 	return arg_combinations
 
