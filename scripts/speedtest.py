@@ -156,7 +156,9 @@ def run_test(bs, fs, compression, readahead, item, test, parameter, old_streams)
 				kill_cache()
 				start = now()
 			args = [str(int(v)) for v in [compression, readahead, item, test, action, parameter]]
-			p = run(['./speed_test'] + args, stdout=PIPE, stderr=PIPE)
+			all_args = ['./speed_test'] + args
+			print('Running', path, *all_args)
+			p = run(all_args, stdout=PIPE, stderr=PIPE)
 			if p.returncode != 0:
 				print('\nFailed to run speed_test with arguments: %s' % args, file=sys.stderr)
 				print('Exit code:', p.returncode)
@@ -186,7 +188,7 @@ def get_arg_combinations():
 def runall():
 	arg_combinations = get_arg_combinations()
 
-	bar = progressbar.ProgressBar()
+	bar = progressbar.ProgressBar(redirect_stdout=True)
 
 	for args in bar(arg_combinations):
 		time = run_test(*args)
