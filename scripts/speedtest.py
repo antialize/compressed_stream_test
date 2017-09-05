@@ -157,7 +157,7 @@ def run_test(bs, fs, compression, readahead, item, test, parameter, old_streams)
 				start = now()
 			args = [str(int(v)) for v in [compression, readahead, item, test, action, parameter]]
 			all_args = ['./speed_test'] + args
-			print('Running', path, *all_args)
+			print('Running', path, *all_args, file=sys.stderr)
 			p = run(all_args, stdout=PIPE, stderr=PIPE)
 			if p.returncode != 0:
 				print('\nFailed to run speed_test with arguments: %s' % args, file=sys.stderr)
