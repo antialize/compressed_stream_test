@@ -138,10 +138,8 @@ def kill_cache():
 	if not SHOULD_KILLCACHE:
 		return
 
-	p = run(['killcache'])
-	if p.returncode not in [0, -signal.SIGKILL]:
-		print('killcache failed', file=sys.stderr)
-		sys.exit(1)
+	check_call(['sync'])
+	p = run(['sudo', 'tee', '/proc/sys/vm/drop_caches'], input=b'3', check=True)
 
 
 now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
