@@ -188,7 +188,7 @@ struct speed_test_t {
 	virtual void init() = 0;
 	virtual void setup() = 0;
 	virtual void run() = 0;
-	virtual bool validate() {}
+	virtual bool validate() = 0;
 
 	bool validate_sequential(FS & f) {
 		ensure_open_read(f);
@@ -680,6 +680,7 @@ struct binary_search<T, serialization_adapter<typename T::item_type>> : speed_te
 	void init() override {skip();}
 	void setup() override {}
 	void run() override {}
+	bool validate() override {return true;}
 };
 #endif
 
