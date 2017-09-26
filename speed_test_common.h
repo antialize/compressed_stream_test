@@ -62,6 +62,7 @@ void speed_test_init(int argc, char ** argv) {
 	size_t K = (argc == 7)? std::atoi(argv[6]): 0;
 
 	std::cerr << "Test info:\n"
+			  << "  File size:   " << file_size << "\n"
 			  << "  Block size:  " << block_size() << "\n"
 			  << "  Compression: " << compression << "\n"
 			  << "  Readahead:   " << readahead << "\n"
@@ -95,14 +96,18 @@ void skip() {
 }
 
 struct int_generator {
-	using item_type = int;
+	using item_type = long long;
 
-	size_t i = 0;
+	long long i = 0;
 
-	int next(ssize_t inc = 1) {
-		int tmp = i;
+	long long next(ssize_t inc = 1) {
+		long long tmp = i;
 		i += inc;
 		return tmp;
+	}
+
+	bool check_total_items(size_t total_items) {
+		return total_items <= (1ull << 63);
 	}
 };
 
@@ -118,6 +123,10 @@ struct string_generator {
 		auto tmp = words[i / N] + "-" + words[i % N];
 		i += inc;
 		return tmp;
+	}
+
+	bool check_total_items(size_t total_items) {
+		return total_items <= N * N;
 	}
 };
 
@@ -155,6 +164,10 @@ struct keyed_generator {
 		current.key += inc;
 		return tmp;
 	}
+
+	bool check_total_items(size_t total_items) {
+		return total_items <= (1ull << 32);
+	}
 };
 
 template <typename T, typename FS>
@@ -163,6 +176,12 @@ struct speed_test_t {
 	size_t total_items = file_size / item_size;
 
 	int file_ctr = 0;
+
+	speed_test_t() {
+		if (!T().check_total_items(total_items)) {
+			die(std::string("Item type doesn't support ") + std::to_string(total_items) + " total items.");
+		}
+	}
 
 	virtual ~speed_test_t() = default;
 
