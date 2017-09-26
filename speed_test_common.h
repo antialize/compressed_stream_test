@@ -586,7 +586,6 @@ struct distribute : speed_test_t<T, FS> {
 		if (outputs[0].size() != no_file_size && outputs[1].size() != no_file_size && outputs[0].size() + outputs[1].size() != this->total_items) return false;
 
 		typename T::item_type item1, item2;
-		bool has_prev = false;
 
 		item1 = outputs[0].read();
 		item2 = outputs[1].read();
