@@ -32,6 +32,16 @@ constexpr size_t file_size = SPEED_TEST_FILE_SIZE_MB * MB;
 
 constexpr size_t no_file_size = std::numeric_limits<size_t>::max();
 
+void die(std::string message) {
+	std::cerr << message << "\n";
+	std::abort();
+}
+
+void skip() {
+	std::cerr << "SKIP\n";
+	std::_Exit(EXIT_SUCCESS);
+}
+
 std::vector<std::string> words;
 
 enum action_t {
@@ -77,22 +87,14 @@ void speed_test_init(int argc, char ** argv) {
 	cmd_options = {compression, readahead, item_type, test, action_t(action), K};
 
 	{
-		std::ifstream word_stream("/usr/share/dict/words");
+		std::string word_path = "/usr/share/dict/words";
+		std::ifstream word_stream(word_path);
+		if (!word_stream) die(word_path + " couldn't be read!");
 		std::string w;
 		while (word_stream >> w) {
 			words.push_back(w);
 		}
 	}
-}
-
-void die(std::string message) {
-	std::cerr << message << "\n";
-	std::abort();
-}
-
-void skip() {
-	std::cerr << "SKIP\n";
-	std::_Exit(EXIT_SUCCESS);
 }
 
 struct int_generator {
