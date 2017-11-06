@@ -50,9 +50,9 @@ timings = list(map(TimingWrapper, Timing.select()))
 db.close()
 
 
-def savefig(fig, filename):
+def savefig(fig, lgd, filename):
 	print("Saving %s" % (filename,))
-	fig.savefig(filename)
+	fig.savefig(filename, bbox_extra_artists=(lgd,), bbox_inches='tight')
 
 	return
 	# savefig takes a long time, so do it in a subprocess
@@ -120,13 +120,12 @@ def generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot
 		ax.xaxis.set_major_formatter(LogFormatterSciNotation(2))
 		# ax.set_xticks(xs)
 
-		# ax.legend(bbox_to_anchor=(1.0, ))
-		ax.legend(loc='lower right')
+		lgd = ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 		ax.grid()
 
 		fig.tight_layout()
 
-		savefig(fig, '%s/%s.pdf' % (OUTPUT_DIR, plot_name))
+		savefig(fig, lgd, '%s/%s.pdf' % (OUTPUT_DIR, plot_name))
 
 		plt.close(fig)
 
