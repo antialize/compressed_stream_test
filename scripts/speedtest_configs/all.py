@@ -4,6 +4,8 @@ SHOULD_FORMAT = True
 SHOULD_VALIDATE = False
 action_args = range(3) if SHOULD_VALIDATE else range(2)
 
+TEST_RUNS = 1
+
 MB = 2**20
 min_bs = MB // 16
 max_bs = 4 * MB

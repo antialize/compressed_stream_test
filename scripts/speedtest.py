@@ -56,6 +56,7 @@ bins = [False, True]
 items = 3
 tests = 8
 
+TEST_RUNS = 1
 DEBUG = True
 SHOULD_KILLCACHE = False
 SHOULD_FORMAT = False
@@ -187,27 +188,31 @@ def get_arg_combinations():
 def runall():
 	arg_combinations = get_arg_combinations()
 
-	bar = progressbar.ProgressBar(redirect_stdout=True)
+	with progressbar.ProgressBar(max_value=TEST_RUNS * len(arg_combinations), redirect_stdout=True) as bar:
+		i = -1
+		for r in range(TEST_RUNS):
+			print('== Run %s ==' % r)
+			for args in arg_combinations:
+				i += 1
+				bar.update(i)
+				time = run_test(*args)
 
-	for args in bar(arg_combinations):
-		time = run_test(*args)
+				if time == None:
+					print('Skipped', *args)
+					continue
 
-		if time == None:
-			print('Skipped', *args)
-			continue
-
-		Timing.create(
-			old_streams=args[7],
-			block_size=args[0],
-			file_size=args[1],
-			compression=args[2],
-			readahead=args[3],
-			item_type=args[4],
-			test=args[5],
-			parameter=args[6],
-			duration=time,
-			timestamp=int(datetime.datetime.utcnow().timestamp()),
-		)
+				Timing.create(
+					old_streams=args[7],
+					block_size=args[0],
+					file_size=args[1],
+					compression=args[2],
+					readahead=args[3],
+					item_type=args[4],
+					test=args[5],
+					parameter=args[6],
+					duration=time,
+					timestamp=int(datetime.datetime.utcnow().timestamp()),
+				)
 
 
 if __name__ == '__main__':
@@ -218,7 +223,8 @@ if __name__ == '__main__':
 	else:
 		print('Using default config')
 
-	print('Test matrix size: %s' % len(get_arg_combinations()))
+	print('Test matrix size:', len(get_arg_combinations()))
+	print('Test runs:', TEST_RUNS)
 
 	db.connect()
 	db.create_table(Timing, safe=True)
