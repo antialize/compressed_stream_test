@@ -3,16 +3,24 @@ import os
 import shutil
 from subprocess import check_call
 from pathlib import Path
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LogFormatterSciNotation
 from collections import defaultdict
 from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
+from cycler import cycler
 
 OUTPUT_DIR = 'plots'
 
 os.chdir(str(Path(__file__).parent))
 
 db = SqliteDatabase('timing_latest.db')
+
+# See https://github.com/matplotlib/matplotlib/pull/9255
+CB_color_cycle = list(map(lambda x: '#' + x,
+['006BA4', 'FF800E', 'ABABAB', '595959', '5F9ED1', 'C85200', '898989', 'A2C8EC', 'FFBC79', 'CFCFCF']
+))
+matplotlib.rc('axes', prop_cycle=cycler(color=CB_color_cycle))
 
 
 class Timing(Model):
@@ -142,8 +150,7 @@ def legend_format(t):
 def line_format(t):
 	marker = 'x' if t.old_streams else '.'
 	rc = t.readahead * 2 + t.compression
-	# colors = ['tab:blue', 'tab:orange', 'tab:yellow', 'tab:red']
-	colors = ['#000000', '#e69f00', '#56b4e9', '#009e73']
+	colors = CB_color_cycle
 
 	return (colors[rc], marker + '--')
 
