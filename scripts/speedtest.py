@@ -76,12 +76,13 @@ compression_args = bins
 readahead_args = bins
 item_args = range(items)
 test_args = range(tests)
+merge_params = list(exprange(2, 512))
 
 
 def parameters(test):
 	# Merge tests
 	if test in [4, 5]:
-		return exprange(2, 512)
+		return merge_params
 	else:
 		return [0]
 
