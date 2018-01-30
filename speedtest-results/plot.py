@@ -122,9 +122,21 @@ def generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot
 			xs += x
 			ys += y
 
+			same_x = defaultdict(list)
+			for xv, yv in values:
+				same_x[xv].append(yv)
+
 			name = legend_names[legend_key]
-			color, marker = line_formats[plot_key][legend_key]
-			ax.plot(x, y, marker, color=color, label=name)
+			color, marker, face_color = line_formats[plot_key][legend_key]
+			ax.plot(x, y, marker, color=color, label=name, mfc=face_color)
+
+			for xv, yvs in same_x.items():
+				if len(yvs) == 1:
+					continue
+
+				avg = sum(yvs) / len(yvs)
+
+				ax.errorbar([xv], [avg], yerr=[[avg - min(yvs)], [max(yvs) - avg]], fmt='none', capsize=10, barsabove=True, color=color)
 
 		ax.set_xlabel(X_axis[0])
 		ax.set_ylabel(Y_axis[0])
