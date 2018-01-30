@@ -3,16 +3,29 @@ import os
 import shutil
 from subprocess import check_call
 from pathlib import Path
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LogFormatterSciNotation
 from collections import defaultdict
 from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
+from cycler import cycler
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('database')
+args = parser.parse_args()
+
+db = SqliteDatabase(args.database)
 
 OUTPUT_DIR = 'plots'
 
 os.chdir(str(Path(__file__).parent))
 
-db = SqliteDatabase('timing_latest.db')
+# See https://github.com/matplotlib/matplotlib/pull/9255
+CB_color_cycle = list(map(lambda x: '#' + x,
+['006BA4', 'FF800E', 'ABABAB', '595959', '5F9ED1', 'C85200', '898989', 'A2C8EC', 'FFBC79', 'CFCFCF']
+))
+matplotlib.rc('axes', prop_cycle=cycler(color=CB_color_cycle))
 
 
 class Timing(Model):
@@ -109,9 +122,21 @@ def generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot
 			xs += x
 			ys += y
 
+			same_x = defaultdict(list)
+			for xv, yv in values:
+				same_x[xv].append(yv)
+
 			name = legend_names[legend_key]
-			color, marker = line_formats[plot_key][legend_key]
-			ax.plot(x, y, marker, color=color, label=name)
+			color, marker, face_color = line_formats[plot_key][legend_key]
+			ax.plot(x, y, marker, color=color, label=name, mfc=face_color)
+
+			for xv, yvs in same_x.items():
+				if len(yvs) == 1:
+					continue
+
+				avg = sum(yvs) / len(yvs)
+
+				ax.errorbar([xv], [avg], yerr=[[avg - min(yvs)], [max(yvs) - avg]], fmt='none', capsize=10, barsabove=True, color=color)
 
 		ax.set_xlabel(X_axis[0])
 		ax.set_ylabel(Y_axis[0])
@@ -140,12 +165,11 @@ def legend_format(t):
 
 
 def line_format(t):
-	marker = 'x' if t.old_streams else '.'
+	marker = 'x' if t.old_streams else 'o'
 	rc = t.readahead * 2 + t.compression
-	# colors = ['tab:blue', 'tab:orange', 'tab:yellow', 'tab:red']
-	colors = ['#000000', '#e69f00', '#56b4e9', '#009e73']
+	colors = CB_color_cycle
 
-	return (colors[rc], marker + '--')
+	return (colors[rc], marker + '--', None if t.old_streams else 'none')
 
 
 plot_keys = ['test', 'item_type', 'parameter']
@@ -177,4 +201,6 @@ if __name__ == '__main__':
 	generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format)
 
 	plot_files = sorted(Path(OUTPUT_DIR).iterdir(), key=lambda p: p.lstat().st_ctime)
+
+	print('Creating allplots.pdf')
 	check_call(['pdfunite'] + plot_files + ['allplots.pdf'])
