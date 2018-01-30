@@ -165,11 +165,11 @@ def legend_format(t):
 
 
 def line_format(t):
-	marker = 'x' if t.old_streams else '.'
+	marker = 'x' if t.old_streams else 'o'
 	rc = t.readahead * 2 + t.compression
 	colors = CB_color_cycle
 
-	return (colors[rc], marker + '--')
+	return (colors[rc], marker + '--', None if t.old_streams else 'none')
 
 
 plot_keys = ['test', 'item_type', 'parameter']
@@ -201,4 +201,6 @@ if __name__ == '__main__':
 	generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format)
 
 	plot_files = sorted(Path(OUTPUT_DIR).iterdir(), key=lambda p: p.lstat().st_ctime)
+
+	print('Creating allplots.pdf')
 	check_call(['pdfunite'] + plot_files + ['allplots.pdf'])
