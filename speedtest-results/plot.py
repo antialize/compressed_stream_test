@@ -130,8 +130,8 @@ def generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot
 		plt.close(fig)
 
 
-Y_axis = ('duration', lambda r: r.duration)
-X_axis = ('block_size', lambda r: r.block_size)
+Y_axis = ('duration (s)', lambda r: r.duration)
+X_axis = ('block_size (bytes)', lambda r: r.block_size)
 legend_keys = ['old_streams', 'compression', 'readahead']
 
 
