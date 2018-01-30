@@ -9,12 +9,17 @@ from matplotlib.ticker import LogFormatterSciNotation
 from collections import defaultdict
 from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
 from cycler import cycler
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('database')
+args = parser.parse_args()
+
+db = SqliteDatabase(args.database)
 
 OUTPUT_DIR = 'plots'
 
 os.chdir(str(Path(__file__).parent))
-
-db = SqliteDatabase('timing_latest.db')
 
 # See https://github.com/matplotlib/matplotlib/pull/9255
 CB_color_cycle = list(map(lambda x: '#' + x,
