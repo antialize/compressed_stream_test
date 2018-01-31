@@ -13,7 +13,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 
 
-add_library(stream STATIC file_stream.h available_blocks.cpp stream.cpp file.cpp job.cpp misc.cpp file_utils.cpp exception.h)
+add_library(stream STATIC file_stream.h available_blocks.cpp stream.cpp file.cpp job.cpp misc.cpp file_utils.cpp exception.h log.h file_stream_impl.h tpie/is_simple_iterator.h tpie/serialization2.h)
 target_link_libraries(stream ${Snappy_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(t test.cpp)
@@ -22,7 +22,7 @@ target_link_libraries(t stream)
 add_executable(random_test random_test.cpp)
 target_link_libraries(random_test stream)
 
-add_executable(speed_test speed_test.cpp)
+add_executable(speed_test speed_test.cpp speed_test_common.h)
 target_link_libraries(speed_test stream)
 
 add_executable(dump_file dump_file.cpp)
