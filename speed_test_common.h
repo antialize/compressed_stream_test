@@ -71,13 +71,29 @@ void speed_test_init(int argc, char ** argv) {
 	int action = std::atoi(argv[5]);
 	size_t K = (argc == 7)? std::atoi(argv[6]): 0;
 
+	const char * test_names[] = {
+		"write_single",
+		"write_single_chunked",
+		"read_single",
+		"read_back_single",
+		"merge",
+		"merge_single_file",
+		"distribute",
+		"binary_search"
+	};
+	const char * item_names[] = {
+		"int",
+		"std::string",
+		"keyed_struct"
+	};
+
 	std::cerr << "Test info:\n"
 			  << "  File size:   " << file_size << "\n"
 			  << "  Block size:  " << block_size() << "\n"
 			  << "  Compression: " << compression << "\n"
 			  << "  Readahead:   " << readahead << "\n"
-			  << "  Item type:   " << item_type << "\n"
-			  << "  Test:        " << test << "\n"
+			  << "  Item type:   " << item_type << " (" << item_names[item_type] << ")\n"
+			  << "  Test:        " << test << " (" << test_names[test] << ")\n"
 			  << "  Action:      " << (action == 0? "Setup": (action == 1? "Run" : "Validate")) << "\n";
 
 	if (K) {
