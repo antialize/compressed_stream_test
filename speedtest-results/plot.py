@@ -7,15 +7,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import LogFormatterSciNotation
 from collections import defaultdict
-from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
 from cycler import cycler
 import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument('database')
-args = parser.parse_args()
-
-db = SqliteDatabase(args.database)
+import json
 
 OUTPUT_DIR = 'plots'
 
@@ -26,42 +20,6 @@ CB_color_cycle = list(map(lambda x: '#' + x,
 ['006BA4', 'FF800E', 'ABABAB', '595959', '5F9ED1', 'C85200', '898989', 'A2C8EC', 'FFBC79', 'CFCFCF']
 ))
 matplotlib.rc('axes', prop_cycle=cycler(color=CB_color_cycle))
-
-
-class Timing(Model):
-	old_streams = BooleanField()
-	block_size = IntegerField()
-	file_size = IntegerField()
-	compression = BooleanField()
-	readahead = BooleanField()
-	item_type = IntegerField()
-	test = IntegerField()
-	parameter = IntegerField()
-	duration = DoubleField()
-	timestamp = IntegerField()
-
-	class Meta:
-		database = db
-
-
-# XXX: Due to a bug in the speedtest script
-# the values in old_streams column is reversed.
-# This wrapper class fixes it.
-class TimingWrapper:
-	def __init__(self, timing):
-		self.timing = timing
-
-	def __getattr__(self, key):
-		if key == 'old_streams':
-			return not getattr(self.timing, 'old_streams')
-		else:
-			return getattr(self.timing, key)
-
-
-db.connect()
-timings = list(map(TimingWrapper, Timing.select()))
-db.close()
-
 
 def savefig(fig, lgd, filename):
 	print("Saving %s" % (filename,))
@@ -86,7 +44,7 @@ def savefig(fig, lgd, filename):
 		print("Saving %s in child %d" % (filename, pid))
 
 
-def generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format):
+def generate_plots(timings, X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format):
 	plot_values = defaultdict(lambda: defaultdict(list))
 
 	line_formats = defaultdict(dict)
@@ -94,11 +52,11 @@ def generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot
 	plot_names = {}
 
 	for r in timings:
-		legend_key = tuple(getattr(r, o) for o in legend_keys)
+		legend_key = tuple(r[o] for o in legend_keys)
 		if legend_key not in legend_names:
 			legend_names[legend_key] = legend_format(r)
 
-		plot_key = tuple(getattr(r, o) for o in plot_keys)
+		plot_key = tuple(r[o] for o in plot_keys)
 		if plot_key not in plot_names:
 			plot_names[plot_key] = plot_format(r)
 
@@ -155,21 +113,24 @@ def generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot
 		plt.close(fig)
 
 
-Y_axis = ('duration (s)', lambda r: r.duration)
-X_axis = ('block_size (bytes)', lambda r: r.block_size)
+Y_axis = ('duration (s)', lambda r: r['duration'])
+X_axis = ('block_size (bytes)', lambda r: r['block_size'])
 legend_keys = ['old_streams', 'compression', 'readahead']
 
 
 def legend_format(t):
-	return '%s%s%s' % ('old' if t.old_streams else 'new', ' compression' if t.compression else '', ' readahead' if t.readahead else '')
+	return ''.join([
+			'old' if t['old_streams'] else 'new',
+			' compression' if t['compression'] else '',
+			' readahead' if t['readahead'] else ''])
 
 
 def line_format(t):
-	marker = 'x' if t.old_streams else 'o'
-	rc = t.readahead * 2 + t.compression
+	marker = 'x' if t['old_streams'] else 'o'
+	rc = t['readahead'] * 2 + t['compression']
 	colors = CB_color_cycle
 
-	return (colors[rc], marker + '--', None if t.old_streams else 'none')
+	return (colors[rc], marker + '--', None if t['old_streams'] else 'none')
 
 
 plot_keys = ['test', 'item_type', 'parameter']
@@ -177,19 +138,23 @@ plot_keys = ['test', 'item_type', 'parameter']
 
 def plot_format(t):
 	test_names = ['write_single', 'write_single_chunked', 'read_single', 'read_back_single', 'merge', 'merge_single_file', 'distribute', 'binary_search']
-	test_name = test_names[t.test]
+	test_name = test_names[t['test']]
 
 	item_names = ['int', 'std::string', 'keyed_struct']
-	item_name = item_names[t.item_type]
+	item_name = item_names[t['item_type']]
 
 	name = '%s: %s' % (test_name, item_name)
-	if t.parameter != 0:
-		name += ', k = %s' % t.parameter
+	if t['parameter'] != 0:
+		name += ', k = %s' % t['parameter']
 
 	return name
 
 
 if __name__ == '__main__':
+	parser = argparse.ArgumentParser()
+	parser.add_argument('file')
+	args = parser.parse_args()
+
 	try:
 		os.unlink('allplots.pdf')
 	except FileNotFoundError:
@@ -198,7 +163,11 @@ if __name__ == '__main__':
 	shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
 	os.mkdir(OUTPUT_DIR)
 
-	generate_plots(X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format)
+	timings = []
+	with open(args.file, 'r') as f:
+		timings = [json.loads(l) for l in f]
+
+	generate_plots(timings, X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format)
 
 	plot_files = sorted(Path(OUTPUT_DIR).iterdir(), key=lambda p: p.lstat().st_ctime)
 

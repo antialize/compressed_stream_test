@@ -6,11 +6,10 @@ from contextlib import contextmanager
 import datetime
 import time
 import itertools
-from peewee import SqliteDatabase, Model, IntegerField, BooleanField, DoubleField
 import progressbar
 
 
-DIRS = ['tpie', 'compressed_stream_test']
+DIRS = ['compressed_stream_test', 'tpie']
 
 if len(sys.argv) >= 2:
 	config_filename = os.path.abspath(sys.argv[1])
@@ -22,25 +21,6 @@ os.chdir('../..')
 
 # project = os.path.basename(os.getcwd())
 # USING_TPIE = project == 'tpie'
-
-dt = datetime.datetime.now()
-db = SqliteDatabase('timing_%s.db' % dt.isoformat())
-
-class Timing(Model):
-	old_streams = BooleanField()
-	block_size = IntegerField()
-	file_size = IntegerField()
-	compression = BooleanField()
-	readahead = BooleanField()
-	item_type = IntegerField()
-	test = IntegerField()
-	parameter = IntegerField()
-	duration = DoubleField()
-	timestamp = IntegerField()
-
-	class Meta:
-		database = db
-
 
 def exprange(start, stop):
 	val = start
@@ -185,7 +165,7 @@ def get_arg_combinations():
 	return arg_combinations
 
 
-def runall():
+def runall(output_file):
 	arg_combinations = get_arg_combinations()
 
 	with progressbar.ProgressBar(max_value=TEST_RUNS * len(arg_combinations), redirect_stdout=True) as bar:
@@ -201,7 +181,7 @@ def runall():
 					print('Skipped', *args)
 					continue
 
-				Timing.create(
+				d = dict(
 					old_streams=args[7],
 					block_size=args[0],
 					file_size=args[1],
@@ -214,8 +194,13 @@ def runall():
 					timestamp=int(datetime.datetime.utcnow().timestamp()),
 				)
 
+				json.dump(d, output_file)
+				output_file.write('\n')
+
 
 if __name__ == '__main__':
+	dt = datetime.datetime.now()
+
 	if config_filename:
 		print('Loading config from %s' % sys.argv[1])
 		with open(config_filename) as f:
@@ -226,9 +211,7 @@ if __name__ == '__main__':
 	print('Test matrix size:', len(get_arg_combinations()))
 	print('Test runs:', TEST_RUNS)
 
-	db.connect()
-	db.create_table(Timing, safe=True)
-
 	buildall()
 
-	runall()
+	with open('timing_%s.json' % dt.isoformat(), 'w') as f:
+		runall(f)

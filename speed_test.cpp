@@ -37,7 +37,7 @@
 int main(int argc, char ** argv) {
 	speed_test_init(argc, argv);
 
-	file_stream_init(4);
+	file_stream_init(1);
 
 	auto start = std::chrono::steady_clock::now();
 
