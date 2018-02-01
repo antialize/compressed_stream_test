@@ -21,3 +21,4 @@ compression_args = bins
 readahead_args = bins
 item_args = list(range(items))
 test_args = list(range(tests))
+job_args = range(1, 16 + 1)

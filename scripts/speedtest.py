@@ -59,6 +59,7 @@ readahead_args = bins
 item_args = range(items)
 test_args = range(tests)
 merge_params = list(exprange(2, 512))
+job_args = range(1, 16 + 1)
 
 
 def parameters(test):
@@ -67,6 +68,13 @@ def parameters(test):
 		return merge_params
 	else:
 		return [0]
+
+
+def get_job_threads(old_streams):
+	if old_streams:
+		return [0]
+	else:
+		return job_args
 
 
 @contextmanager
@@ -128,7 +136,7 @@ def kill_cache():
 now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
 
 
-def run_test(bs, fs, compression, readahead, item, test, parameter, old_streams):
+def run_test(bs, fs, compression, readahead, item, test, parameter, job_threads, old_streams):
 	format_partition()
 	path = build_path(DIRS[old_streams], bs, fs)
 	with chdir(path):
@@ -136,7 +144,7 @@ def run_test(bs, fs, compression, readahead, item, test, parameter, old_streams)
 			if action == 1:
 				kill_cache()
 				start = now()
-			args = [str(int(v)) for v in [compression, readahead, item, test, action, parameter]]
+			args = [str(int(v)) for v in [compression, readahead, item, test, action, parameter, job_threads]]
 			all_args = ['./speed_test'] + args
 			print('Running', path, *all_args, file=sys.stderr)
 			p = run(all_args, stdout=PIPE, stderr=PIPE)
@@ -161,7 +169,8 @@ def get_arg_combinations():
 		for parameter in parameters(args[-1]):
 			# Add old_streams as last argument
 			for old_streams in bins:
-				arg_combinations.append(args + (parameter, old_streams))
+				for job_threads in get_job_threads(old_streams):
+					arg_combinations.append(args + (parameter, job_threads, old_streams))
 
 	return arg_combinations
 
@@ -183,7 +192,6 @@ def runall(output_file):
 					continue
 
 				d = dict(
-					old_streams=args[7],
 					block_size=args[0],
 					file_size=args[1],
 					compression=args[2],
@@ -191,12 +199,15 @@ def runall(output_file):
 					item_type=args[4],
 					test=args[5],
 					parameter=args[6],
+					job_threads=args[7],
+					old_streams=args[8],
 					duration=time,
 					timestamp=int(datetime.datetime.utcnow().timestamp()),
 				)
 
 				json.dump(d, output_file)
 				output_file.write('\n')
+				output_file.flush()
 
 
 if __name__ == '__main__':
@@ -212,7 +223,10 @@ if __name__ == '__main__':
 	print('Test matrix size:', len(get_arg_combinations()))
 	print('Test runs:', TEST_RUNS)
 
+	output_file = 'timing_%s.json' % dt.isoformat()
+	print('Writing results to', output_file)
+
 	buildall()
 
-	with open('timing_%s.json' % dt.isoformat(), 'w') as f:
+	with open(output_file, 'w') as f:
 		runall(f)

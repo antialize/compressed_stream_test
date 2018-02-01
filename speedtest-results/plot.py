@@ -150,6 +150,18 @@ def plot_format(t):
 	return name
 
 
+def fix_timing(t):
+	defaults = {
+		'job_threads': 4
+	}
+
+	for k, v in defaults.items():
+		if k not in t:
+			t[k] = v
+
+	return t
+
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('file')
@@ -163,9 +175,8 @@ if __name__ == '__main__':
 	shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
 	os.mkdir(OUTPUT_DIR)
 
-	timings = []
 	with open(args.file, 'r') as f:
-		timings = [json.loads(l) for l in f]
+		timings = [fix_timing(json.loads(l)) for l in f]
 
 	generate_plots(timings, X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format)
 
