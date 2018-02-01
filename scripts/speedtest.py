@@ -7,6 +7,7 @@ import datetime
 import time
 import itertools
 import progressbar
+import json
 
 
 DIRS = ['compressed_stream_test', 'tpie']
