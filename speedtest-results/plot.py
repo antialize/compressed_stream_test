@@ -152,7 +152,7 @@ def plot_format(t):
 
 def fix_timing(t):
 	defaults = {
-		'job_threads': 4
+		'job_threads': 0 if t['old_streams'] else 4
 	}
 
 	for k, v in defaults.items():
