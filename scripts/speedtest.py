@@ -114,7 +114,7 @@ def format_partition():
 	check_call(['sudo', 'mkfs.ext4', '-F', device], stdout=DEVNULL, stderr=DEVNULL)
 	check_call(['sudo', 'mount', device, mountpoint])
 	check_call(['sudo', 'mkdir', mountpoint + '/tmp'])
-	check_call(['sudo', 'chown', '%s:%s' % tuple([os.getlogin()] * 2), mountpoint + '/tmp'])
+	check_call(['sudo', 'chown', '%s:%s' % (os.getuid(), os.getgid()), mountpoint + '/tmp'])
 
 
 def kill_cache():
