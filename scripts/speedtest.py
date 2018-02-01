@@ -226,7 +226,13 @@ if __name__ == '__main__':
 	output_file = 'timing_%s.json' % dt.isoformat()
 	print('Writing results to', output_file)
 
+	try:
+		os.unlink('timing_latest.json')
+	except FileNotFoundError:
+		pass
+
 	buildall()
 
 	with open(output_file, 'w') as f:
+		os.symlink(output_file, 'timing_latest.json')
 		runall(f)
