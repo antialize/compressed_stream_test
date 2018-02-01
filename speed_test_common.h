@@ -57,11 +57,12 @@ struct {
 	int test;
 	action_t action;
 	size_t K;
+	size_t job_threads;
 } cmd_options;
 
 void speed_test_init(int argc, char ** argv) {
-	if (argc < 6 || argc > 7) {
-		std::cerr << "Usage: " << argv[0] << " compression readahead item_type test setup [extra param (K)]\n";
+	if (argc < 6 || argc > 8) {
+		std::cerr << "Usage: " << argv[0] << " compression readahead item_type test setup [extra param (K)] [job_threads]\n";
 		std::exit(EXIT_FAILURE);
 	}
 	bool compression = (bool)std::atoi(argv[1]);
@@ -69,7 +70,8 @@ void speed_test_init(int argc, char ** argv) {
 	int item_type = std::atoi(argv[3]);
 	int test = std::atoi(argv[4]);
 	int action = std::atoi(argv[5]);
-	size_t K = (argc == 7)? std::atoi(argv[6]): 0;
+	size_t K = (argc >= 7)? std::atoi(argv[6]): 0;
+	size_t job_threads = (argc >= 8)? std::atoi(argv[7]): 0;
 
 	const char * test_names[] = {
 		"write_single",
@@ -86,6 +88,11 @@ void speed_test_init(int argc, char ** argv) {
 		"std::string",
 		"keyed_struct"
 	};
+	const char * action_names[] = {
+		"Setup",
+		"Run",
+		"Validate"
+	};
 
 	std::cerr << "Test info:\n"
 			  << "  File size:   " << file_size << "\n"
@@ -94,13 +101,21 @@ void speed_test_init(int argc, char ** argv) {
 			  << "  Readahead:   " << readahead << "\n"
 			  << "  Item type:   " << item_type << " (" << item_names[item_type] << ")\n"
 			  << "  Test:        " << test << " (" << test_names[test] << ")\n"
-			  << "  Action:      " << (action == 0? "Setup": (action == 1? "Run" : "Validate")) << "\n";
+			  << "  Action:      " << action << " (" << action_names[action] << ")\n";
 
 	if (K) {
 		std::cerr << "  Parameter:   " << K << "\n";
 	}
 
-	cmd_options = {compression, readahead, item_type, test, action_t(action), K};
+#ifdef TEST_NEW_STREAMS
+	std::cerr << "  Job threads: " << job_threads << "\n";
+	if (job_threads == 0) die("Need at least one job thread");
+#else
+	std::cerr << "  Job threads: " << "N/A" << "\n";
+	if (job_threads != 0) die("job_thread parameter must be 0 for old streams");
+#endif
+
+	cmd_options = {compression, readahead, item_type, test, action_t(action), K, job_threads};
 
 	{
 		std::string word_path = "/usr/share/dict/words";
