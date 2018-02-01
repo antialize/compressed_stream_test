@@ -13,6 +13,20 @@
 #include <queue>
 
 #include <boost/filesystem/operations.hpp>
+#include <sstream>
+#include <iomanip>
+
+#ifdef TEST_NEW_STREAMS
+extern int64_t get_total_blocks_read();
+extern int64_t get_total_blocks_written();
+extern int64_t get_total_bytes_read();
+extern int64_t get_total_bytes_written();
+#else
+inline int64_t get_total_blocks_read() { return -1; }
+inline int64_t get_total_blocks_written() { return -1; }
+inline int64_t get_total_bytes_read() { return -1; }
+inline int64_t get_total_bytes_written() { return -1; }
+#endif
 
 template <typename FS>
 void ensure_open_write(FS &) {};
@@ -60,6 +74,23 @@ struct {
 	size_t job_threads;
 } cmd_options;
 
+std::string readable_bytes(size_t bytes) {
+	const char * prefixes = "KMGTPEZY";
+
+	double count = bytes;
+	int i = 0;
+	while (count >= 1024 && i < strlen(prefixes)) {
+		count /= 1024;
+		i++;
+	}
+
+	if (i == 0) return std::to_string(bytes) + " B";
+
+	std::stringstream ss;
+	ss << std::fixed << std::setprecision(1) << count << " " << prefixes[i - 1] << "iB";
+	return ss.str();
+}
+
 void speed_test_init(int argc, char ** argv) {
 	if (argc < 6 || argc > 8) {
 		std::cerr << "Usage: " << argv[0] << " compression readahead item_type test setup [extra param (K)] [job_threads]\n";
@@ -95,8 +126,8 @@ void speed_test_init(int argc, char ** argv) {
 	};
 
 	std::cerr << "Test info:\n"
-			  << "  File size:   " << file_size << "\n"
-			  << "  Block size:  " << block_size() << "\n"
+			  << "  File size:   " << file_size << " (" << readable_bytes(file_size) << ")\n"
+			  << "  Block size:  " << block_size() << " (" << readable_bytes(block_size()) << ")\n"
 			  << "  Compression: " << compression << "\n"
 			  << "  Readahead:   " << readahead << "\n"
 			  << "  Item type:   " << item_type << " (" << item_names[item_type] << ")\n"
@@ -716,6 +747,27 @@ struct binary_search<T, serialization_adapter<typename T::item_type>> : speed_te
 };
 #endif
 
+void print_new_io(std::string phase) {
+	static int64_t last_values[4] = {0, 0, 0, 0};
+	int64_t values[4] = {get_total_blocks_read(), get_total_blocks_written(), get_total_bytes_read(), get_total_bytes_written()};
+	if (values[0] == -1) return;
+
+	int64_t diffs[4];
+	for (int i = 0; i < 4; i++) diffs[i] = values[i] - last_values[i];
+
+	std::cerr << "Reads (" << phase << "): " << diffs[0] << " block(s), " << readable_bytes(diffs[2]) << "\n"
+	          << "Writes (" << phase << "): " << diffs[1] << " block(s), " << readable_bytes(diffs[3]) << "\n";
+
+	memcpy(last_values, values, sizeof(last_values));
+}
+
+void print_total_io() {
+	int64_t values[4] = {get_total_blocks_read(), get_total_blocks_written(), get_total_bytes_read(), get_total_bytes_written()};
+	if (values[0] == -1) return;
+	std::cerr << "Total reads: " << values[0] << " block(s), " << readable_bytes(values[2]) << "\n"
+	          << "Total writes: " << values[1] << " block(s), " << readable_bytes(values[3]) << "\n";
+}
+
 template <typename T, typename FS>
 void run_test() {
 	int r = system("mkdir -p " TEST_DIR);
@@ -743,9 +795,18 @@ void run_test() {
 	}
 
 	test->init();
+
+	print_new_io("init");
+
 	switch (cmd_options.action) {
-	case SETUP: test->setup(); break;
-	case RUN: test->run(); break;
+	case SETUP:
+		test->setup();
+		print_new_io("setup");
+		break;
+	case RUN:
+		test->run();
+		print_new_io("run");
+		break;
 	case VALIDATE: {
 		bool result = test->validate();
 
@@ -758,4 +819,7 @@ void run_test() {
 	}
 
 	delete test;
+
+	print_new_io("final");
+	print_total_io();
 }

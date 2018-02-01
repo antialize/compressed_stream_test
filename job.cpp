@@ -6,6 +6,20 @@
 #include <snappy.h>
 #include <atomic>
 
+std::atomic_int64_t total_blocks_read, total_blocks_written, total_bytes_read, total_bytes_written;
+int64_t get_total_blocks_read() {
+	return total_blocks_read;
+}
+int64_t get_total_blocks_written() {
+	return total_blocks_written;
+}
+int64_t get_total_bytes_read() {
+	return total_bytes_read;
+}
+int64_t get_total_bytes_written() {
+	return total_bytes_written;
+}
+
 #ifndef NDEBUG
 std::map<size_t, std::map<block_idx_t, std::pair<file_size_t, file_size_t>>> block_offsets;
 #endif
@@ -108,6 +122,7 @@ void process_run() {
 				block_header h;
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 				assert(r == sizeof(block_header));
+				total_bytes_read += sizeof(block_header);
 				physical_size = h.physical_size;
 			}
 
@@ -139,8 +154,8 @@ void process_run() {
 			char * uncompressed_data = next_buffer;
 
 			auto r = _pread(file->m_fd, physical_data, size, off);
-
 			assert(r == size);
+			total_bytes_read += size;
 
 			if (block != 0 && !is_known(prev_physical_size)) {
 				//log_info() << id << "read prev header" << std::endl;
@@ -222,6 +237,8 @@ void process_run() {
 			b->m_cond.notify_all();
 
 			file->free_block(file_lock, b);
+
+			total_blocks_read++;
 		}
 		break;
 		case job_type::write:
@@ -294,6 +311,7 @@ void process_run() {
 
 			auto r = _pwrite(file->m_fd, physical_data, bs, off);
 			assert(r == bs);
+			total_bytes_written += bs;
 
 			file_lock.lock();
 
@@ -324,6 +342,8 @@ void process_run() {
 
 			file->update_physical_size(file_lock, b->m_block, bs);
 			file->free_block(file_lock, b);
+
+			total_blocks_written++;
 		}
 		break;
 		case job_type::trunc: {
