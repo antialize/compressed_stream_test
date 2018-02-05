@@ -24,13 +24,13 @@ const crapper & operator <<(const crapper & c, const T & t) {
 }
 #else
 struct crapper {
-	const crapper & operator <<(std::ostream & (*f)(std::ostream &)) const {
+	const crapper & operator <<(std::ostream & (*)(std::ostream &)) const {
 		return *this;
 	}
 };
 
 template <typename T>
-const crapper & operator <<(const crapper & c, const T & t) {
+const crapper & operator <<(const crapper & c, const T &) {
 	return c;
 }
 #endif

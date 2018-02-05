@@ -111,7 +111,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	m_impl->m_fd = fd;
 
 #ifndef NDEBUG
-	m_impl->m_file_id = file_ctr++;
+	m_impl->m_file_id = file_impl::file_ctr++;
 #endif
 
 	file_size_t fsize = (file_size_t)::lseek(fd, 0, SEEK_END);
@@ -255,7 +255,7 @@ void file_base_base::close() {
 	m_impl->m_last_physical_size = no_block_size;
 
 #ifndef NDEBUG
-	m_impl->m_file_id = file_ctr++;
+	m_impl->m_file_id = file_impl::file_ctr++;
 #endif
 }
 
@@ -400,6 +400,7 @@ void file_base_base::truncate(stream_position pos) {
 			// and so we shouldn't actually truncate at all
 			if (b->m_logical_size < b->m_maximal_logical_size) {
 				assert(b == old_last_block);
+				unused(old_last_block);
 				assert(pos.m_logical_offset + pos.m_index == size());
 				return;
 			} else {
@@ -433,6 +434,10 @@ void file_base_base::truncate(file_size_t offset) {
 	}
 	truncate(p);
 }
+
+#ifndef NDEBUG
+size_t file_impl::file_ctr = 0;
+#endif
 
 stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) const {
 	stream_position p;
@@ -683,5 +688,6 @@ void file_impl::kill_block(lock_t & l, block * t) {
 
 	size_t c = m_block_map.erase(t->m_block);
 	assert(c == 1);
+	unused(c);
 	t->m_file = nullptr;
 }

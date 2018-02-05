@@ -94,6 +94,7 @@ void make_block_unavailable(block * b) {
 	lock_t l(available_blocks_mutex);
 	size_t res = available_blocks.erase(b);
 	assert(res == 1);
+	unused(res);
 }
 
 block * pop_available_block() {

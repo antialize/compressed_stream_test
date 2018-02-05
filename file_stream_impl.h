@@ -71,10 +71,6 @@ public:
 	}
 };
 
-namespace {
-	size_t file_ctr = 0;
-};
-
 class file_impl {
 public:
 	mutex_t m_mut;
@@ -86,6 +82,8 @@ public:
 	// Should change when the file is closed/opened
 #ifndef NDEBUG
 	size_t m_file_id;
+
+	static size_t file_ctr;
 #endif
 
 	block * m_last_block; // A pointer to the last active block

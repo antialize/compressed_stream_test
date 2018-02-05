@@ -16,7 +16,7 @@ ssize_t _pread(int fd, void *buf, size_t count, off_t offset) {
 			return r;
 		}
 		i += r;
-	} while(i < count);
+	} while(i < static_cast<ssize_t>(count));
 	return i;
 }
 
@@ -33,6 +33,6 @@ ssize_t _pwrite(int fd, const void *buf, size_t count, off_t offset) {
 			return r;
 		}
 		i += r;
-	} while(i < count);
+	} while(i < static_cast<ssize_t>(count));
 	return i;
 }

@@ -37,6 +37,8 @@ class stream_base;
 #define FILE_STREAM_BLOCK_SIZE 1024
 #endif
 
+#define unused(x) do { (void)(x); } while(0)
+
 // Constexpr methods
 constexpr block_size_t block_size() {return FILE_STREAM_BLOCK_SIZE;}
 

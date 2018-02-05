@@ -31,7 +31,7 @@ std::condition_variable job_cond;
 std::atomic_uint tid;
 
 std::ostream & operator <<(std::ostream & o, const job_type t) {
-	const char *s;
+	const char *s = nullptr;
 	switch (t) {
 	case job_type::write:
 		s = "write";
@@ -122,6 +122,7 @@ void process_run() {
 				block_header h;
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 				assert(r == sizeof(block_header));
+				unused(r);
 				total_bytes_read += sizeof(block_header);
 				physical_size = h.physical_size;
 			}
@@ -154,7 +155,8 @@ void process_run() {
 			char * uncompressed_data = next_buffer;
 
 			auto r = _pread(file->m_fd, physical_data, size, off);
-			assert(r == size);
+			assert(r == static_cast<ssize_t>(size));
+			unused(r);
 			total_bytes_read += size;
 
 			if (block != 0 && !is_known(prev_physical_size)) {
@@ -191,6 +193,7 @@ void process_run() {
 			if (file->m_compressed) {
 				bool ok = snappy::GetUncompressedLength(compressed_data, compressed_size, &uncompressed_size);
 				assert(ok);
+				unused(ok);
 				assert(uncompressed_size <= max_buffer_size);
 				ok = snappy::RawUncompress(compressed_data, compressed_size, uncompressed_data);
 				assert(ok);
@@ -297,6 +300,7 @@ void process_run() {
 				auto pb = file->get_available_block(file_lock, b->m_block - 1);
 				assert(pb != nullptr);
 				assert(pb->m_io);
+				unused(pb);
 				log_info() << "JOB " << id << " waitfor    " << *b << std::endl;
 				// We can't use pb anymore as when unlocking the file lock,
 				// it might be repurposed for another block id
@@ -306,11 +310,13 @@ void process_run() {
 
 			file_size_t off = b->m_physical_offset;
 			assert(is_known(off));
+			unused(off);
 
 			file_lock.unlock();
 
 			auto r = _pwrite(file->m_fd, physical_data, bs, off);
 			assert(r == bs);
+			unused(r);
 			total_bytes_written += bs;
 
 			file_lock.lock();
@@ -349,6 +355,7 @@ void process_run() {
 		case job_type::trunc: {
 			int r = ::ftruncate(file->m_fd, j.truncate_size);
 			assert(r == 0);
+			unused(r);
 
 			log_info() << "JOB " << id << " truncated  " << file->m_path << " to size " << j.truncate_size << std::endl;
 

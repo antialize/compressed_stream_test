@@ -6,21 +6,10 @@
 #include <fcntl.h>
 
 #include "file_stream_impl.h"
+#include "file_utils.h"
 
-ssize_t _read(int fd, void * buf, size_t size) {
-	ssize_t rt = 0;
-	while (rt < size) {
-		ssize_t r = ::read(fd, buf, size);
-		if (r < 0) {
-			perror("read");
-			exit(1);
-		} else if (r == 0) {
-			std::cerr << "Unexpected EOF!\n";
-			exit(1);
-		}
-		rt += r;
-	}
-	return rt;
+ssize_t _read(int fd, void *buf, size_t count) {
+	return _pread(fd, buf, count, 0);
 }
 
 void print_header(size_t i, const block_header & header, bool head, ssize_t off) {

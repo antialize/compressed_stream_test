@@ -48,19 +48,19 @@ int size_test() {
 
 	file_size_t B = block_size();
 
-	for(int i = 0; i < 10 * B; i++)
+	for(size_t i = 0; i < 10 * B; i++)
 		s.write((uint8_t)i);
 
 	ensure(10 * B, f.size(), "size");
 
 	s.seek(0, whence::set);
-	for(int i = 0; i < 9 * B; i++)
+	for(size_t i = 0; i < 9 * B; i++)
 		ensure((uint8_t)i, s.read(), "read");
 
 	ensure(10 * B, f.size(), "size");
 
 	s.seek(0, whence::end);
-	for(int i = 0; i < B; i++)
+	for(size_t i = 0; i < B; i++)
 		s.write((uint8_t)i);
 
 	ensure(11 * B, f.size(), "size");
@@ -101,7 +101,7 @@ int open_close() {
 	{
 		auto s = f.stream();
 		b = s.logical_block_size();
-		for (int i = 0; i < 100 * b; i++)
+		for (int i = 0; i < 100 * (int)b; i++)
 			s.write(i);
 	}
 
@@ -115,7 +115,7 @@ int open_close() {
 		s.seek(0, whence::set);
 		ensure(1337, s.read(), "read");
 
-		for (int i = 0; i < 100 * b; i++)
+		for (int i = 0; i < 100 * (int)b; i++)
 			s.write(i);
 	}
 
@@ -125,7 +125,7 @@ int open_close() {
 	{
 		auto s = f.stream();
 		ensure(1337, s.read(), "read");
-		for (int i = 0; i < 100 * b; i++)
+		for (int i = 0; i < 100 * (int)b; i++)
 			ensure(s.read(), i, "read");
 	}
 
@@ -162,11 +162,11 @@ int write_end() {
 	auto s1 = f.stream();
 	auto s2 = f.stream();
 	auto b = s1.logical_block_size();
-	for(int i = 0; i < 20 * b + 1; i++) {
+	for(int i = 0; i < 20 * (int)b + 1; i++) {
 		s1.write(i);
 	}
 
-	for(int i = 0; i < 20 * b + 1; i++) {
+	for(int i = 0; i < 20 * (int)b + 1; i++) {
 		s2.read();
 	}
 
@@ -224,20 +224,20 @@ int read_back_test() {
 	f.open(TMP_FILE, compression_flag);
 	auto s = f.stream();
 	auto b = s.logical_block_size();
-	for (int i = 0; i < 20 * b; i++)
+	for (int i = 0; i < 20 * (int)b; i++)
 		s.write(i);
 
 	s.seek(0, whence::set);
 
-	for (int i = 0; i < 10 * b; i++)
+	for (int i = 0; i < 10 * (int)b; i++)
 		ensure(i, s.read(), "read");
 
 	s.seek(0, whence::end);
 
-	for (int i = 20 * b; i < 22 * b; i++)
+	for (int i = 20 * b; i < 22 * (int)b; i++)
 		s.write(i);
 
-	for (int i = 22 * b - 1; i >= 0; i--)
+	for (int i = 22 * (int)b - 1; i >= 0; i--)
 		ensure(i, s.read_back(), "read_back");
 
 	return EXIT_SUCCESS;
@@ -380,7 +380,7 @@ std::atomic<size_t> debug_class<T, repeat>::live_instances;
 
 template <typename D, typename T, size_t repeat>
 void serialize(D & dst, const debug_class<T, repeat> & o) {
-	for (int i = 0; i < repeat; i++)
+	for (size_t i = 0; i < repeat; i++)
 		serialize(dst, o.get_value());
 }
 
@@ -388,7 +388,7 @@ template <typename S, typename T, size_t repeat>
 void unserialize(S & src, debug_class<T, repeat> & o) {
 	T val;
 	unserialize(src, val);
-	for (int i = 1; i < repeat; i++) {
+	for (size_t i = 1; i < repeat; i++) {
 		T val2;
 		unserialize(src, val2);
 		ensure(val, val2, "unserialize");
@@ -456,7 +456,7 @@ int serialized_dtor() {
 		s.set_position(p1);
 		s2.set_position(p2);
 		f.truncate(p2);
-		for (int i = p1.m_logical_offset + p1.m_index; i < p2.m_logical_offset + p2.m_index; i++) {
+		for (int i = p1.m_logical_offset + p1.m_index; i < (int)(p2.m_logical_offset + p2.m_index); i++) {
 			const T & t = s.read();
 			ensure(uint8_t(i), t.get_value(), "read");
 		}
@@ -553,19 +553,19 @@ int truncate() {
 
 		int ctr = 0;
 
-		for (; ctr < 10 * b + 2; ctr++)
+		for (; ctr < 10 * (int)b + 2; ctr++)
 			s.write(ctr);
 
 		// Not on block boundary
 		auto p1 = s.get_position();
 
-		for (; ctr < 20 * b; ctr++)
+		for (; ctr < 20 * (int)b; ctr++)
 			s.write(ctr);
 
 		// On block boundary
 		auto p2 = s.get_position();
 
-		for (; ctr < 30 * b; ctr++)
+		for (; ctr < 30 * (int)b; ctr++)
 			s.write(ctr);
 
 		s.seek(0, whence::set);
@@ -573,7 +573,7 @@ int truncate() {
 
 		assert(f.size() == 20 * b);
 
-		for (int i = 0; i < 20 * b; i++)
+		for (int i = 0; i < 20 * (int)b; i++)
 			ensure(i, s.read(), "read");
 
 		s.write(123546);
@@ -583,7 +583,7 @@ int truncate() {
 
 		assert(f.size() == 10 * b + 2);
 
-		for (int i = 0; i < 10 * b + 2; i++)
+		for (int i = 0; i < 10 * (int)b + 2; i++)
 			ensure(i, s.read(), "read");
 
 		s.write(789);
@@ -772,14 +772,14 @@ int direct_file2() {
 	f.open(TMP_FILE, open_flags::no_compress);
 	{
 		auto s = f.stream();
-		for (int i = 0; i < s.logical_block_size(); i++)
+		for (int i = 0; i < (int)s.logical_block_size(); i++)
 			s.write(i);
 	}
 	f.close();
 	f.open(TMP_FILE, open_flags::no_compress);
 	{
 		auto s = f.stream();
-		for (int i = 0; i < s.logical_block_size(); i++)
+		for (int i = 0; i < (int)s.logical_block_size(); i++)
 			ensure(i, s.read(), "read");
 	}
 

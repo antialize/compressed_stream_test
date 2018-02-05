@@ -115,6 +115,7 @@ stream_impl::~stream_impl() {
 
 	size_t c = m_file->m_streams.erase(this);
 	assert(c == 1);
+	unused(c);
 }
 
 void stream_impl::next_block() {

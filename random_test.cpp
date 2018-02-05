@@ -82,7 +82,7 @@ internal_stream<T> internal_file<T>::stream() {
 void task_title(std::string title, size_t stream = (size_t)-1) {
 	auto l = log_info();
 	l << "\n==> " << title;
-	if (stream != -1) l << " (" << stream << ")";
+	if (stream != static_cast<size_t>(-1)) l << " (" << stream << ")";
 	l << "\n" << std::endl;
 }
 
@@ -149,7 +149,7 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 			add_task(task::open_readonly, 2);
 			add_task(task::open_truncate, 10);
 		} else {
-			if (s1.size() < max_streams)
+			if (s1.size() < (size_t)max_streams)
 				add_task(task::create_stream, max_streams - s1.size());
 			if (s1.size()) {
 				add_task(task::destroy_stream, s1.size());
@@ -336,7 +336,7 @@ void random_test(int max_streams, bool whitelist, std::set<task> & task_list, st
 				size_t largest_i = -1;
 				for (auto & s : s1) {
 					auto pos = s.get_position();
-					if (largest_i == -1 || largest_pos < pos) {
+					if (largest_i == (size_t)-1 || largest_pos < pos) {
 						largest_pos = pos;
 						largest_i = i;
 					}

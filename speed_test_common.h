@@ -78,7 +78,7 @@ std::string readable_bytes(size_t bytes) {
 	const char * prefixes = "KMGTPEZY";
 
 	double count = bytes;
-	int i = 0;
+	size_t i = 0;
 	while (count >= 1024 && i < strlen(prefixes)) {
 		count /= 1024;
 		i++;
