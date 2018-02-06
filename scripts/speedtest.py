@@ -129,7 +129,7 @@ def kill_cache():
 		return
 
 	check_call(['sync'])
-	check_call(['sudo', 'tee', '/proc/sys/vm/drop_caches'], input=b'3')
+	run(['sudo', 'tee', '/proc/sys/vm/drop_caches'], input=b'3', check=True)
 
 
 now = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
