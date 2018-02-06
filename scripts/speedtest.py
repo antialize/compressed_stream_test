@@ -96,8 +96,7 @@ def build(d, bs, fs):
 	check_call(['mkdir', '-p', path])
 	with chdir(path):
 		build_type = 'Debug' if DEBUG else 'Release'
-
-		check_call(['cmake', '-DCMAKE_BUILD_TYPE=' + build_type, '-DFILE_STREAM_BLOCK_SIZE=' + str(bs), '-DSPEED_TEST_FILE_SIZE_MB=' + str(fs), '../..'])
+		check_call(['cmake', '-DCMAKE_BUILD_TYPE=' + build_type, '-DCMAKE_CXX_FLAGS=-march=native -DFILE_STREAM_BLOCK_SIZE=' + str(bs) + ' -DSPEED_TEST_FILE_SIZE_MB=' + str(fs), '../..'])
 		check_call(['make', '-j1', 'speed_test'])
 
 

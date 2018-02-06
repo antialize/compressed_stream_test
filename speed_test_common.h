@@ -16,6 +16,8 @@
 #include <sstream>
 #include <iomanip>
 
+#include "defaults.h"
+
 #ifdef TEST_NEW_STREAMS
 extern int64_t get_total_blocks_read();
 extern int64_t get_total_blocks_written();
@@ -36,10 +38,6 @@ template <typename FS>
 void ensure_open_read(FS &) {};
 template <typename FS>
 void ensure_open_read_reverse(FS &) {};
-
-#ifndef SPEED_TEST_FILE_SIZE_MB
-#define SPEED_TEST_FILE_SIZE_MB 1
-#endif
 
 constexpr size_t MB = 1024 * 1024;
 constexpr size_t file_size = SPEED_TEST_FILE_SIZE_MB * MB;

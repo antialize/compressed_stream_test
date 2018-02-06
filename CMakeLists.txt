@@ -17,7 +17,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 
 
-add_library(stream STATIC file_stream.h available_blocks.cpp stream.cpp file.cpp job.cpp misc.cpp file_utils.cpp exception.h log.h file_stream_impl.h tpie/is_simple_iterator.h tpie/serialization2.h)
+add_library(stream STATIC file_stream.h available_blocks.cpp stream.cpp file.cpp job.cpp misc.cpp file_utils.cpp exception.h log.h file_stream_impl.h tpie/is_simple_iterator.h tpie/serialization2.h defaults.h)
 target_link_libraries(stream ${Snappy_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(t test.cpp)

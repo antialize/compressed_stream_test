@@ -14,6 +14,7 @@
 
 #include <tpie/serialization2.h>
 #include "exception.h"
+#include <defaults.h>
 using namespace tpie;
 
 // Declare all types
@@ -35,6 +36,7 @@ template <typename T, bool serialized>
 class stream_base;
 
 #ifndef FILE_STREAM_BLOCK_SIZE
+// Not used
 #define FILE_STREAM_BLOCK_SIZE 1024
 #endif
 
