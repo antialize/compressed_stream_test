@@ -189,18 +189,6 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	m_impl->m_last_block->m_usage--;
 }
 
-#include <algorithm>
-
-void file_impl::foreach_block(const std::function<void (block *)> & f) {
-	for (auto it = m_block_map.begin(); it != m_block_map.end();) {
-		auto itnext = std::next(it);
-		block *b = it->second;
-		it = itnext;
-
-		f(b);
-	}
-}
-
 void file_base_base::close() {
 	if (!is_open())
 		throw exception("File is already closed");
