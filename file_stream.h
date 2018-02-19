@@ -70,11 +70,11 @@ struct stream_position {
 	file_size_t m_physical_offset;
 
 	bool operator==(const stream_position & o) const {
-		return m_block == o.m_block && m_index == o.m_index;
+		return std::tie(m_block, m_index) == std::tie(o.m_block, o.m_index);
 	}
 
 	bool operator<(const stream_position & o) const {
-		return (m_block < o.m_block) || (m_block == o.m_block && m_index < o.m_index);
+		return std::tie(m_block, m_index) < std::tie(o.m_block, o.m_index);
 	}
 };
 
