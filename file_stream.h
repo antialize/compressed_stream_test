@@ -146,9 +146,7 @@ public:
 		write_user_data(&data, sizeof(TT));
 	}
 
-	file_size_t size() const noexcept {
-		return m_last_block->m_logical_offset + m_last_block->m_logical_size;
-	}
+	file_size_t size() const noexcept;
 
 protected:
 	file_base_base(bool serialized, block_size_t item_size);
@@ -161,7 +159,6 @@ private:
 	void impl_changed();
 
 	file_impl * m_impl;
-	block_base * m_last_block;
 };
 
 enum class whence {set, cur, end};
@@ -202,7 +199,8 @@ public:
 
 #ifndef NDEBUG
 	block_base * get_last_block() {
-		return m_file_base->m_last_block;
+		return nullptr;
+		//return m_file_base->m_impl->m_last_block;
 	}
 #endif
 
