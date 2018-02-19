@@ -21,8 +21,6 @@ file_impl::file_impl()
 	, m_last_block(nullptr)
 	, m_blocks(0)
 	, m_job_count(0)
-	, m_first_physical_size(no_block_size)
-	, m_last_physical_size(no_block_size)
 	, m_item_size(no_block_size)
 	, m_serialized(false) {
 	create_available_block();
@@ -234,8 +232,6 @@ void file_base_base::close() {
 	m_impl->m_path = "";
 
 	m_impl->m_blocks = 0;
-	m_impl->m_first_physical_size = no_block_size;
-	m_impl->m_last_physical_size = no_block_size;
 
 #ifndef NDEBUG
 	m_impl->m_file_id = file_impl::file_ctr++;
@@ -446,13 +442,11 @@ stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) c
 }
 
 void file_impl::update_physical_size(lock_t &, block_idx_t block, block_size_t size) {
-	if (block == 0) m_first_physical_size = size;
-	else {
+	if (block != 0) {
 		auto it = m_block_map.find(block - 1);
 		if (it != m_block_map.end()) it->second->m_next_physical_size = size;
 	}
-	if (block + 1 == m_blocks) m_last_physical_size = size;
-	else {
+	if (block + 1 != m_blocks) {
 		auto it = m_block_map.find(block + 1);
 		if (it != m_block_map.end()) it->second->m_prev_physical_size = size;
 	}

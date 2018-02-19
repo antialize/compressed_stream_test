@@ -95,8 +95,6 @@ public:
 	uint32_t m_job_count;
 	cond_t m_job_cond;
 
-	block_size_t m_first_physical_size;
-	block_size_t m_last_physical_size;
 	block_size_t m_item_size;
 	std::map<block_idx_t, block *> m_block_map;
 
