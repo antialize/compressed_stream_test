@@ -350,7 +350,6 @@ void file_base_base::truncate(stream_position pos) {
 	assert(pos.m_index <= b->m_logical_size);
 	block_size_t truncated_items = b->m_logical_size - pos.m_index;
 
-	b->m_next_physical_size = no_block_size;
 	b->m_logical_size = pos.m_index;
 
 	file_size_t truncate_size;
@@ -442,10 +441,6 @@ stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) c
 }
 
 void file_impl::update_physical_size(lock_t &, block_idx_t block, block_size_t size) {
-	if (block != 0) {
-		auto it = m_block_map.find(block - 1);
-		if (it != m_block_map.end()) it->second->m_next_physical_size = size;
-	}
 	if (block + 1 != m_blocks) {
 		auto it = m_block_map.find(block + 1);
 		if (it != m_block_map.end()) it->second->m_prev_physical_size = size;
