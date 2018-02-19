@@ -99,6 +99,12 @@ void stream_base_base::set_position(stream_position p) {
 	m_impl->set_position(l, p);
 }
 
+#ifndef NDEBUG
+block_base * stream_base_base::get_last_block() {
+	return m_file_base->m_impl->m_last_block;
+}
+#endif
+
 stream_impl::~stream_impl() {
 	if (m_cur_block) {
 		lock_t lock(m_file->m_mut);

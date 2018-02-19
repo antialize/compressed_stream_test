@@ -38,7 +38,6 @@ file_base_base::~file_base_base() {
 
 file_base_base::file_base_base(bool serialized, block_size_t item_size)
 	: m_impl(nullptr)
-	, m_last_block(nullptr)
 {
 	auto impl = new file_impl();
 	m_impl = impl;
@@ -49,12 +48,10 @@ file_base_base::file_base_base(bool serialized, block_size_t item_size)
 
 file_base_base::file_base_base(file_base_base && o)
 	: m_impl(o.m_impl)
-	, m_last_block(o.m_last_block)
 {
 	impl_changed();
 
 	o.m_impl = nullptr;
-	o.m_last_block = nullptr;
 }
 
 file_base_base & file_base_base::operator=(file_base_base && o) {
@@ -62,12 +59,10 @@ file_base_base & file_base_base::operator=(file_base_base && o) {
 	delete m_impl;
 
 	m_impl = o.m_impl;
-	m_last_block = o.m_last_block;
 
 	impl_changed();
 
 	o.m_impl = nullptr;
-	o.m_last_block = nullptr;
 
 	return *this;
 }
@@ -222,7 +217,7 @@ void file_base_base::close() {
 	m_impl->foreach_block([&](block * b){
 		if (b->m_usage != 0) {
 			// Make sure that no streams are open
-			assert(b->m_usage == 1 && b == m_last_block);
+			assert(b->m_usage == 1 && b == m_impl->m_last_block);
 			m_impl->free_block(l, b);
 		}
 	});
@@ -230,7 +225,7 @@ void file_base_base::close() {
 	// Wait for all freed dirty blocks to be written
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
 
-	m_last_block = m_impl->m_last_block = nullptr;
+	m_impl->m_last_block = nullptr;
 
 	// Kill all blocks
 	m_impl->foreach_block([&](block * b){
@@ -257,6 +252,10 @@ void file_base_base::close() {
 #ifndef NDEBUG
 	m_impl->m_file_id = file_impl::file_ctr++;
 #endif
+}
+
+file_size_t file_base_base::size() const noexcept {
+	return m_impl->m_last_block->m_logical_offset + m_impl->m_last_block->m_logical_size;
 }
 
 bool file_base_base::is_open() const noexcept {
@@ -328,7 +327,7 @@ void file_base_base::truncate(stream_position pos) {
 		if (b->m_block > pos.m_block) {
 			assert(b->m_readahead_usage == 0);
 			if (b->m_usage != 0) {
-				if (b != m_last_block)
+				if (b != m_impl->m_last_block)
 					throw exception("Trying to truncate before an open streams position");
 				assert(b->m_usage == 1);
 			} else {
@@ -340,10 +339,10 @@ void file_base_base::truncate(stream_position pos) {
 	block * old_last_block = m_impl->m_last_block;
 
 	// If new_last_block != m_last_block, we need to free the current last block
-	if (new_last_block != m_last_block) {
+	if (new_last_block != m_impl->m_last_block) {
 		// If the last block is empty then freeing it will also automatically kill it
 		// We need to make sure we don't kill it twice
-		bool empty = m_last_block->m_logical_size == 0;
+		bool empty = m_impl->m_last_block->m_logical_size == 0;
 
 		m_impl->free_block(l, m_impl->m_last_block);
 		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
@@ -354,7 +353,7 @@ void file_base_base::truncate(stream_position pos) {
 			assert(m_impl->m_last_block->m_file == nullptr);
 		}
 
-		m_last_block = m_impl->m_last_block = new_last_block;
+		m_impl->m_last_block = new_last_block;
 	} else {
 		m_impl->free_block(l, new_last_block);
 		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
@@ -576,7 +575,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		if (m_last_block != buff) {
 			free_block(l, m_last_block);
 		}
-		m_outer->m_last_block = m_last_block = buff;
+		m_last_block = buff;
 		buff->m_usage++;
 	}
    
