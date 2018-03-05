@@ -242,10 +242,6 @@ void file_base_base::close() {
 #endif
 }
 
-file_size_t file_base_base::size() const noexcept {
-	return m_impl->m_last_block->m_logical_offset + m_impl->m_last_block->m_logical_size;
-}
-
 bool file_base_base::is_open() const noexcept {
 	if (!m_impl) return false;
 	return m_impl->m_fd != -1;
