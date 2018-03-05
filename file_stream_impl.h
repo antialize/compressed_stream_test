@@ -61,7 +61,7 @@ public:
 	cond_t m_cond;
 	bool m_io; // false = owned by main thread, true = owned by job thread
 
-	block_size_t m_prev_physical_size, m_next_physical_size, m_physical_size;
+	block_size_t m_prev_physical_size, m_physical_size;
 	file_size_t m_physical_offset;
 	
 	friend std::ostream & operator << (std::ostream & o, const block & b) {
@@ -99,8 +99,6 @@ public:
 	uint32_t m_job_count;
 	cond_t m_job_cond;
 
-	block_size_t m_first_physical_size;
-	block_size_t m_last_physical_size;
 	block_size_t m_item_size;
 	std::map<block_idx_t, block *> m_block_map;
 
@@ -186,7 +184,16 @@ public:
 
 	// Calls a function for each block in m_block_map
 	// Makes sure that if f kills any of the blocks, then it still works
-	void foreach_block(const std::function<void (block *)> & f);
+	template <typename F>
+	void foreach_block(F f) {
+		for (auto it = m_block_map.begin(); it != m_block_map.end();) {
+			auto itnext = std::next(it);
+			block *b = it->second;
+			it = itnext;
+
+			f(b);
+		}
+	}
 
 	block * get_first_block(lock_t & lock) {return get_block(lock, start_position());}
 	block * get_last_block(lock_t & lock) {return get_block(lock, end_position(lock));}

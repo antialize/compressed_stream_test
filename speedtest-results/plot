@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 import os
 import shutil
@@ -12,6 +14,7 @@ import argparse
 import json
 
 OUTPUT_DIR = 'plots'
+TIMINGS_DIR = 'timings'
 
 os.chdir(str(Path(__file__).parent))
 
@@ -44,7 +47,7 @@ def savefig(fig, lgd, filename):
 		print("Saving %s in child %d" % (filename, pid))
 
 
-def generate_plots(timings, X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format):
+def generate_plots(timings, config, output_dir):
 	plot_values = defaultdict(lambda: defaultdict(list))
 
 	line_formats = defaultdict(dict)
@@ -52,18 +55,18 @@ def generate_plots(timings, X_axis, Y_axis, legend_keys, legend_format, line_for
 	plot_names = {}
 
 	for r in timings:
-		legend_key = tuple(r[o] for o in legend_keys)
+		legend_key = tuple(r[o] for o in config['legend_keys'])
 		if legend_key not in legend_names:
-			legend_names[legend_key] = legend_format(r)
+			legend_names[legend_key] = config['legend_format'](r)
 
-		plot_key = tuple(r[o] for o in plot_keys)
+		plot_key = tuple(r[o] for o in config['plot_keys'])
 		if plot_key not in plot_names:
-			plot_names[plot_key] = plot_format(r)
+			plot_names[plot_key] = config['plot_format'](r)
 
 		if legend_key not in line_formats[plot_key]:
-			line_formats[plot_key][legend_key] = line_format(r)
+			line_formats[plot_key][legend_key] = config['line_format'](r)
 
-		plot_values[plot_key][legend_key].append((X_axis[1](r), Y_axis[1](r)))
+		plot_values[plot_key][legend_key].append((config['X_axis'][1](r), config['Y_axis'][1](r)))
 
 	keys = sorted(plot_values.keys())
 
@@ -86,36 +89,40 @@ def generate_plots(timings, X_axis, Y_axis, legend_keys, legend_format, line_for
 
 			name = legend_names[legend_key]
 			color, marker, face_color = line_formats[plot_key][legend_key]
+			if config['line']:
+				marker += '--'
 			ax.plot(x, y, marker, color=color, label=name, mfc=face_color)
 
-			for xv, yvs in same_x.items():
-				if len(yvs) == 1:
-					continue
+			if config['mean_same_x']:
+				for xv, yvs in same_x.items():
+					if len(yvs) == 1:
+						continue
 
-				avg = sum(yvs) / len(yvs)
+					mean = sorted(yvs)[len(yvs) // 2]
 
-				ax.errorbar([xv], [avg], yerr=[[avg - min(yvs)], [max(yvs) - avg]], fmt='none', capsize=10, barsabove=True, color=color)
+					ax.plot([xv - 0.05, xv + 0.05], [mean, mean], color='green')
+					#print(xv, mean)
 
-		ax.set_xlabel(X_axis[0])
-		ax.set_ylabel(Y_axis[0])
+					#ax.errorbar([xv], [avg], yerr=[[avg - min(yvs)], [max(yvs) - avg]], fmt='none', capsize=10, barsabove=True, color=color)
 
-		ax.semilogx(basex=2)
-		ax.xaxis.set_major_formatter(LogFormatterSciNotation(2))
-		# ax.set_xticks(xs)
+		ax.set_xlabel(config['X_axis'][0])
+		ax.set_ylabel(config['Y_axis'][0])
+
+		if config['logy'] and config['logx']:
+			ax.loglog()
+		elif config['logx']:
+			ax.semilogx(basex=2)
+			ax.xaxis.set_major_formatter(LogFormatterSciNotation(2))
+			ax.set_xticks(xs)
 
 		lgd = ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 		ax.grid()
 
 		fig.tight_layout()
 
-		savefig(fig, lgd, '%s/%s.pdf' % (OUTPUT_DIR, plot_name))
+		savefig(fig, lgd, '%s/%s.pdf' % (output_dir, plot_name))
 
 		plt.close(fig)
-
-
-Y_axis = ('duration (s)', lambda r: r['duration'])
-X_axis = ('block_size (bytes)', lambda r: r['block_size'])
-legend_keys = ['old_streams', 'compression', 'readahead']
 
 
 def legend_format(t):
@@ -130,10 +137,7 @@ def line_format(t):
 	rc = t['readahead'] * 2 + t['compression']
 	colors = CB_color_cycle
 
-	return (colors[rc], marker + '--', None if t['old_streams'] else 'none')
-
-
-plot_keys = ['test', 'item_type', 'parameter']
+	return (colors[rc], marker, None if t['old_streams'] else 'none')
 
 
 def plot_format(t):
@@ -146,6 +150,8 @@ def plot_format(t):
 	name = '%s: %s' % (test_name, item_name)
 	if t['parameter'] != 0:
 		name += ', k = %s' % t['parameter']
+
+	name += ', file_size = %s MiB' % t['file_size']
 
 	return name
 
@@ -162,25 +168,73 @@ def fix_timing(t):
 	return t
 
 
+default_config = {
+	'Y_axis': ('duration (s)', lambda r: r['duration']),
+	'X_axis': None,
+	'legend_keys': ['old_streams', 'compression', 'readahead'],
+	'plot_keys': ['test', 'item_type', 'parameter', 'file_size'],
+	'logx': False,
+	'logy': False,
+	'mean_same_x': False,
+	'line': False,
+
+	# Functions
+	'legend_format': legend_format,
+	'line_format': line_format,
+	'plot_format': plot_format,
+}
+
+
 if __name__ == '__main__':
+	plot_config = {
+		'timing_all.json': {
+			'X_axis': ('block_size (bytes)', lambda r: r['block_size']),
+			'logx': True,
+			'line': True,
+		},
+		'timing_jobs.json': {
+			'X_axis': ('job threads', lambda r: r['job_threads']),
+		},
+		'timing_single_merge.json': {
+			'X_axis': ('timestamp', lambda r: r['timestamp']),
+		},
+		'timing_single_merge_jobs.json': {
+			'X_axis': ('job threads', lambda r: r['job_threads']),
+		},
+		'timing_merge_fs.json': {
+			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
+			'mean_same_x': True,
+		},
+		'timing_merge_fs2.json': {
+			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
+			'mean_same_x': True,
+		},
+	}
+
 	parser = argparse.ArgumentParser()
-	parser.add_argument('file')
+	parser.add_argument('files', nargs='+')
 	args = parser.parse_args()
 
-	try:
-		os.unlink('allplots.pdf')
-	except FileNotFoundError:
-		pass
+	if args.files == ['all']:
+		args.files = plot_config.keys()
 
 	shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
 	os.mkdir(OUTPUT_DIR)
 
-	with open(args.file, 'r') as f:
-		timings = [fix_timing(json.loads(l)) for l in f]
+	for fname in args.files:
+		fname = fname.split('/')[-1]
+		config = plot_config[fname]
+		name = fname.split('.')[0]
+		with open(TIMINGS_DIR + '/' + fname, 'r') as f:
+			timings = [fix_timing(json.loads(l)) for l in f]
 
-	generate_plots(timings, X_axis, Y_axis, legend_keys, legend_format, line_format, plot_keys, plot_format)
+		out = Path(OUTPUT_DIR) / name
+		out.mkdir()
 
-	plot_files = sorted(Path(OUTPUT_DIR).iterdir(), key=lambda p: p.lstat().st_ctime)
+		config = {**default_config, **config}
+		generate_plots(timings, config, out)
 
-	print('Creating allplots.pdf')
-	check_call(['pdfunite'] + plot_files + ['allplots.pdf'])
+		plot_files = sorted(out.iterdir(), key=lambda p: p.lstat().st_ctime)
+
+		print('Creating %s.pdf' % name)
+		check_call(['pdfunite'] + plot_files + ['%s/%s.pdf' % (OUTPUT_DIR, name)])
