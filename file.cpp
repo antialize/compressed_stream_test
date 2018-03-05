@@ -419,7 +419,7 @@ void file_base_base::truncate(file_size_t offset) {
 
 file_size_t file_base_base::size() const noexcept {
 	if (!m_impl->m_last_block)
-		return m_impl->m_file_size;
+		return m_impl->m_end_position.m_logical_offset + m_impl->m_end_position.m_index;
 	return m_impl->m_last_block->m_logical_offset + m_impl->m_last_block->m_logical_size;
 }
 

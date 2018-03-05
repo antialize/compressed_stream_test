@@ -90,7 +90,6 @@ public:
 	// or m_last_block is the last block
 	block * m_last_block; // A pointer to the last active block
 	stream_position m_end_position;
-	file_size_t m_file_size;
 
 	block_idx_t m_blocks; //The number of blocks in the file
 
