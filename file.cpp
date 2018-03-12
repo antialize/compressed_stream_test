@@ -12,8 +12,8 @@
 const uint64_t file_header::magicConst;
 const uint64_t file_header::versionConst;
 
-file_impl::file_impl()
-	: m_outer(nullptr)
+file_impl::file_impl(file_base_base * outer, bool serialized, block_size_t item_size)
+	: m_outer(outer)
 	, m_fd(-1)
 #ifndef NDEBUG
 	, m_file_id(file_ctr++)
@@ -21,13 +21,8 @@ file_impl::file_impl()
 	, m_last_block(nullptr)
 	, m_blocks(0)
 	, m_job_count(0)
-	, m_item_size(no_block_size)
-	, m_serialized(false) {
-	create_available_block();
-}
-
-file_impl::~file_impl() {
-	destroy_available_block();
+	, m_item_size(item_size)
+	, m_serialized(serialized) {
 }
 
 file_base_base::~file_base_base() {
@@ -37,11 +32,7 @@ file_base_base::~file_base_base() {
 file_base_base::file_base_base(bool serialized, block_size_t item_size)
 	: m_impl(nullptr)
 {
-	auto impl = new file_impl();
-	m_impl = impl;
-	impl->m_outer = this;
-	impl->m_item_size = item_size;
-	impl->m_serialized = serialized;
+	m_impl = new file_impl(this, serialized, item_size);
 }
 
 file_base_base::file_base_base(file_base_base && o)
@@ -150,13 +141,10 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 			p.m_physical_offset = fsize - last_header.physical_size;
 
 			m_impl->m_end_position = p;
-
-			// This call sets m_last_block
-			//m_impl->get_block(l, p);
 		} else {
 			assert(fsize == sizeof(file_header) + header.max_user_data_size);
-			// This call sets m_last_block
-			m_impl->get_first_block(l);
+
+			m_impl->m_end_position = m_impl->start_position();
 		}
 	} else {
 		assert(!(flags & open_flags::read_only));
@@ -177,17 +165,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 		_pwrite(fd, zeros, max_user_data_size, sizeof header);
 		free(zeros);
 
-		// This call sets m_last_block
-		m_impl->get_first_block(l);
-	}
-
-	// In all paths we called get_block, which got a fresh block
-	// and set the usage of the last block to 2
-	// This is normally the correct behaviour, when a stream called get_block,
-	// but as no streams are using this block we should set it to 1
-	if (m_impl->m_last_block) {
-		assert(m_impl->m_last_block->m_usage == 2);
-		m_impl->m_last_block->m_usage--;
+		m_impl->m_end_position = m_impl->start_position();
 	}
 }
 
@@ -202,20 +180,6 @@ void file_base_base::close() {
 
 	if (!m_impl->m_streams.empty())
 		throw exception("Tried to close a file with open streams");
-
-	// Free all blocks, possibly creating some write jobs
-	m_impl->foreach_block([&](block * b){
-		if (b->m_usage != 0) {
-			// Make sure that no streams are open
-			assert(b->m_usage == 1 && b == m_impl->m_last_block);
-			m_impl->free_block(l, b);
-		}
-	});
-
-	// Wait for all freed dirty blocks to be written
-	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
-
-	m_impl->m_last_block = nullptr;
 
 	// Kill all blocks
 	m_impl->foreach_block([&](block * b){
@@ -306,51 +270,33 @@ void file_base_base::truncate(stream_position pos) {
 	}
 
 	// ... then kill all others
-	// Exception: the last block is always used by the file
 	m_impl->foreach_block([&](block * b){
 		if (b->m_block > pos.m_block) {
 			assert(b->m_readahead_usage == 0);
 			if (b->m_usage != 0) {
-				if (b != m_impl->m_last_block)
-					throw exception("Trying to truncate before an open streams position");
-				assert(b->m_usage == 1);
+				throw exception("Trying to truncate before an open streams position");
 			} else {
 				m_impl->kill_block(l, b);
 			}
 		}
 	});
 
+	// Write the new last block of needed
+	new_last_block->m_usage++;
+	m_impl->free_block(l, new_last_block);
+	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+
 	block * old_last_block = m_impl->m_last_block;
+	unused(old_last_block);
 
-	// If new_last_block != m_last_block, we need to free the current last block
-	if (new_last_block != m_impl->m_last_block) {
-		// If the last block is empty then freeing it will also automatically kill it
-		// We need to make sure we don't kill it twice
-		bool empty = m_impl->m_last_block->m_logical_size == 0;
-
-		m_impl->free_block(l, m_impl->m_last_block);
-		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
-
-		if (!empty) {
-			m_impl->kill_block(l, m_impl->m_last_block);
-		} else {
-			assert(m_impl->m_last_block->m_file == nullptr);
-		}
-
-		m_impl->m_last_block = new_last_block;
-	} else {
-		m_impl->free_block(l, new_last_block);
-		while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
-	}
+	m_impl->m_last_block = new_last_block;
 
 	m_impl->m_blocks = pos.m_block + 1;
 
-	block * b = m_impl->m_last_block;
+	assert(pos.m_index <= new_last_block->m_logical_size);
+	block_size_t truncated_items = new_last_block->m_logical_size - pos.m_index;
 
-	assert(pos.m_index <= b->m_logical_size);
-	block_size_t truncated_items = b->m_logical_size - pos.m_index;
-
-	b->m_logical_size = pos.m_index;
+	new_last_block->m_logical_size = pos.m_index;
 
 	file_size_t truncate_size;
 
@@ -358,36 +304,36 @@ void file_base_base::truncate(stream_position pos) {
 	if (truncated_items != 0) {
 		// We need to remove some items from the block
 		if (m_impl->m_serialized) {
-			do_destruct(b->m_data + m_impl->m_item_size * pos.m_index, truncated_items);
+			do_destruct(new_last_block->m_data + m_impl->m_item_size * pos.m_index, truncated_items);
 			// Update serialized size
-			do_serialize(b->m_data, pos.m_index, nullptr, &b->m_serialized_size);
+			do_serialize(new_last_block->m_data, pos.m_index, nullptr, &new_last_block->m_serialized_size);
 		}
 		// We don't know this blocks physical_size and we mark it as dirty
 		// We don't actually write this block yet, but just truncate the file to only include the previous blocks
-		b->m_physical_size = no_block_size;
+		new_last_block->m_physical_size = no_block_size;
 		m_impl->update_physical_size(l, pos.m_block, no_block_size);
-		b->m_dirty = true;
+		new_last_block->m_dirty = true;
 
-		truncate_size = b->m_physical_offset;
+		truncate_size = new_last_block->m_physical_offset;
 	} else {
 		// Two possibilities, either the block is empty and b->m_logical_size = pos.m_index = 0
 		// or the block is full and we're at the past the end of the block
 		// In the first case we should truncate the block, in the last case we should include it
 		if (pos.m_index == 0) {
-			truncate_size = b->m_physical_offset;
+			truncate_size = new_last_block->m_physical_offset;
 		} else {
 			// We have freed this block, so it should have been written out if
 			// it was dirty and had reached its maximal size
 			// If it has not reached its maximal size, this must be the last block
 			// and so we shouldn't actually truncate at all
-			if (b->m_logical_size < b->m_maximal_logical_size) {
-				assert(b == old_last_block);
-				unused(old_last_block);
+			if (new_last_block->m_logical_size < new_last_block->m_maximal_logical_size) {
+				assert(new_last_block == old_last_block);
 				assert(pos.m_logical_offset + pos.m_index == size());
+				m_impl->free_block(l, new_last_block);
 				return;
 			} else {
-				assert(!b->m_dirty);
-				truncate_size = b->m_physical_offset + b->m_physical_size;
+				assert(!new_last_block->m_dirty);
+				truncate_size = new_last_block->m_physical_offset + new_last_block->m_physical_size;
 			}
 		}
 	}
@@ -406,6 +352,9 @@ void file_base_base::truncate(stream_position pos) {
 	}
 
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+
+	// We can only free the new last block after the file has been truncated
+	m_impl->free_block(l, new_last_block);
 }
 
 void file_base_base::truncate(file_size_t offset) {
@@ -427,7 +376,7 @@ file_size_t file_base_base::size() const noexcept {
 size_t file_impl::file_ctr = 0;
 #endif
 
-stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) const {
+stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) {
 	stream_position p;
 	if (direct()) {
 		auto logical_block_size = block_size() / m_item_size;
@@ -462,6 +411,10 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		assert(b->m_block < m_blocks);
 		assert(b->m_block == p.m_block);
 		block_ref_inc(l, b);
+
+		if (b->m_block + 1 == m_blocks)
+			assert(m_last_block == b);
+
 		return b;
 	}
 	
@@ -499,7 +452,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	buff->m_serialized_size = no_block_size;
 	buff->m_usage = 1;
 	buff->m_io = false;
-	buff->m_maximal_logical_size = block_size() / buff->m_file->m_item_size;
+	buff->m_maximal_logical_size = block_size() / m_item_size;
 	m_block_map.emplace(buff->m_block, buff);
 
 	// If we have to read the previous block we must know its offset
@@ -526,6 +479,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		}
 	}
 
+	// If empty block at end of file
 	if (p.m_block == m_blocks) {
 		assert(is_known(buff->m_logical_offset));
 		++m_blocks;
@@ -552,17 +506,10 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 
 		while (buff->m_io) buff->m_cond.wait(l);
 	}
-  
-	if (p.m_block + 1 == m_blocks) {
-		//log_info() << "Setting last block to " << buff << std::endl;
-		if (m_last_block != buff) {
-			free_block(l, m_last_block);
-		}
+
+	if (p.m_block + 1 == m_blocks)
 		m_last_block = buff;
-		buff->m_usage++;
-	}
-   
-	//log_info() << "get succ " << *buff << std::endl;
+
 	return buff;
 }
 	
@@ -606,7 +553,7 @@ void file_impl::free_block(lock_t & l, block * t) {
 	// - Its usage should be 0 or it should be full. Even if the usage > 1, we need to write the block if it's full.
 	//   We need to do this to get this blocks physical size, so we can write to the next block.
 	if (t->m_dirty && t->m_logical_size != 0 && (t->m_usage == 0 || t->m_logical_size == t->m_maximal_logical_size)) {
-		assert(t->m_file->m_outer->is_writable());
+		assert(m_outer->is_writable());
 
 		if (direct()) {
 			t->m_physical_size = t->m_physical_offset + m_item_size * t->m_logical_size;
@@ -645,8 +592,8 @@ void file_impl::free_block(lock_t & l, block * t) {
 
 		// If this is the last block and it's size is 0
 		// We shouldn't count this block and we don't want to reuse it later
-		if (t->m_file->m_last_block == t && t->m_logical_size == 0) {
-			t->m_file->m_blocks--;
+		if (m_last_block == t && t->m_logical_size == 0) {
+			m_blocks--;
 			kill_block(l, t);
 		}
 	}
@@ -660,13 +607,25 @@ void file_impl::kill_block(lock_t & l, block * t) {
 	assert(is_known(t->m_physical_offset));
 	assert(is_known(t->m_logical_size));
 	assert(is_known(t->m_physical_size) || t->m_logical_size == 0);
-	assert(!t->m_file->m_serialized || is_known(t->m_serialized_size));
+	assert(!m_serialized || is_known(t->m_serialized_size));
 	// The predecessor to this block might have appeared after writing this block
 	// so we need to tell it our size, so that we can read_back later
 	update_physical_size(l, t->m_block, t->m_physical_size);
 
-	if (t->m_file->m_serialized)
+	if (m_serialized)
 		m_outer->do_destruct(t->m_data, t->m_logical_size);
+
+	// If the last block is killed, we need to set m_end_position
+	if (t == m_last_block) {
+		stream_position p;
+		p.m_block = t->m_block;
+		p.m_index = t->m_logical_size;
+		p.m_logical_offset = t->m_logical_offset;
+		p.m_physical_offset = t->m_physical_offset;
+
+		m_end_position = p;
+		m_last_block = nullptr;
+	}
 
 	size_t c = m_block_map.erase(t->m_block);
 	assert(c == 1);

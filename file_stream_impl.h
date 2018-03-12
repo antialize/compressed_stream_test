@@ -111,8 +111,8 @@ public:
 
 	std::unordered_set<stream_impl *> m_streams;
 
-	file_impl();
-	~file_impl();
+
+	file_impl(file_base_base * outer, bool serialized, block_size_t item_size);
 
 	bool direct() const {
 		return !m_compressed && !m_serialized;
@@ -128,7 +128,7 @@ public:
 	}
 
 	block * get_block(lock_t & lock, stream_position p, bool find_next = true, block * rel = nullptr);
-	
+
 	stream_position start_position() const noexcept {
 		return stream_position{0, 0, 0, sizeof(file_header) + m_outer->max_user_data_size()};
 	}
@@ -138,11 +138,11 @@ public:
 		b->m_usage++;
 	}
 
-	stream_position end_position(lock_t & l) const noexcept {
+	stream_position end_position(lock_t & l) noexcept {
 		if (!m_last_block) return m_end_position;
-		//assert(m_last_block);
+
 		// Make sure m_last_block is not repurposed before, we can get its info
-		m_last_block->m_usage++;
+		block_ref_inc(l, m_last_block);
 		while (m_last_block->m_io) m_last_block->m_cond.wait(l);
 
 		stream_position p;
@@ -151,12 +151,12 @@ public:
 		p.m_logical_offset = m_last_block->m_logical_offset;
 		p.m_physical_offset = m_last_block->m_physical_offset;
 
-		m_last_block->m_usage--;
+		free_block(l, m_last_block);
 
 		return p;
 	}
 
-	stream_position position_from_offset(lock_t & l, file_size_t offset) const;
+	stream_position position_from_offset(lock_t & l, file_size_t offset);
 
 	// Returns the offset of the successor block to b if known
 	// Doesn't block
