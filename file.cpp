@@ -284,7 +284,7 @@ void file_base_base::truncate(stream_position pos) {
 	// Write the new last block of needed
 	new_last_block->m_usage++;
 	m_impl->free_block(l, new_last_block);
-	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+	while (new_last_block->m_io) new_last_block->m_cond.wait(l);
 
 	block * old_last_block = m_impl->m_last_block;
 	unused(old_last_block);
