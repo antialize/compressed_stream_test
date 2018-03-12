@@ -9,7 +9,11 @@
 #include "file_utils.h"
 
 ssize_t _read(int fd, void *buf, size_t count) {
-	return _pread(fd, buf, count, 0);
+	off_t offset = lseek(fd, 0, SEEK_CUR);
+	ssize_t ret = _pread(fd, buf, count, offset);
+	if (ret > 0)
+		lseek(fd, ret, SEEK_CUR);
+	return ret;
 }
 
 void print_header(size_t i, const block_header & header, bool head, ssize_t off) {
