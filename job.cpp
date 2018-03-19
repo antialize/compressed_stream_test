@@ -6,6 +6,7 @@
 #include <snappy.h>
 #include <atomic>
 
+#ifndef NDEBUG
 std::atomic_int64_t total_blocks_read, total_blocks_written, total_bytes_read, total_bytes_written;
 int64_t get_total_blocks_read() {
 	return total_blocks_read;
@@ -19,8 +20,6 @@ int64_t get_total_bytes_read() {
 int64_t get_total_bytes_written() {
 	return total_bytes_written;
 }
-
-#ifndef NDEBUG
 std::map<size_t, std::map<block_idx_t, std::pair<file_size_t, file_size_t>>> block_offsets;
 #endif
 
@@ -122,7 +121,9 @@ void process_run() {
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 				assert(r == sizeof(block_header));
 				unused(r);
+#ifndef NDEBUG
 				total_bytes_read += sizeof(block_header);
+#endif
 				physical_size = h.physical_size;
 			}
 
@@ -144,7 +145,9 @@ void process_run() {
 			auto r = _pread(file->m_fd, physical_data, size, off);
 			assert(r == static_cast<ssize_t>(size));
 			unused(r);
+#ifndef NDEBUG
 			total_bytes_read += size;
+#endif
 
 			if (block != 0 && !is_known(prev_physical_size)) {
 				//log_info() << id << "read prev header" << std::endl;
@@ -222,7 +225,9 @@ void process_run() {
 
 			file->free_block(file_lock, b);
 
+#ifndef NDEBUG
 			total_blocks_read++;
+#endif
 		}
 		break;
 		case job_type::write:
@@ -298,7 +303,9 @@ void process_run() {
 			auto r = _pwrite(file->m_fd, physical_data, bs, off);
 			assert(r == bs);
 			unused(r);
+#ifndef NDEBUG
 			total_bytes_written += bs;
+#endif
 
 			file_lock.lock();
 
@@ -330,7 +337,9 @@ void process_run() {
 			file->update_physical_size(file_lock, b->m_block, bs);
 			file->free_block(file_lock, b);
 
+#ifndef NDEBUG
 			total_blocks_written++;
+#endif
 		}
 		break;
 		case job_type::trunc: {

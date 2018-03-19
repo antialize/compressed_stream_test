@@ -18,6 +18,7 @@
 
 #include "defaults.h"
 
+#ifndef NDEBUG
 #ifdef TEST_NEW_STREAMS
 extern int64_t get_total_blocks_read();
 extern int64_t get_total_blocks_written();
@@ -28,6 +29,7 @@ inline int64_t get_total_blocks_read() { return -1; }
 inline int64_t get_total_blocks_written() { return -1; }
 inline int64_t get_total_bytes_read() { return -1; }
 inline int64_t get_total_bytes_written() { return -1; }
+#endif
 #endif
 
 template <typename FS>
@@ -746,6 +748,8 @@ struct binary_search<T, serialization_adapter<typename T::item_type>> : speed_te
 #endif
 
 void print_new_io(std::string phase) {
+	unused(phase);
+#ifndef NDEBUG
 	static int64_t last_values[4] = {0, 0, 0, 0};
 	int64_t values[4] = {get_total_blocks_read(), get_total_blocks_written(), get_total_bytes_read(), get_total_bytes_written()};
 	if (values[0] == -1) return;
@@ -757,13 +761,16 @@ void print_new_io(std::string phase) {
 	          << "Writes (" << phase << "): " << diffs[1] << " block(s), " << readable_bytes(diffs[3]) << "\n";
 
 	memcpy(last_values, values, sizeof(last_values));
+#endif
 }
 
 void print_total_io() {
+#ifndef NDEBUG
 	int64_t values[4] = {get_total_blocks_read(), get_total_blocks_written(), get_total_bytes_read(), get_total_bytes_written()};
 	if (values[0] == -1) return;
 	std::cerr << "Total reads: " << values[0] << " block(s), " << readable_bytes(values[2]) << "\n"
 	          << "Total writes: " << values[1] << " block(s), " << readable_bytes(values[3]) << "\n";
+#endif
 }
 
 template <typename T, typename FS>
