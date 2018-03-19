@@ -548,9 +548,13 @@ void file_impl::free_block(lock_t & l, block * t) {
 	// - It should be dirty.
 	// - It should have size greater than 0, as a dirty block can only have size 0
 	//   if it has been truncated. In this case, we shouldn't write the block to disk.
-	// - Its usage should be 0 or it should be full. Even if the usage > 1, we need to write the block if it's full.
-	//   We need to do this to get this blocks physical size, so we can write to the next block.
-	if (t->m_dirty && t->m_logical_size != 0 && (t->m_usage == 0 || t->m_logical_size == t->m_maximal_logical_size)) {
+	// - One of the following holds:
+	//   - Its usage is 0
+	//   - It is full and the file is not direct. In this case we need to write it
+	//     to get the next blocks physical size.
+	if (t->m_dirty &&
+		t->m_logical_size != 0 &&
+		(t->m_usage == 0 || (!direct() && t->m_logical_size == t->m_maximal_logical_size))) {
 		assert(m_outer->is_writable());
 
 		if (direct()) {
