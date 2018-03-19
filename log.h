@@ -16,7 +16,6 @@ struct crapper {
 	}
 };
 
-
 template <typename T>
 const crapper & operator <<(const crapper & c, const T & t) {
 	std::cout << t;

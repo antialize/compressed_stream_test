@@ -121,6 +121,7 @@ block * pop_available_block() {
 		b->m_physical_offset = no_file_size;
 		b->m_physical_size = no_block_size;
 		b->m_prev_physical_size = no_block_size;
+		b->m_next_physical_size = no_block_size;
 		b->m_logical_offset = no_file_size;
 		b->m_logical_size = no_block_size;
 		b->m_serialized_size = no_block_size;

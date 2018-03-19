@@ -394,24 +394,34 @@ stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) {
 	return p;
 }
 
+template <typename T1, typename T2>
+void update_if_known(T1 & val, T2 new_val) {
+	if (is_known(new_val)) {
+		assert(!is_known(val) || val == new_val);
+		val = new_val;
+	}
+}
+
 void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
-	if (b->m_block + 1 != m_blocks) {
+	if (b->m_block != 0) { // Not first block
+		auto pb = get_available_block(l, b->m_block - 1);
+		if (pb) {
+			update_if_known(pb->m_next_physical_size, b->m_physical_size);
+			update_if_known(pb->m_physical_size, b->m_prev_physical_size);
+
+			auto prev_offset = get_prev_physical_offset(l, b);
+			update_if_known(pb->m_physical_offset, prev_offset);
+		}
+	}
+
+	if (b->m_block + 1 != m_blocks) { // Not last block
 		auto nb = get_available_block(l, b->m_block + 1);
 		if (nb) {
-			if (is_known(b->m_physical_size)) {
-				if (is_known(nb->m_prev_physical_size)) {
-					assert(b->m_physical_size == nb->m_prev_physical_size);
-				}
-				nb->m_prev_physical_size = b->m_physical_size;
-			}
+			update_if_known(nb->m_prev_physical_size, b->m_physical_size);
+			update_if_known(nb->m_physical_size, b->m_next_physical_size);
 
 			auto next_offset = get_next_physical_offset(l, b);
-			if (is_known(next_offset)) {
-				if (is_known(nb->m_physical_offset)) {
-					assert(next_offset == nb->m_physical_offset);
-				}
-				nb->m_physical_offset = next_offset;
-			}
+			update_if_known(nb->m_physical_offset, next_offset);
 		}
 	}
 }

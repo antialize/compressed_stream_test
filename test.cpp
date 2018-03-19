@@ -787,6 +787,31 @@ int direct_file2() {
 	return EXIT_SUCCESS;
 }
 
+int read_seq() {
+	int b;
+	{
+		file<int> f;
+		f.open(TMP_FILE);
+		{
+			auto s = f.stream();
+			b = (int) s.logical_block_size();
+			for (int i = 0; i < 10 * b; i++)
+				s.write(i);
+		}
+	}
+	{
+		file<int> f;
+		f.open(TMP_FILE);
+		{
+			auto s = f.stream();
+			for (int i = 0; i < 10 * b; i++)
+				ensure(i, s.read(), "read");
+		}
+	}
+
+	return EXIT_SUCCESS;
+}
+
 typedef int(*test_fun_t)();
 
 std::string current_test;
@@ -846,6 +871,7 @@ int main(int argc, char ** argv) {
 		{"write_chunked", write_chunked},
 		{"read_only", test_read_only},
 		{"direct_file2", direct_file2},
+		{"read_seq", read_seq},
 	};
 
 	std::stringstream usage;

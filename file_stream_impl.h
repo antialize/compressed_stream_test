@@ -67,7 +67,7 @@ public:
 	cond_t m_cond;
 	bool m_io; // false = owned by main thread, true = owned by job thread
 
-	block_size_t m_prev_physical_size, m_physical_size;
+	block_size_t m_prev_physical_size, m_physical_size, m_next_physical_size;
 	std::atomic<file_size_t> m_physical_offset;
 
 	friend std::ostream & operator << (std::ostream & o, const block & b) {

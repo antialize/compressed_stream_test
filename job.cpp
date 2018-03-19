@@ -95,6 +95,7 @@ void process_run() {
 			file_size_t physical_offset = b->m_physical_offset;
 			block_size_t physical_size = b->m_physical_size;
 			block_size_t prev_physical_size = b->m_prev_physical_size;
+			block_size_t next_physical_size = b->m_next_physical_size;
 			auto blocks = file->m_blocks;
 
 			// Not necessarily known in advance
@@ -108,6 +109,8 @@ void process_run() {
 			assert(is_known(physical_offset));
 
 			if (!is_known(physical_size)) {
+				std::cerr << "====> Unknown physical size: " << *b << std::endl;
+
 				block_header h;
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 				assert(r == sizeof(block_header));
@@ -127,6 +130,9 @@ void process_run() {
 			}
 
 			bool is_last_block = block + 1 == blocks;
+			if (!is_last_block && !is_known(next_physical_size)) {
+				size += sizeof(block_header);
+			}
 
 			log_info() << "JOB " << id << " pread      " << *b << " from " << off << " - " << (off + size - 1) << std::endl;
 
@@ -162,6 +168,12 @@ void process_run() {
 			char * compressed_data = physical_data;
 
 			physical_data += physical_size - sizeof(block_header); //Skip next block header
+			if (!is_last_block && !is_known(next_physical_size)) {
+				block_header h;
+				memcpy(&h, physical_data, sizeof(block_header));
+				physical_data += sizeof(block_header);
+				next_physical_size = h.physical_size;
+			}
 
 			block_size_t compressed_size = physical_size - 2 * sizeof(block_header);
 
@@ -205,6 +217,7 @@ void process_run() {
 			b->m_io = false;
 
 			b->m_prev_physical_size = prev_physical_size;
+			b->m_next_physical_size = next_physical_size;
 			b->m_logical_size = logical_size;
 			b->m_physical_size = physical_size;
 			b->m_logical_offset = logical_offset;
