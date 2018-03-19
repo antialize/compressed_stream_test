@@ -273,30 +273,15 @@ void process_run() {
 			memcpy(physical_data, &h, sizeof(block_header));
 			memcpy(physical_data + sizeof(h) + compressed_size, &h, sizeof(block_header));
 
-			job_lock.lock();
 			log_info() << "JOB " << id << " compressed " << *b << " size " << bs << std::endl;
 
-			if (!is_known(b->m_physical_offset)) {
-				// If the previous block is doing io,
-				// we have to wait for it to finish and update our blocks physical offset.
-				// Even if we have a physical offset, the io operation from the previous block,
-				// might change it.
-				auto pb = file->get_available_block(job_lock, b->m_block - 1);
-				assert(pb != nullptr);
-				assert(pb->m_io);
-				unused(pb);
-				log_info() << "JOB " << id << " waitfor    " << *b << std::endl;
-				// We can't use pb anymore as when unlocking the file lock,
-				// it might be repurposed for another block id
-				while (!is_known(b->m_physical_offset))
-					b->m_cond.wait(job_lock);
+			while (!is_known(b->m_physical_offset)) {
+				// Spin lock
 			}
 
 			file_size_t off = b->m_physical_offset;
 			assert(is_known(off));
 			unused(off);
-
-			job_lock.unlock();
 
 			auto r = _pwrite(file->m_fd, physical_data, bs, off);
 			assert(r == bs);
@@ -367,7 +352,6 @@ void process_run() {
 		file->m_job_count--;
 		file->m_job_cond.notify_one();
 		if (b) b->m_cond.notify_all();
-		job_lock.lock();
 	}
 	delete[] _data1;
 	delete[] _data2;

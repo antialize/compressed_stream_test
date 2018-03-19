@@ -342,7 +342,6 @@ void file_base_base::truncate(stream_position pos) {
 	{
 		m_impl->m_job_count++;
 
-		lock_t l2(job_mutex);
 		job j;
 		j.type = job_type::trunc;
 		j.file = m_impl;
@@ -491,7 +490,6 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		{
 			m_job_count++;
 
-			lock_t l2(job_mutex);
 			job j;
 			j.type = job_type::read;
 			j.buff = buff;
@@ -565,8 +563,6 @@ void file_impl::free_block(lock_t & l, block * t) {
 		m_job_count++;
 
 		// Write dirty block
-		lock_t l2(job_mutex);
-
 		job j;
 		j.type = job_type::write;
 		j.buff = t;
