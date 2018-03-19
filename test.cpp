@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <sstream>
 #include <atomic>
+#include "check_file.h"
 
 open_flags::open_flags compression_flag = open_flags::default_flags;
 
@@ -798,6 +799,12 @@ int run_test(test_fun_t fun, int job_threads) {
 	int ans = fun();
 
 	file_stream_term();
+
+	if (ans == EXIT_SUCCESS) {
+		if (!check_file(TMP_FILE)) {
+			return EXIT_FAILURE;
+		}
+	}
 
 	return ans;
 }

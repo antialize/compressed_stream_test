@@ -274,14 +274,14 @@ void file_base_base::truncate(stream_position pos) {
 		if (b->m_block > pos.m_block) {
 			assert(b->m_readahead_usage == 0);
 			if (b->m_usage != 0) {
-				throw exception("Trying to truncate before an open streams position");
+				throw exception("Trying to truncate before an open stream's position");
 			} else {
 				m_impl->kill_block(l, b);
 			}
 		}
 	});
 
-	// Write the new last block of needed
+	// Write the new last block if needed
 	new_last_block->m_usage++;
 	m_impl->free_block(l, new_last_block);
 	while (new_last_block->m_io) new_last_block->m_cond.wait(l);
@@ -311,7 +311,7 @@ void file_base_base::truncate(stream_position pos) {
 		// We don't know this blocks physical_size and we mark it as dirty
 		// We don't actually write this block yet, but just truncate the file to only include the previous blocks
 		new_last_block->m_physical_size = no_block_size;
-		m_impl->update_physical_size(l, pos.m_block, no_block_size);
+		m_impl->update_related_physical_sizes(l, new_last_block);
 		new_last_block->m_dirty = true;
 
 		truncate_size = new_last_block->m_physical_offset;
@@ -394,10 +394,25 @@ stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) {
 	return p;
 }
 
-void file_impl::update_physical_size(lock_t &, block_idx_t block, block_size_t size) {
-	if (block + 1 != m_blocks) {
-		auto it = m_block_map.find(block + 1);
-		if (it != m_block_map.end()) it->second->m_prev_physical_size = size;
+void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
+	if (b->m_block + 1 != m_blocks) {
+		auto nb = get_available_block(l, b->m_block + 1);
+		if (nb) {
+			if (is_known(b->m_physical_size)) {
+				if (is_known(nb->m_prev_physical_size)) {
+					assert(b->m_physical_size == nb->m_prev_physical_size);
+				}
+				nb->m_prev_physical_size = b->m_physical_size;
+			}
+
+			auto next_offset = get_next_physical_offset(l, b);
+			if (is_known(next_offset)) {
+				if (is_known(nb->m_physical_offset)) {
+					assert(next_offset == nb->m_physical_offset);
+				}
+				nb->m_physical_offset = next_offset;
+			}
+		}
 	}
 }
 
@@ -413,6 +428,15 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 
 		if (b->m_block + 1 == m_blocks)
 			assert(m_last_block == b);
+
+		// If the file is direct and it is writable
+		// we must wait for it to finish writing
+		// as the write job may use the block's buffer
+		// even after it has released the lock.
+		// This doesn't apply to non-direct files as they are append-only
+		if (direct() && m_outer->is_writable()) {
+			while (b->m_io) b->m_cond.wait(l);
+		}
 
 		return b;
 	}
@@ -558,8 +582,8 @@ void file_impl::free_block(lock_t & l, block * t) {
 		assert(m_outer->is_writable());
 
 		if (direct()) {
-			t->m_physical_size = t->m_physical_offset + m_item_size * t->m_logical_size;
-			update_physical_size(l, t->m_block, t->m_physical_size);
+			t->m_physical_size = m_item_size * t->m_logical_size + 2 * sizeof(block_header);
+			update_related_physical_sizes(l, t);
 		}
 
 		log_info() << "      free block " << *t << " write" << std::endl;
@@ -610,7 +634,7 @@ void file_impl::kill_block(lock_t & l, block * t) {
 	assert(!m_serialized || is_known(t->m_serialized_size));
 	// The predecessor to this block might have appeared after writing this block
 	// so we need to tell it our size, so that we can read_back later
-	update_physical_size(l, t->m_block, t->m_physical_size);
+	update_related_physical_sizes(l, t);
 
 	if (m_serialized)
 		m_outer->do_destruct(t->m_data, t->m_logical_size);

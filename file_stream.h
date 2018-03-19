@@ -106,7 +106,6 @@ class file_base_base {
 public:
 	friend class file_impl;
 	friend class stream_base_base;
-	friend void process_run();
 
 	file_base_base(const file_base_base &) = delete;
 	file_base_base & operator=(const file_base_base &) = delete;

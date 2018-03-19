@@ -81,9 +81,8 @@ stream_position stream_base_base::get_position() {
 	block * b = m_impl->m_cur_block;
 	if (!b) return m_impl->m_file->start_position();
 
-	lock_t l(job_mutex);
 	while (!is_known(b->m_physical_offset)) {
-		b->m_cond.wait(l);
+		// Spin lock
 	}
 
 	return {

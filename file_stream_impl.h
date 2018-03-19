@@ -166,11 +166,9 @@ public:
 	// Returns the offset of the successor block to b if known
 	// Doesn't block
 	file_size_t get_next_physical_offset(lock_t &, block * b) const {
-		if (!b->m_io &&
-			!b->m_dirty &&
+		if (b->m_logical_size == b->m_maximal_logical_size &&
 			is_known(b->m_physical_size) &&
-			is_known(b->m_physical_offset) &&
-			b->m_logical_size == b->m_maximal_logical_size) {
+			is_known(b->m_physical_offset)) {
 			return b->m_physical_size + b->m_physical_offset;
 		}
 		return no_file_size;
@@ -207,7 +205,17 @@ public:
 	void free_block(lock_t & lock, block * block);
 	void kill_block(lock_t & lock, block * block);
 
-	void update_physical_size(lock_t &, block_idx_t block, block_size_t size);
+	void update_related_physical_sizes(lock_t & l, block * b);
+
+	void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) {
+		assert(m_serialized);
+		m_outer->do_serialize(in, in_items, out, out_size);
+	}
+
+	void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) {
+		assert(m_serialized);
+		m_outer->do_unserialize(in, in_items, out, out_size);
+	}
 };
 
 class stream_impl {

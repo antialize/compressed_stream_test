@@ -48,24 +48,17 @@ std::ostream & operator <<(std::ostream & o, const job_type t) {
 	return o << s;
 }
 
-void update_next_block(lock_t & job_lock, unsigned int id, const job & j, file_size_t physical_offset) {
-	block * b = j.buff;
-	if (b->m_logical_size != b->m_maximal_logical_size) return;
-	auto nb = j.file->get_available_block(job_lock, b->m_block + 1);
-	if (nb) {
-		log_info() << "JOB " << id << " update nb  " << *b << std::endl;
-		nb->m_physical_offset = physical_offset;
-		nb->m_cond.notify_all();
-	}
-}
-
 void process_run() {
 	auto id = tid.fetch_add(1);
-	size_t max_buffer_size = snappy::MaxCompressedLength(max_serialized_block_size()) + 2*sizeof(block_header);
-	char * _data1 = new char[max_buffer_size];
-	char * _data2 = new char[max_buffer_size];
-	char * current_buffer = _data1;
-	char * next_buffer = _data2;
+
+	const size_t extra_before_buffer = sizeof(block_header);
+	const size_t max_buffer_size = snappy::MaxCompressedLength(max_serialized_block_size()) + 2*sizeof(block_header);
+	char * _data1 = new char[extra_before_buffer + max_buffer_size];
+	char * _data2 = new char[extra_before_buffer + max_buffer_size];
+
+	char * buffer1 = _data1 + extra_before_buffer;
+	char * buffer2 = _data2 + extra_before_buffer;
+
 	lock_t job_lock(job_mutex);
 	log_info() << "JOB " << id << " start" << std::endl;
 	while (true) {
@@ -137,8 +130,8 @@ void process_run() {
 
 			log_info() << "JOB " << id << " pread      " << *b << " from " << off << " - " << (off + size - 1) << std::endl;
 
-			char * physical_data = current_buffer;
-			char * uncompressed_data = next_buffer;
+			char * physical_data = buffer1;
+			char * uncompressed_data = buffer2;
 
 			auto r = _pread(file->m_fd, physical_data, size, off);
 			assert(r == static_cast<ssize_t>(size));
@@ -189,7 +182,7 @@ void process_run() {
 
 			if (file->m_serialized) {
 				block_size_t unserialized_size;
-				file->m_outer->do_unserialize(uncompressed_data, logical_size, b->m_data, &unserialized_size);
+				file->do_unserialize(uncompressed_data, logical_size, b->m_data, &unserialized_size);
 				assert(unserialized_size == logical_size * file->m_item_size);
 			} else {
 				memcpy(b->m_data, uncompressed_data, uncompressed_size);
@@ -204,12 +197,10 @@ void process_run() {
 
 			// If the file is serialized and the current block is not
 			// the last one we have to override its maximal_logical_size here
-			// to get update_next_block to work as expected
+			// to get update_related_physical_sizes to work as expected
 			if (file->m_serialized && !is_last_block) {
 				b->m_maximal_logical_size = logical_size;
 			}
-
-			update_next_block(job_lock, id, j, off + size);
 
 			b->m_io = false;
 
@@ -218,6 +209,8 @@ void process_run() {
 			b->m_physical_size = physical_size;
 			b->m_logical_offset = logical_offset;
 			b->m_serialized_size = serialized_size;
+
+			file->update_related_physical_sizes(job_lock, b);
 
 			b->m_cond.notify_all();
 
@@ -241,39 +234,42 @@ void process_run() {
 
 			job_lock.unlock();
 
-			// TODO check if it is undefined behaiviure to change data underneeth snappy
-			// TODO only used bytes here
-			memcpy(current_buffer, b->m_data, unserialized_size);
-
-			// TODO free the block here
+			char * unserialized_data = b->m_data;
+			char * serialized_data = buffer1;
+			char * physical_data = buffer2;
 
 			block_size_t serialized_size;
-
 			if (file->m_serialized) {
 				assert(b->m_serialized_size <= max_buffer_size);
-				file->m_outer->do_serialize(current_buffer, h.logical_size, next_buffer, &serialized_size);
+				file->do_serialize(unserialized_data, h.logical_size, serialized_data, &serialized_size);
 				assert(serialized_size == b->m_serialized_size);
-				std::swap(current_buffer, next_buffer);
 			} else {
 				serialized_size = unserialized_size;
+				serialized_data = unserialized_data;
 			}
 
 			size_t compressed_size;
 			if (file->m_compressed) {
 				assert(snappy::MaxCompressedLength(serialized_size) <= max_buffer_size - sizeof(block_header));
-				snappy::RawCompress(current_buffer, serialized_size, next_buffer + sizeof(block_header), &compressed_size);
+				snappy::RawCompress(serialized_data, serialized_size, physical_data + sizeof(block_header), &compressed_size);
 			} else {
-				memcpy(next_buffer + sizeof(block_header), current_buffer, serialized_size);
+				if (!file->m_serialized) {
+					// direct file, current_buffer points to b->m_data
+					// We need to memcpy to prepend and append block_headers
+					memcpy(physical_data + sizeof(block_header), serialized_data, serialized_size);
+				} else {
+					physical_data = serialized_data;
+				}
 				compressed_size = serialized_size;
 			}
-			char * physical_data = next_buffer;
-			block_size_t bs = 2 * sizeof(block_header) + compressed_size;
 
-			h.physical_size = (block_size_t)bs;
+			block_size_t physical_size = 2 * sizeof(block_header) + compressed_size;
+
+			h.physical_size = physical_size;
 			memcpy(physical_data, &h, sizeof(block_header));
 			memcpy(physical_data + sizeof(h) + compressed_size, &h, sizeof(block_header));
 
-			log_info() << "JOB " << id << " compressed " << *b << " size " << bs << std::endl;
+			log_info() << "JOB " << id << " compressed " << *b << " size " << physical_size << std::endl;
 
 			while (!is_known(b->m_physical_offset)) {
 				// Spin lock
@@ -283,16 +279,16 @@ void process_run() {
 			assert(is_known(off));
 			unused(off);
 
-			auto r = _pwrite(file->m_fd, physical_data, bs, off);
-			assert(r == bs);
+			auto r = _pwrite(file->m_fd, physical_data, physical_size, off);
+			assert(r == physical_size);
 			unused(r);
 #ifndef NDEBUG
-			total_bytes_written += bs;
+			total_bytes_written += physical_size;
 #endif
 
 			job_lock.lock();
 
-			log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
+			log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + physical_size - 1 <<  " physical_size " << std::endl;
 
 #ifndef NDEBUG
 			{
@@ -300,7 +296,7 @@ void process_run() {
 				if (b->m_block + 1 != file->m_blocks) {
 					auto it = offsets.find(b->m_block + 1);
 					if (it != offsets.end()) {
-						assert(it->second.first == off + bs);
+						assert(it->second.first == off + physical_size);
 					}
 				}
 				auto it = offsets.find(b->m_block - 1);
@@ -308,16 +304,16 @@ void process_run() {
 					assert(it->second.second == off);
 				}
 
-				offsets[b->m_block] = {off, off + bs};
+				offsets[b->m_block] = {off, off + physical_size};
 			}
 #endif
 
-			update_next_block(job_lock, id, j, off + bs);
+			//update_next_block(job_lock, id, j, off + physical_size);
 
-			b->m_physical_size = bs;
 			b->m_io = false;
 
-			file->update_physical_size(job_lock, b->m_block, bs);
+			b->m_physical_size = physical_size;
+			file->update_related_physical_sizes(job_lock, b);
 			file->free_block(job_lock, b);
 
 #ifndef NDEBUG
