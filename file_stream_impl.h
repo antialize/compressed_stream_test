@@ -79,7 +79,6 @@ public:
 
 class file_impl {
 public:
-	mutex_t m_mut;
 	file_base_base * m_outer;
 	int m_fd;
 	std::string m_path;

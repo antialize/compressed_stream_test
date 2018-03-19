@@ -48,10 +48,10 @@ std::ostream & operator <<(std::ostream & o, const job_type t) {
 	return o << s;
 }
 
-void update_next_block(lock_t & file_lock, unsigned int id, const job & j, file_size_t physical_offset) {
+void update_next_block(lock_t & job_lock, unsigned int id, const job & j, file_size_t physical_offset) {
 	block * b = j.buff;
 	if (b->m_logical_size != b->m_maximal_logical_size) return;
-	auto nb = j.file->get_available_block(file_lock, b->m_block + 1);
+	auto nb = j.file->get_available_block(job_lock, b->m_block + 1);
 	if (nb) {
 		log_info() << "JOB " << id << " update nb  " << *b << std::endl;
 		nb->m_physical_offset = physical_offset;
@@ -85,10 +85,8 @@ void process_run() {
 		}
 
 		jobs.pop();
-		job_lock.unlock();
 
 		auto file = j.file;
-		lock_t file_lock(file->m_mut);
 
 		assert(j.type == job_type::trunc || b->m_usage != 0);
 
@@ -111,7 +109,7 @@ void process_run() {
 			block_size_t logical_size;
 			block_size_t serialized_size;
 
-			file_lock.unlock();
+			job_lock.unlock();
 
 			assert(is_known(block));
 			assert(is_known(physical_offset));
@@ -202,7 +200,7 @@ void process_run() {
 					   << "First data " << reinterpret_cast<int*>(b->m_data)[0]
 					   << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
 
-			file_lock.lock();
+			job_lock.lock();
 
 			// If the file is serialized and the current block is not
 			// the last one we have to override its maximal_logical_size here
@@ -211,7 +209,7 @@ void process_run() {
 				b->m_maximal_logical_size = logical_size;
 			}
 
-			update_next_block(file_lock, id, j, off + size);
+			update_next_block(job_lock, id, j, off + size);
 
 			b->m_io = false;
 
@@ -223,7 +221,7 @@ void process_run() {
 
 			b->m_cond.notify_all();
 
-			file->free_block(file_lock, b);
+			file->free_block(job_lock, b);
 
 #ifndef NDEBUG
 			total_blocks_read++;
@@ -241,7 +239,7 @@ void process_run() {
 					   << "First data " << reinterpret_cast<int*>(b->m_data)[0]
 					   << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
 
-			file_lock.unlock();
+			job_lock.unlock();
 
 			// TODO check if it is undefined behaiviure to change data underneeth snappy
 			// TODO only used bytes here
@@ -275,7 +273,7 @@ void process_run() {
 			memcpy(physical_data, &h, sizeof(block_header));
 			memcpy(physical_data + sizeof(h) + compressed_size, &h, sizeof(block_header));
 
-			file_lock.lock();
+			job_lock.lock();
 			log_info() << "JOB " << id << " compressed " << *b << " size " << bs << std::endl;
 
 			if (!is_known(b->m_physical_offset)) {
@@ -283,7 +281,7 @@ void process_run() {
 				// we have to wait for it to finish and update our blocks physical offset.
 				// Even if we have a physical offset, the io operation from the previous block,
 				// might change it.
-				auto pb = file->get_available_block(file_lock, b->m_block - 1);
+				auto pb = file->get_available_block(job_lock, b->m_block - 1);
 				assert(pb != nullptr);
 				assert(pb->m_io);
 				unused(pb);
@@ -291,14 +289,14 @@ void process_run() {
 				// We can't use pb anymore as when unlocking the file lock,
 				// it might be repurposed for another block id
 				while (!is_known(b->m_physical_offset))
-					b->m_cond.wait(file_lock);
+					b->m_cond.wait(job_lock);
 			}
 
 			file_size_t off = b->m_physical_offset;
 			assert(is_known(off));
 			unused(off);
 
-			file_lock.unlock();
+			job_lock.unlock();
 
 			auto r = _pwrite(file->m_fd, physical_data, bs, off);
 			assert(r == bs);
@@ -307,7 +305,7 @@ void process_run() {
 			total_bytes_written += bs;
 #endif
 
-			file_lock.lock();
+			job_lock.lock();
 
 			log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + bs - 1 <<  " physical_size " << std::endl;
 
@@ -329,13 +327,13 @@ void process_run() {
 			}
 #endif
 
-			update_next_block(file_lock, id, j, off + bs);
+			update_next_block(job_lock, id, j, off + bs);
 
 			b->m_physical_size = bs;
 			b->m_io = false;
 
-			file->update_physical_size(file_lock, b->m_block, bs);
-			file->free_block(file_lock, b);
+			file->update_physical_size(job_lock, b->m_block, bs);
+			file->free_block(job_lock, b);
 
 #ifndef NDEBUG
 			total_blocks_written++;

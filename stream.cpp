@@ -81,7 +81,7 @@ stream_position stream_base_base::get_position() {
 	block * b = m_impl->m_cur_block;
 	if (!b) return m_impl->m_file->start_position();
 
-	lock_t l(m_impl->m_file->m_mut);
+	lock_t l(job_mutex);
 	while (!is_known(b->m_physical_offset)) {
 		b->m_cond.wait(l);
 	}
@@ -95,7 +95,7 @@ stream_position stream_base_base::get_position() {
 }
 
 void stream_base_base::set_position(stream_position p) {
-	lock_t l(m_impl->m_file->m_mut);
+	lock_t l(job_mutex);
 	m_impl->set_position(l, p);
 }
 
@@ -107,11 +107,11 @@ block_base * stream_base_base::get_last_block() {
 
 stream_impl::~stream_impl() {
 	if (m_cur_block) {
-		lock_t lock(m_file->m_mut);
+		lock_t lock(job_mutex);
 		m_file->free_block(lock, m_cur_block);
 	}
 	if (m_readahead_block) {
-		lock_t lock(m_file->m_mut);
+		lock_t lock(job_mutex);
 		m_file->free_readahead_block(lock, m_readahead_block);
 	}
 
@@ -125,7 +125,7 @@ stream_impl::~stream_impl() {
 }
 
 void stream_impl::next_block() {
-	lock_t lock(m_file->m_mut);
+	lock_t lock(job_mutex);
 	block * buff = m_cur_block;
 	if (buff == nullptr) m_cur_block = m_file->get_first_block(lock);
 	else m_cur_block = m_file->get_successor_block(lock, buff);
@@ -141,7 +141,7 @@ void stream_impl::next_block() {
 }
 
 void stream_impl::prev_block() {
-	lock_t lock(m_file->m_mut);
+	lock_t lock(job_mutex);
 	block * buff = m_cur_block;
 	assert(buff);
 	m_cur_block = m_file->get_predecessor_block(lock, buff);
@@ -172,7 +172,7 @@ void stream_impl::set_position(lock_t & l, stream_position p) {
 
 void stream_impl::seek(file_size_t offset, whence w) {
 	log_info() << "STREM seek       " << offset << std::endl;
-	lock_t l(m_file->m_mut);
+	lock_t l(job_mutex);
 	
 	stream_position p;
 

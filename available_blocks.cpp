@@ -109,7 +109,7 @@ block * pop_available_block() {
 		}
 		if (b->m_file) {
 			//log_info() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
-			lock_t l(b->m_file->m_mut);
+			lock_t l(job_mutex);
 			b->m_file->kill_block(l, b);
 		}
 		

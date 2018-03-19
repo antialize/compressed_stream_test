@@ -91,7 +91,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	if (fd == -1)
 		throw exception("Failed to open file: " + std::string(std::strerror(errno)));
 
-	lock_t l(m_impl->m_mut);
+	lock_t l(job_mutex);
 	m_impl->m_fd = fd;
 
 #ifndef NDEBUG
@@ -173,7 +173,7 @@ void file_base_base::close() {
 	if (!is_open())
 		throw exception("File is already closed");
 
-	lock_t l(m_impl->m_mut);
+	lock_t l(job_mutex);
 
 	// Wait for all jobs to be completed for this file
 	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
@@ -250,7 +250,7 @@ const std::string &file_base_base::path() const noexcept {
 
 void file_base_base::truncate(stream_position pos) {
 	assert(is_open() && is_writable());
-	lock_t l(m_impl->m_mut);
+	lock_t l(job_mutex);
 
 	block * new_last_block = m_impl->get_block(l, pos);
 	assert(new_last_block->m_logical_offset == pos.m_logical_offset);
@@ -360,7 +360,7 @@ void file_base_base::truncate(stream_position pos) {
 void file_base_base::truncate(file_size_t offset) {
 	stream_position p;
 	{
-		lock_t l(m_impl->m_mut);
+		lock_t l(job_mutex);
 		p = m_impl->position_from_offset(l, offset);
 	}
 	truncate(p);
