@@ -10,6 +10,7 @@
 #include <queue>
 #include <unordered_set>
 #include <functional>
+#include <atomic>
 
 typedef std::mutex mutex_t;
 typedef std::unique_lock<mutex_t> lock_t;
@@ -22,6 +23,11 @@ constexpr block_size_t no_block_size = std::numeric_limits<block_size_t>::max();
 template <typename T>
 bool is_known(T val) {
 	return val != std::numeric_limits<T>::max();
+}
+
+template <typename T>
+bool is_known(const std::atomic<T> & val) {
+	return is_known(val.load());
 }
 
 class block;
@@ -62,8 +68,8 @@ public:
 	bool m_io; // false = owned by main thread, true = owned by job thread
 
 	block_size_t m_prev_physical_size, m_physical_size;
-	file_size_t m_physical_offset;
-	
+	std::atomic<file_size_t> m_physical_offset;
+
 	friend std::ostream & operator << (std::ostream & o, const block & b) {
 		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage;
 		if (b.m_physical_offset == 0) o << "*";
