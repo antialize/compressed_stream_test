@@ -104,6 +104,14 @@ def generate_plots(timings, config, output_dir):
 					#print(xv, mean)
 
 					#ax.errorbar([xv], [avg], yerr=[[avg - min(yvs)], [max(yvs) - avg]], fmt='none', capsize=10, barsabove=True, color=color)
+			if config['min_same_x']:
+				for xv, yvs in same_x.items():
+					if len(yvs) == 1:
+						continue
+
+					minv = min(yvs)
+
+					ax.plot([xv - 0.05, xv + 0.05], [minv, minv], color='green')
 
 		ax.set_xlabel(config['X_axis'][0])
 		ax.set_ylabel(config['Y_axis'][0])
@@ -187,27 +195,31 @@ default_config = {
 
 if __name__ == '__main__':
 	plot_config = {
-		'timing_all.json': {
+		'timing_all': {
 			'X_axis': ('block_size (bytes)', lambda r: r['block_size']),
 			'logx': True,
 			'line': True,
 		},
-		'timing_jobs.json': {
+		'timing_jobs': {
 			'X_axis': ('job threads', lambda r: r['job_threads']),
 		},
-		'timing_single_merge.json': {
+		'timing_single_merge': {
 			'X_axis': ('timestamp', lambda r: r['timestamp']),
 		},
-		'timing_single_merge_jobs.json': {
+		'timing_single_merge_jobs': {
 			'X_axis': ('job threads', lambda r: r['job_threads']),
 		},
-		'timing_merge_fs.json': {
+		'timing_merge_fs': {
 			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
 			'mean_same_x': True,
 		},
-		'timing_merge_fs2.json': {
+		'timing_merge_fs2': {
 			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
 			'mean_same_x': True,
+		},
+		'timing_read_write_old': {
+			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
+			'min_same_x': True,
 		},
 	}
 
@@ -218,18 +230,16 @@ if __name__ == '__main__':
 	if args.files == ['all']:
 		args.files = plot_config.keys()
 
-	shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
-	os.mkdir(OUTPUT_DIR)
-
 	for fname in args.files:
 		fname = fname.split('/')[-1]
-		config = plot_config[fname]
+		config = plot_config[fname.split('.')[0]]
 		name = fname.split('.')[0]
 		with open(TIMINGS_DIR + '/' + fname, 'r') as f:
 			timings = [fix_timing(json.loads(l)) for l in f]
 
 		out = Path(OUTPUT_DIR) / name
-		out.mkdir()
+		shutil.rmtree(out, ignore_errors=True)
+		out.mkdir(parents=True, exist_ok=True)
 
 		config = {**default_config, **config}
 		generate_plots(timings, config, out)
