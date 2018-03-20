@@ -246,13 +246,6 @@ struct job {
 	};
 };
 
-
-struct block_header {
-	file_size_t logical_offset;
-	block_size_t physical_size;
-	block_size_t logical_size;
-};
-
 void process_run();
 
 extern std::queue<job> jobs;

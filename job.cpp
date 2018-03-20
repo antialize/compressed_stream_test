@@ -266,13 +266,9 @@ void process_run() {
 				assert(snappy::MaxCompressedLength(serialized_size) <= max_buffer_size - sizeof(block_header));
 				snappy::RawCompress(serialized_data, serialized_size, physical_data + sizeof(block_header), &compressed_size);
 			} else {
-				if (!file->m_serialized) {
-					// direct file, current_buffer points to b->m_data
-					// We need to memcpy to prepend and append block_headers
-					memcpy(physical_data + sizeof(block_header), serialized_data, serialized_size);
-				} else {
-					physical_data = serialized_data;
-				}
+				// This is a valid pointer as both the block's m_data
+				// and our own buffers have block_header padding
+				physical_data = serialized_data - sizeof(block_header);
 				compressed_size = serialized_size;
 			}
 

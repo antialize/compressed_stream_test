@@ -51,6 +51,12 @@ constexpr block_size_t max_serialized_block_size() {return block_size();}
 void file_stream_init(size_t threads);
 void file_stream_term();
 
+struct block_header {
+	file_size_t logical_offset;
+	block_size_t physical_size;
+	block_size_t logical_size;
+};
+
 // Give implementations of needed types
 class block_base {
 public:
@@ -60,7 +66,11 @@ public:
 	// Undefined for non-serialized blocks
 	block_size_t m_serialized_size;
 	bool m_dirty;
-	char m_data[block_size()];
+
+	// We make room for a block_header before and after
+	// the actual data
+	char _buffer[block_size() + 2 * sizeof(block_header)];
+	char * m_data = _buffer + sizeof(block_header);
 };
 
 struct stream_position {
