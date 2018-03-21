@@ -791,7 +791,7 @@ int read_seq() {
 	int b;
 	{
 		file<int> f;
-		f.open(TMP_FILE);
+		f.open(TMP_FILE, open_flags::no_readahead);
 		{
 			auto s = f.stream();
 			b = (int) s.logical_block_size();
@@ -801,7 +801,7 @@ int read_seq() {
 	}
 	{
 		file<int> f;
-		f.open(TMP_FILE);
+		f.open(TMP_FILE, open_flags::no_readahead);
 		{
 			auto s = f.stream();
 			for (int i = 0; i < 10 * b; i++)

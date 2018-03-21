@@ -71,7 +71,7 @@ public:
 	std::atomic<file_size_t> m_physical_offset;
 
 	friend std::ostream & operator << (std::ostream & o, const block & b) {
-		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage;
+		o << "b(" << b.m_idx << "; block: " << b.m_block << "; usage: " << b.m_usage << "; io: " << b.m_io;
 		if (b.m_physical_offset == 0) o << "*";
 		return o << ")";
 	}
@@ -163,27 +163,6 @@ public:
 
 	stream_position position_from_offset(lock_t & l, file_size_t offset);
 
-	// Returns the offset of the successor block to b if known
-	// Doesn't block
-	file_size_t get_next_physical_offset(lock_t &, block * b) const {
-		if (b->m_logical_size == b->m_maximal_logical_size &&
-			is_known(b->m_physical_size) &&
-			is_known(b->m_physical_offset)) {
-			return b->m_physical_size + b->m_physical_offset;
-		}
-		return no_file_size;
-	}
-
-	// Returns the offset of the predecessor block to b if known
-	// Doesn't block
-	file_size_t get_prev_physical_offset(lock_t &, block * b) const {
-		if (is_known(b->m_physical_offset) &&
-			is_known(b->m_prev_physical_size)) {
-			return b->m_physical_offset - b->m_prev_physical_size;
-		}
-		return no_file_size;
-	}
-
 	// Calls a function for each block in m_block_map
 	// Makes sure that if f kills any of the blocks, then it still works
 	template <typename F>
@@ -241,7 +220,7 @@ struct job {
 	job_type type;
 	file_impl * file;
 	union {
-		block * buff;
+		block * io_block;
 		file_size_t truncate_size;
 	};
 };

@@ -73,7 +73,7 @@ void process_run() {
 		if (j.type == job_type::trunc) {
 			log_info() << "JOB " << id << " pop job    " << j.type << " " << j.truncate_size << '\n';
 		} else {
-			b = j.buff;
+			b = j.io_block;
 			log_info() << "JOB " << id << " pop job    " << j.type << " " << b->m_logical_size << '\n';
 		}
 
@@ -98,11 +98,6 @@ void process_run() {
 			block_size_t next_physical_size = b->m_next_physical_size;
 			auto blocks = file->m_blocks;
 
-			// Not necessarily known in advance
-			file_size_t logical_offset;
-			block_size_t logical_size;
-			block_size_t serialized_size;
-
 			job_lock.unlock();
 
 			assert(is_known(block));
@@ -124,13 +119,15 @@ void process_run() {
 
 			file_size_t off = physical_offset;
 			file_size_t size = physical_size;
-			if (block != 0 && !is_known(prev_physical_size)) { // NOT THE FIRST BLOCK
+			bool read_prev_header = block != 0 && !is_known(prev_physical_size);
+			if (read_prev_header) { // NOT THE FIRST BLOCK
 				off -= sizeof(block_header);
 				size += sizeof(block_header);
 			}
 
 			bool is_last_block = block + 1 == blocks;
-			if (!is_last_block && !is_known(next_physical_size)) {
+			bool read_next_header = !is_last_block && !is_known(next_physical_size);
+			if (read_next_header) {
 				size += sizeof(block_header);
 			}
 
@@ -146,14 +143,17 @@ void process_run() {
 			total_bytes_read += size;
 #endif
 
-			if (block != 0 && !is_known(prev_physical_size)) {
+			if (read_prev_header) {
 				//log_info() << id << "read prev header" << std::endl;
 				block_header h;
 				memcpy(&h, physical_data, sizeof(block_header));
 				physical_data += sizeof(block_header);
 				prev_physical_size = h.physical_size;
+				std::cerr << "Physical size of " << block - 1 << " = " << prev_physical_size << "\n";
 			}
 
+			file_size_t logical_offset;
+			block_size_t logical_size;
 			{
 				block_header h;
 				memcpy(&h, physical_data, sizeof(block_header));
@@ -167,8 +167,8 @@ void process_run() {
 
 			char * compressed_data = physical_data;
 
-			physical_data += physical_size - sizeof(block_header); //Skip next block header
-			if (!is_last_block && !is_known(next_physical_size)) {
+			physical_data += physical_size;
+			if (read_next_header) {
 				block_header h;
 				memcpy(&h, physical_data, sizeof(block_header));
 				physical_data += sizeof(block_header);
@@ -190,7 +190,7 @@ void process_run() {
 				uncompressed_size = compressed_size;
 			}
 
-			serialized_size = uncompressed_size;
+			block_size_t serialized_size = uncompressed_size;
 
 			if (file->m_serialized) {
 				block_size_t unserialized_size;
@@ -316,8 +316,6 @@ void process_run() {
 				offsets[b->m_block] = {off, off + physical_size};
 			}
 #endif
-
-			//update_next_block(job_lock, id, j, off + physical_size);
 
 			b->m_io = false;
 

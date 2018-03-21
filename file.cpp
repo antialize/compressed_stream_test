@@ -395,10 +395,19 @@ stream_position file_impl::position_from_offset(lock_t &l, file_size_t offset) {
 }
 
 template <typename T1, typename T2>
-void update_if_known(T1 & val, T2 new_val) {
-	if (is_known(new_val)) {
-		assert(!is_known(val) || val == new_val);
-		val = new_val;
+void assert_known_implies_equal(const T1 & val1, const T2 & val2) {
+	unused(val1);
+	unused(val2);
+	assert(!(is_known(val1) && is_known(val2)) || val1 == val2);
+};
+
+template <typename T1, typename T2>
+void update_if_known(T1 & val1, T2 & val2) {
+	assert_known_implies_equal(val1, val2);
+	if (is_known(val1)) {
+		val2 = val1;
+	} else if(is_known(val2)) {
+		val1 = val2;
 	}
 }
 
@@ -409,8 +418,13 @@ void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
 			update_if_known(pb->m_next_physical_size, b->m_physical_size);
 			update_if_known(pb->m_physical_size, b->m_prev_physical_size);
 
-			auto prev_offset = get_prev_physical_offset(l, b);
-			update_if_known(pb->m_physical_offset, prev_offset);
+			/*
+			if (is_known(pb->m_physical_offset) &&
+			    is_known(pb->m_physical_size)) {
+				auto offset = pb->m_physical_offset + pb->m_physical_size;
+				update_if_known(b->m_physical_offset, offset);
+			}
+			 */
 		}
 	}
 
@@ -420,8 +434,20 @@ void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
 			update_if_known(nb->m_prev_physical_size, b->m_physical_size);
 			update_if_known(nb->m_physical_size, b->m_next_physical_size);
 
-			auto next_offset = get_next_physical_offset(l, b);
-			update_if_known(nb->m_physical_offset, next_offset);
+			if (is_known(b->m_physical_offset) && is_known(b->m_physical_size)) {
+				auto next_offset = b->m_physical_offset + b->m_physical_size;
+				assert_known_implies_equal(nb->m_physical_offset, next_offset);
+				std::cerr << "Set physical offset " << nb->m_block << " to " << next_offset << "\n";
+				nb->m_physical_offset = next_offset;
+			}
+
+			/*
+			if (is_known(nb->m_physical_offset) &&
+			    is_known(b->m_physical_offset) {
+				auto next_offset = b->m_physical_size + b->m_physical_offset;
+				update_if_known(nb->m_physical_offset, next_offset);
+			}
+			 */
 		}
 	}
 }
@@ -448,135 +474,139 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 			while (b->m_io) b->m_cond.wait(l);
 		}
 
+		update_related_physical_sizes(l, b);
+
 		return b;
 	}
 	
 	l.unlock();
-	auto buff = pop_available_block();
+	b = pop_available_block();
 	l.lock();
 	
-	buff->m_file = this;
-	buff->m_dirty = false;
-	buff->m_block = p.m_block;
-	if (direct()) {
-		auto p2 = position_from_offset(l, p.m_logical_offset + p.m_index);
+	b->m_file = this;
+	b->m_dirty = false;
+	b->m_block = p.m_block;
+	b->m_logical_offset = p.m_logical_offset;
+	b->m_logical_size = no_block_size;
+	b->m_serialized_size = no_block_size;
+	b->m_usage = 1;
+	b->m_io = false;
+	b->m_maximal_logical_size = block_size() / m_item_size;
 
-		if (p.m_index == block_size() / m_item_size) {
-			assert(p2.m_index == 0);
-			assert(p2.m_block == p.m_block + 1);
-			assert(p2.m_logical_offset == p.m_logical_offset + p.m_index);
-			assert(is_known(p.m_physical_offset));
-		} else {
-			assert(p.m_index == p2.m_index);
-			assert(p.m_logical_offset == p2.m_logical_offset);
-			assert(p.m_block == p2.m_block);
-			if (is_known(p.m_physical_offset)) {
-				assert(p.m_physical_offset == p2.m_physical_offset);
+	// Set physical offset if known somehow
+	b->m_physical_offset = p.m_physical_offset;
+	if (!is_known(b->m_physical_offset)) {
+		if (direct()) {
+			auto p2 = position_from_offset(l, p.m_logical_offset + p.m_index);
+
+			if (p.m_index == block_size() / m_item_size) {
+				assert(p2.m_index == 0);
+				assert(p2.m_block == p.m_block + 1);
+				assert(p2.m_logical_offset == p.m_logical_offset + p.m_index);
+				assert(is_known(p.m_physical_offset));
 			} else {
-				p.m_physical_offset = p2.m_physical_offset;
+				assert(p.m_index == p2.m_index);
+				assert(p.m_logical_offset == p2.m_logical_offset);
+				assert(p.m_block == p2.m_block);
+			}
+
+			b->m_physical_offset = p2.m_physical_offset;
+			assert(is_known(b->m_physical_offset));
+		} else {
+			assert(rel != nullptr);
+
+			if (is_known(rel->m_physical_offset)) {
+				if (find_next) {
+					// rel is previous block
+					if (is_known(rel->m_physical_size)) {
+						b->m_physical_offset = rel->m_physical_offset + rel->m_physical_size;
+					}
+				} else {
+					// rel is next block
+					if (is_known(rel->m_prev_physical_size)) {
+						b->m_physical_offset = rel->m_physical_offset - rel->m_prev_physical_size;
+					}
+				}
+			}
+
+			if (!is_known(b->m_physical_offset)) {
+				// If the physical offset is still unknown,
+				// it means that we must be waiting for the previous block
+				// to find its physical size so it can calculate our offset
+				// This will happen when it is written to disk
+				assert(find_next);
 			}
 		}
-		buff->m_physical_offset = p.m_physical_offset;
-	} else {
-		buff->m_physical_offset = p.m_physical_offset;
-	}
-	buff->m_logical_offset = p.m_logical_offset;
-	buff->m_logical_size = no_block_size;
-	buff->m_serialized_size = no_block_size;
-	buff->m_usage = 1;
-	buff->m_io = false;
-	buff->m_maximal_logical_size = block_size() / m_item_size;
-	m_block_map.emplace(buff->m_block, buff);
-
-	// If we have to read the previous block we must know its offset
-	if (!find_next) {
-		if (!is_known(buff->m_physical_offset)) {
-			log_info() << "Need to know offset for " << *buff << ", next block is " << *rel << "\n";
-		}
-		assert(is_known(buff->m_physical_offset));
 	}
 
-	// If we don't know this blocks offset,
-	// the previous block must exist.
-	// When we popped the available block, we had to unlock the file lock,
-	// so the predecessor block might be done now, without having updated this blocks offset,
-	// as this block was only just added to the block_map and so we need to update that now.
-	// If not it will be updated later when the previous block is written to disk.
-	if (!is_known(buff->m_physical_offset)) {
-		assert(rel != nullptr);
+	m_block_map.emplace(b->m_block, b);
 
-		buff->m_physical_offset = get_next_physical_offset(l, rel);
-
-		if (is_known(buff->m_physical_offset)) {
-			log_info() << "\nUPDATED " << p.m_block << "\n\n";
-		}
-	}
+	update_related_physical_sizes(l, b);
 
 	// If empty block at end of file
 	if (p.m_block == m_blocks) {
-		assert(is_known(buff->m_logical_offset));
+		assert(is_known(b->m_logical_offset));
 		++m_blocks;
-		buff->m_logical_size = 0;
-		buff->m_serialized_size = 0;
+		b->m_logical_size = 0;
+		b->m_serialized_size = 0;
 	} else {
-		log_info() << "FILE  read       " << *buff << std::endl;
+		log_info() << "FILE  read       " << *b << std::endl;
 		//We need to read stuff
 		{
 			m_job_count++;
 
 			job j;
 			j.type = job_type::read;
-			j.buff = buff;
+			j.io_block = b;
 			j.file = this;
-			buff->m_usage++;
-			assert(!buff->m_io);
-			buff->m_io = true;
-			//log_info() << "read block " << *buff << std::endl;
+			b->m_usage++;
+			assert(!b->m_io);
+			b->m_io = true;
 			jobs.push(j);
 			job_cond.notify_all();
 		}
 
-		while (buff->m_io) buff->m_cond.wait(l);
+		while (b->m_io) b->m_cond.wait(l);
 	}
 
 	if (p.m_block + 1 == m_blocks)
-		m_last_block = buff;
+		m_last_block = b;
 
-	return buff;
+	return b;
 }
 	
 
-block * file_impl::get_successor_block(lock_t & l, block * t) {
+block * file_impl::get_successor_block(lock_t & l, block * b) {
 	stream_position p;
-	p.m_block = t->m_block + 1;
+	p.m_block = b->m_block + 1;
 	p.m_index = 0;
-	p.m_logical_offset = t->m_logical_offset + t->m_maximal_logical_size;
-	p.m_physical_offset = get_next_physical_offset(l, t);
-	return get_block(l, p, true, t);
+	p.m_logical_offset = b->m_logical_offset + b->m_maximal_logical_size;
+	p.m_physical_offset = no_file_size;
+	return get_block(l, p, true, b);
 }
 
-block * file_impl::get_predecessor_block(lock_t & l, block * t) {
+block * file_impl::get_predecessor_block(lock_t & l, block * b) {
 	stream_position p;
-	p.m_block = t->m_block - 1;
+	p.m_block = b->m_block - 1;
 	p.m_index = 0;
 	// We can't assume that all blocks have same max logical size,
 	// because of serialization
-	p.m_logical_offset = direct()? t->m_logical_offset - t->m_maximal_logical_size: no_file_size;
-	p.m_physical_offset = get_prev_physical_offset(l, t);
-	return get_block(l, p, false, t);
+	p.m_logical_offset = direct()? b->m_logical_offset - b->m_maximal_logical_size: no_file_size;
+	p.m_physical_offset = no_file_size;
+	return get_block(l, p, false, b);
 }
 
-void file_impl::free_readahead_block(lock_t & l, block * t) {
-	if (t == nullptr) return;
-	assert(t->m_readahead_usage != 0);
-	t->m_readahead_usage--;
-	free_block(l, t);
+void file_impl::free_readahead_block(lock_t & l, block * b) {
+	if (b == nullptr) return;
+	assert(b->m_readahead_usage != 0);
+	b->m_readahead_usage--;
+	free_block(l, b);
 }
 
-void file_impl::free_block(lock_t & l, block * t) {
-	if (t == nullptr) return;
-	assert(t->m_usage != 0);
-	--t->m_usage;
+void file_impl::free_block(lock_t & l, block * b) {
+	if (b == nullptr) return;
+	assert(b->m_usage != 0);
+	--b->m_usage;
 
 	// We should only write a block to disk if the following are all true:
 	// - It should be dirty.
@@ -586,29 +616,29 @@ void file_impl::free_block(lock_t & l, block * t) {
 	//   - Its usage is 0
 	//   - It is full and the file is not direct. In this case we need to write it
 	//     to get the next blocks physical size.
-	if (t->m_dirty &&
-		t->m_logical_size != 0 &&
-		(t->m_usage == 0 || (!direct() && t->m_logical_size == t->m_maximal_logical_size))) {
+	if (b->m_dirty &&
+		b->m_logical_size != 0 &&
+		(b->m_usage == 0 || (!direct() && b->m_logical_size == b->m_maximal_logical_size))) {
 		assert(m_outer->is_writable());
 
 		if (direct()) {
-			t->m_physical_size = m_item_size * t->m_logical_size + 2 * sizeof(block_header);
-			update_related_physical_sizes(l, t);
+			b->m_physical_size = m_item_size * b->m_logical_size + 2 * sizeof(block_header);
+			update_related_physical_sizes(l, b);
 		}
 
-		log_info() << "      free block " << *t << " write" << std::endl;
+		log_info() << "      free block " << *b << " write" << std::endl;
 
 		m_job_count++;
 
 		// Write dirty block
 		job j;
 		j.type = job_type::write;
-		j.buff = t;
+		j.io_block = b;
 		j.file = this;
-		t->m_usage++;
-		t->m_dirty = false;
-		assert(!t->m_io);
-		t->m_io = true;
+		b->m_usage++;
+		b->m_dirty = false;
+		assert(!b->m_io);
+		b->m_io = true;
 		//log_info() << "write block " << *t << std::endl;
 		jobs.push(j);
 		job_cond.notify_all();
@@ -616,53 +646,53 @@ void file_impl::free_block(lock_t & l, block * t) {
 		return;
 	}
 
-	if (t->m_usage != 0) return;
+	if (b->m_usage != 0) return;
 
-	if (is_known(t->m_physical_offset)) {
-		log_info() << "      free block " << *t << " avail" << std::endl;
+	if (is_known(b->m_physical_offset)) {
+		log_info() << "      free block " << *b << " avail" << std::endl;
 		//log_info() << "avail block " << *t << std::endl;
 
-		push_available_block(t);
+		push_available_block(b);
 
 		// If this is the last block and it's size is 0
 		// We shouldn't count this block and we don't want to reuse it later
-		if (m_last_block == t && t->m_logical_size == 0) {
+		if (m_last_block == b && b->m_logical_size == 0) {
 			m_blocks--;
-			kill_block(l, t);
+			kill_block(l, b);
 		}
 	}
 }
 
-void file_impl::kill_block(lock_t & l, block * t) {
-	log_info() << "      kill block " << *t << std::endl;
-	assert(t->m_usage == 0);
-	assert(t->m_file == this);
-	assert(is_known(t->m_logical_offset));
-	assert(is_known(t->m_physical_offset));
-	assert(is_known(t->m_logical_size));
-	assert(is_known(t->m_physical_size) || t->m_logical_size == 0);
-	assert(!m_serialized || is_known(t->m_serialized_size));
+void file_impl::kill_block(lock_t & l, block * b) {
+	log_info() << "      kill block " << *b << std::endl;
+	assert(b->m_usage == 0);
+	assert(b->m_file == this);
+	assert(is_known(b->m_logical_offset));
+	assert(is_known(b->m_physical_offset));
+	assert(is_known(b->m_logical_size));
+	assert(is_known(b->m_physical_size) || b->m_logical_size == 0);
+	assert(!m_serialized || is_known(b->m_serialized_size));
 	// The predecessor to this block might have appeared after writing this block
 	// so we need to tell it our size, so that we can read_back later
-	update_related_physical_sizes(l, t);
+	update_related_physical_sizes(l, b);
 
 	if (m_serialized)
-		m_outer->do_destruct(t->m_data, t->m_logical_size);
+		m_outer->do_destruct(b->m_data, b->m_logical_size);
 
 	// If the last block is killed, we need to set m_end_position
-	if (t == m_last_block) {
+	if (b == m_last_block) {
 		stream_position p;
-		p.m_block = t->m_block;
-		p.m_index = t->m_logical_size;
-		p.m_logical_offset = t->m_logical_offset;
-		p.m_physical_offset = t->m_physical_offset;
+		p.m_block = b->m_block;
+		p.m_index = b->m_logical_size;
+		p.m_logical_offset = b->m_logical_offset;
+		p.m_physical_offset = b->m_physical_offset;
 
 		m_end_position = p;
 		m_last_block = nullptr;
 	}
 
-	size_t c = m_block_map.erase(t->m_block);
+	size_t c = m_block_map.erase(b->m_block);
 	assert(c == 1);
 	unused(c);
-	t->m_file = nullptr;
+	b->m_file = nullptr;
 }

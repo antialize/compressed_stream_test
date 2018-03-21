@@ -125,10 +125,10 @@ stream_impl::~stream_impl() {
 
 void stream_impl::next_block() {
 	lock_t lock(job_mutex);
-	block * buff = m_cur_block;
-	if (buff == nullptr) m_cur_block = m_file->get_first_block(lock);
-	else m_cur_block = m_file->get_successor_block(lock, buff);
-	m_file->free_block(lock, buff);
+	block * b = m_cur_block;
+	if (b == nullptr) m_cur_block = m_file->get_first_block(lock);
+	else m_cur_block = m_file->get_successor_block(lock, b);
+	m_file->free_block(lock, b);
 	m_outer->m_cur_index = 0;
 	m_outer->m_block = m_cur_block;
 
@@ -141,10 +141,10 @@ void stream_impl::next_block() {
 
 void stream_impl::prev_block() {
 	lock_t lock(job_mutex);
-	block * buff = m_cur_block;
-	assert(buff);
-	m_cur_block = m_file->get_predecessor_block(lock, buff);
-	m_file->free_block(lock, buff);
+	block * b = m_cur_block;
+	assert(b);
+	m_cur_block = m_file->get_predecessor_block(lock, b);
+	m_file->free_block(lock, b);
 	m_outer->m_cur_index = m_cur_block->m_logical_size;
 	m_outer->m_block = m_cur_block;
 
