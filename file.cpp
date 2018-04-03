@@ -270,7 +270,7 @@ void file_base_base::truncate(stream_position pos) {
 	}
 
 	// ... then kill all others
-	m_impl->foreach_block([&](block * b){
+	m_impl->foreach_block([&](block * b) {
 		if (b->m_block > pos.m_block) {
 			assert(b->m_readahead_usage == 0);
 			if (b->m_usage != 0) {
@@ -332,7 +332,11 @@ void file_base_base::truncate(stream_position pos) {
 				m_impl->free_block(l, new_last_block);
 				return;
 			} else {
-				assert(!new_last_block->m_dirty);
+				assert(!new_last_block->m_dirty || (new_last_block == old_last_block && direct()));
+				if (direct()) {
+					// We don't need to update related physical sizes for direct files
+					new_last_block->m_physical_size = m_impl->m_item_size * new_last_block->m_logical_size + 2 * sizeof(block_header);
+				}
 				truncate_size = new_last_block->m_physical_offset + new_last_block->m_physical_size;
 			}
 		}
@@ -412,6 +416,8 @@ void update_if_known(T1 & val1, T2 & val2) {
 }
 
 void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
+	if (direct()) return;
+
 	if (b->m_block != 0) { // Not first block
 		auto pb = get_available_block(l, b->m_block - 1);
 		if (pb) {
@@ -619,8 +625,8 @@ void file_impl::free_block(lock_t & l, block * b) {
 		assert(m_outer->is_writable());
 
 		if (direct()) {
+			// We don't need to update related physical sizes for direct files
 			b->m_physical_size = m_item_size * b->m_logical_size + 2 * sizeof(block_header);
-			update_related_physical_sizes(l, b);
 		}
 
 		log_info() << "      free block " << *b << " write" << std::endl;
