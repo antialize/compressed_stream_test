@@ -122,30 +122,30 @@ void process_run() {
 			}
 
 
-			file_size_t off = physical_offset;
-			file_size_t size = physical_size;
+			file_size_t read_off = physical_offset;
+			file_size_t read_size = physical_size;
 			bool read_prev_header = block != 0 && !is_known(prev_physical_size);
 			if (read_prev_header) { // NOT THE FIRST BLOCK
-				off -= sizeof(block_header);
-				size += sizeof(block_header);
+				read_off -= sizeof(block_header);
+				read_size += sizeof(block_header);
 			}
 
 			bool is_last_block = block + 1 == blocks;
 			bool read_next_header = !is_last_block && !is_known(next_physical_size);
 			if (read_next_header) {
-				size += sizeof(block_header);
+				read_size += sizeof(block_header);
 			}
 
-			log_info() << "JOB " << id << " pread      " << *b << " from " << off << " - " << (off + size - 1) << std::endl;
+			log_info() << "JOB " << id << " pread      " << *b << " from " << read_off << " - " << (read_off + read_size - 1) << std::endl;
 
 			char * physical_data = buffer1;
 			char * uncompressed_data = buffer2;
 
-			auto r = _pread(file->m_fd, physical_data, size, off);
-			assert(r == static_cast<ssize_t>(size));
+			auto r = _pread(file->m_fd, physical_data, read_size, read_off);
+			assert(r == static_cast<ssize_t>(read_size));
 			unused(r);
 #ifndef NDEBUG
-			total_bytes_read += size;
+			total_bytes_read += read_size;
 #endif
 
 			if (read_prev_header) {
@@ -154,7 +154,6 @@ void process_run() {
 				memcpy(&h, physical_data, sizeof(block_header));
 				physical_data += sizeof(block_header);
 				prev_physical_size = h.physical_size;
-				std::cerr << "Physical size of " << block - 1 << " = " << prev_physical_size << "\n";
 			}
 
 			file_size_t logical_offset;
@@ -172,10 +171,11 @@ void process_run() {
 
 			char * compressed_data = physical_data;
 
-			physical_data += physical_size;
+			physical_data += physical_size - sizeof(block_header);
 			if (read_next_header) {
 				block_header h;
 				memcpy(&h, physical_data, sizeof(block_header));
+				assert(h.logical_offset == logical_offset + logical_size);
 				physical_data += sizeof(block_header);
 				next_physical_size = h.physical_size;
 			}
@@ -214,7 +214,7 @@ void process_run() {
 
 			// If the file is serialized and the current block is not
 			// the last one we have to override its maximal_logical_size here
-			// to get update_related_physical_sizes to work as expected
+			// as we can only append
 			if (file->m_serialized && !is_last_block) {
 				b->m_maximal_logical_size = logical_size;
 			}
