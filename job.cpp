@@ -109,8 +109,6 @@ void process_run() {
 			assert(is_known(physical_offset));
 
 			if (!is_known(physical_size)) {
-				std::cerr << "====> Unknown physical size: " << *b << std::endl;
-
 				block_header h;
 				auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 				assert(r == sizeof(block_header));

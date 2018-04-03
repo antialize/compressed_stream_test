@@ -443,7 +443,6 @@ void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
 			if (is_known(b->m_physical_offset) && is_known(b->m_physical_size)) {
 				auto next_offset = b->m_physical_offset + b->m_physical_size;
 				assert_known_implies_equal(nb->m_physical_offset, next_offset);
-				std::cerr << "Set physical offset " << nb->m_block << " to " << next_offset << "\n";
 				nb->m_physical_offset = next_offset;
 			}
 
