@@ -620,6 +620,11 @@ int open_truncate_close() {
 	f.close();
 
 	f.open(TMP_FILE, compression_flag);
+	{
+		auto s = f.stream();
+		for (block_size_t i = 0; i < block_size(); i++)
+			ensure((uint8_t)i, s.read(), "read");
+	}
 
 	return EXIT_SUCCESS;
 }
