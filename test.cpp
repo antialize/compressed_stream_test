@@ -808,6 +808,16 @@ int read_seq() {
 				ensure(i, s.read(), "read");
 		}
 	}
+	{
+		file<int> f;
+		f.open(TMP_FILE, open_flags::no_readahead);
+		{
+			auto s = f.stream();
+			s.seek(0, whence::end);
+			for (int i = 10 * b - 1; i >= 0; i--)
+				ensure(i, s.read_back(), "read");
+		}
+	}
 
 	return EXIT_SUCCESS;
 }
