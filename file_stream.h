@@ -67,10 +67,10 @@ public:
 	block_size_t m_serialized_size;
 	bool m_dirty;
 
-	// We make room for a block_header before and after
+	// We make room for two block_header before and after
 	// the actual data
-	char _buffer[block_size() + 2 * sizeof(block_header)];
-	char * m_data = _buffer + sizeof(block_header);
+	char _buffer[block_size() + 4 * sizeof(block_header)];
+	char * m_data = _buffer + 2 * sizeof(block_header);
 };
 
 struct stream_position {

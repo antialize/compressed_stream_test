@@ -51,8 +51,8 @@ std::ostream & operator <<(std::ostream & o, const job_type t) {
 void process_run() {
 	auto id = tid.fetch_add(1);
 
-	const size_t extra_before_buffer = sizeof(block_header);
-	const size_t max_buffer_size = snappy::MaxCompressedLength(max_serialized_block_size()) + 2*sizeof(block_header);
+	const size_t extra_before_buffer = 2 * sizeof(block_header);
+	const size_t max_buffer_size = snappy::MaxCompressedLength(max_serialized_block_size()) + 2 * sizeof(block_header);
 	char * _data1 = new char[extra_before_buffer + max_buffer_size];
 	char * _data2 = new char[extra_before_buffer + max_buffer_size];
 
@@ -138,8 +138,21 @@ void process_run() {
 
 			log_info() << "JOB " << id << " pread      " << *b << " from " << read_off << " - " << (read_off + read_size - 1) << std::endl;
 
-			char * physical_data = buffer1;
-			char * uncompressed_data = buffer2;
+			char * physical_data;
+			if (file->direct()) {
+				physical_data = b->m_data;
+			} else {
+				physical_data = buffer1;
+			}
+
+			physical_data -= (read_prev_header? 2: 1) * sizeof(block_header);
+
+			char * uncompressed_data;
+			if (file->m_compressed && !file->m_serialized) {
+				uncompressed_data = b->m_data;
+			} else {
+				uncompressed_data = buffer2;
+			}
 
 			auto r = _pread(file->m_fd, physical_data, read_size, read_off);
 			assert(r == static_cast<ssize_t>(read_size));
@@ -201,8 +214,6 @@ void process_run() {
 				block_size_t unserialized_size;
 				file->do_unserialize(uncompressed_data, logical_size, b->m_data, &unserialized_size);
 				assert(unserialized_size == logical_size * file->m_item_size);
-			} else {
-				memcpy(b->m_data, uncompressed_data, uncompressed_size);
 			}
 
 			log_info() << "Read " << *b << '\n'
@@ -334,6 +345,8 @@ void process_run() {
 		}
 		break;
 		case job_type::trunc: {
+			assert(is_known(j.truncate_size));
+
 			int r = ::ftruncate(file->m_fd, j.truncate_size);
 			assert(r == 0);
 			unused(r);
