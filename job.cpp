@@ -70,12 +70,17 @@ void process_run() {
 			break;
 		}
 		block * b = nullptr;
+		log_info() << "JOB " << id << " pop job    " << j.type << " ";
 		if (j.type == job_type::trunc) {
-			log_info() << "JOB " << id << " pop job    " << j.type << " " << j.truncate_size << '\n';
+			log_info() << j.truncate_size;
 		} else {
 			b = j.io_block;
-			log_info() << "JOB " << id << " pop job    " << j.type << " " << b->m_logical_size << '\n';
+			log_info() << *b;
+
+			if (j.type == job_type::write)
+				log_info() << " " << b->m_logical_size;
 		}
+		log_info() << "\n";
 
 		jobs.pop();
 
