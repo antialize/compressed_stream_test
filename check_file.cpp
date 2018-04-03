@@ -130,10 +130,11 @@ bool check_file(const char * fname, bool log, bool dumpcontents) {
 
 		if (dumpcontents) {
 			size_t s = h1.physical_size - 2 * header_size;
-			unsigned char buf[s];
+			unsigned char * buf = new unsigned char[s];
 			_read(fd, buf, s);
 			hexdump(buf, s);
 			std::cout << '\n';
+			delete[] buf;
 		} else {
 			::lseek(fd, off, SEEK_SET);
 		}

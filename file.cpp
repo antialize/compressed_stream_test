@@ -399,7 +399,7 @@ void assert_known_implies_equal(const T1 & val1, const T2 & val2) {
 	unused(val1);
 	unused(val2);
 	assert(!(is_known(val1) && is_known(val2)) || val1 == val2);
-};
+}
 
 template <typename T1, typename T2>
 void update_if_known(T1 & val1, T2 & val2) {

@@ -33,13 +33,13 @@ inline int64_t get_total_bytes_written() { return -1; }
 #endif
 
 template <typename FS>
-void ensure_open_write(FS &) {};
+void ensure_open_write(FS &) {}
 template <typename FS>
-void ensure_open_write_reverse(FS &) {};
+void ensure_open_write_reverse(FS &) {}
 template <typename FS>
-void ensure_open_read(FS &) {};
+void ensure_open_read(FS &) {}
 template <typename FS>
-void ensure_open_read_reverse(FS &) {};
+void ensure_open_read_reverse(FS &) {}
 
 constexpr size_t MB = 1024 * 1024;
 constexpr size_t file_size = SPEED_TEST_FILE_SIZE_MB * MB;

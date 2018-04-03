@@ -699,7 +699,6 @@ int move_file_object() {
 }
 
 class non_serializable {
-	int a;
 };
 template <typename D>
 void serialize(D & dst, const non_serializable & o) = delete;
