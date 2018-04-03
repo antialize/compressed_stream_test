@@ -482,18 +482,15 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 	l.unlock();
 	b = pop_available_block();
 	l.lock();
-	
-	b->m_file = this;
-	b->m_dirty = false;
-	b->m_block = p.m_block;
+
 	b->m_logical_offset = p.m_logical_offset;
-	b->m_logical_size = no_block_size;
-	b->m_serialized_size = no_block_size;
-	b->m_usage = 1;
-	b->m_io = false;
 	b->m_maximal_logical_size = block_size() / m_item_size;
 
-	// Set physical offset if known somehow
+	b->m_block = p.m_block;
+	b->m_file = this;
+	b->m_usage = 1;
+
+	// set physical offset if known somehow
 	b->m_physical_offset = p.m_physical_offset;
 	if (!is_known(b->m_physical_offset)) {
 		if (direct()) {

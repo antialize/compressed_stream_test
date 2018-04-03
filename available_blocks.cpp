@@ -112,19 +112,22 @@ block * pop_available_block() {
 			lock_t l(job_mutex);
 			b->m_file->kill_block(l, b);
 		}
-		
-		b->m_file = nullptr;
-		b->m_block = 0;
-		b->m_dirty = false;
-		b->m_usage = 0;
-		b->m_readahead_usage = 0;
-		b->m_physical_offset = no_file_size;
-		b->m_physical_size = no_block_size;
-		b->m_prev_physical_size = no_block_size;
-		b->m_next_physical_size = no_block_size;
+
 		b->m_logical_offset = no_file_size;
 		b->m_logical_size = no_block_size;
+		b->m_maximal_logical_size = no_block_size;
 		b->m_serialized_size = no_block_size;
+		b->m_dirty = false;
+
+		b->m_block = 0;
+		b->m_file = nullptr;
+		b->m_usage = 0;
+		b->m_readahead_usage = 0;
+		b->m_io = false;
+		b->m_prev_physical_size = no_block_size;
+		b->m_physical_size = no_block_size;
+		b->m_next_physical_size = no_block_size;
+		b->m_physical_offset = no_file_size;
 		log_info() << "AVAIL pop        " << *b << std::endl;
 		return b;
 	}
