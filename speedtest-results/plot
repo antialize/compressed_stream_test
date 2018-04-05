@@ -104,7 +104,7 @@ def generate_plots(timings, config, output_dir):
 					#print(xv, mean)
 
 					#ax.errorbar([xv], [avg], yerr=[[avg - min(yvs)], [max(yvs) - avg]], fmt='none', capsize=10, barsabove=True, color=color)
-			if config['min_same_x']:
+			if config.get('min_same_x'):
 				for xv, yvs in same_x.items():
 					if len(yvs) == 1:
 						continue
@@ -203,9 +203,6 @@ if __name__ == '__main__':
 		'timing_jobs': {
 			'X_axis': ('job threads', lambda r: r['job_threads']),
 		},
-		'timing_single_merge': {
-			'X_axis': ('timestamp', lambda r: r['timestamp']),
-		},
 		'timing_single_merge_jobs': {
 			'X_axis': ('job threads', lambda r: r['job_threads']),
 		},
@@ -218,6 +215,18 @@ if __name__ == '__main__':
 			'mean_same_x': True,
 		},
 		'timing_read_write_old': {
+			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
+			'min_same_x': True,
+		},
+		'timing_read_write_new': {
+			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
+			'min_same_x': True,
+		},
+		'timing_single_merge': {
+			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
+			'min_same_x': True,
+		},
+		'timing_single_merge_new': {
 			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
 			'min_same_x': True,
 		},
