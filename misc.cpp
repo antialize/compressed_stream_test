@@ -26,28 +26,34 @@ void file_stream_init(size_t threads) {
 	void_block.m_maximal_logical_size = 0;
 	void_block.m_serialized_size = 0;
 
-	for (size_t i=0; i < available_blocks(threads); ++i)
-		create_available_block();
-	
+	{
+		lock_t l(global_mutex);
+		for (size_t i = 0; i < available_blocks(threads); ++i)
+			create_available_block(l);
+	}
+
 	for (size_t i=0; i < threads; ++i)
 		process_threads.emplace_back(process_run);
 }
 
 void file_stream_term() {
+	lock_t l(global_mutex);
 	{
-		lock_t l(job_mutex);
 		job j;
 		j.type = job_type::term;
 		j.file = nullptr;
 		j.io_block = nullptr;
 		jobs.push(j);
-		job_cond.notify_all();
+		global_cond.notify_all();
 	}
+	l.unlock();
+
 	for (auto & t: process_threads)
 		t.join();
 
-	for (size_t i=0; i < available_blocks(process_threads.size()); ++i)
-		destroy_available_block();
+	l.lock();
+	for (size_t i = 0; i < available_blocks(process_threads.size()); ++i)
+		destroy_available_block(l);
 
 #ifndef NDEBUG
 	assert(all_blocks.size() == 0);

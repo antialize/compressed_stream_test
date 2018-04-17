@@ -6,8 +6,6 @@
 #include <cassert>
 
 namespace {
-mutex_t available_blocks_mutex;
-std::condition_variable available_block_cond;
 std::unordered_set<block *> available_blocks;
 }
 
@@ -51,13 +49,12 @@ void print_debug() {
 }
 #endif
 
-void create_available_block() {
-	lock_t l(available_blocks_mutex);
+void create_available_block(lock_t &) {
 	auto b = new block();
 	b->m_idx = ctr++;
 	b->m_file = nullptr;
 	available_blocks.insert(b);
-	available_block_cond.notify_one();
+	global_cond.notify_all();
 #ifndef NDEBUG
 	all_blocks.insert(b);
 #endif
@@ -65,10 +62,10 @@ void create_available_block() {
 	log_info() << "AVAIL create     " << *b << std::endl;
 }
 
-block * pop_available_block();
+block * pop_available_block(lock_t &);
 
-void destroy_available_block() {
-	auto b = pop_available_block();
+void destroy_available_block(lock_t & l) {
+	auto b = pop_available_block(l);
 	assert(b->m_usage == 0);
 	log_info() << "AVAIL destroy    " << *b << std::endl;
 #ifndef NDEBUG
@@ -78,38 +75,30 @@ void destroy_available_block() {
 	delete b;
 }
 
-void push_available_block(block * b) {
-	lock_t l(available_blocks_mutex);
-
+void push_available_block(lock_t &, block * b) {
 #ifndef NDEBUG
 	assert(available_blocks.count(b) == 0);
 #endif
 
 	available_blocks.insert(b);
-	available_block_cond.notify_one();
+	global_cond.notify_all();
 	log_info() << "AVAIL push       " << *b << std::endl;
 }
 
-void make_block_unavailable(block * b) {
-	lock_t l(available_blocks_mutex);
+void make_block_unavailable(lock_t &, block * b) {
 	size_t res = available_blocks.erase(b);
 	assert(res == 1);
 	unused(res);
 }
 
-block * pop_available_block() {
+block * pop_available_block(lock_t & l) {
 	while (true) {
-		block * b = nullptr;
-		{
-			lock_t l(available_blocks_mutex);
-			while (available_blocks.empty()) available_block_cond.wait(l);
-			auto it = available_blocks.begin();
-			b = *it;
-			available_blocks.erase(it);
-		}
+		while (available_blocks.empty()) global_cond.wait(l);
+		auto it = available_blocks.begin();
+		block * b = *it;
+		available_blocks.erase(it);
 		if (b->m_file) {
 			//log_info() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
-			lock_t l(job_mutex);
 			b->m_file->kill_block(l, b);
 		}
 

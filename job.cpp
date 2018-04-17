@@ -24,8 +24,8 @@ std::map<size_t, std::map<block_idx_t, std::pair<file_size_t, file_size_t>>> blo
 #endif
 
 std::queue<job> jobs;
-mutex_t job_mutex;
-std::condition_variable job_cond;
+mutex_t global_mutex;
+cond_t global_cond;
 
 std::atomic_uint tid;
 
@@ -59,10 +59,10 @@ void process_run() {
 	char * buffer1 = _data1 + extra_before_buffer;
 	char * buffer2 = _data2 + extra_before_buffer;
 
-	lock_t job_lock(job_mutex);
+	lock_t job_lock(global_mutex);
 	log_info() << "JOB " << id << " start" << std::endl;
 	while (true) {
-		while (jobs.empty()) job_cond.wait(job_lock);
+		while (jobs.empty()) global_cond.wait(job_lock);
 		auto j = jobs.front();
 		// Don't pop the job as all threads should terminate
 		if (j.type == job_type::term) {
@@ -239,8 +239,6 @@ void process_run() {
 
 			file->update_related_physical_sizes(job_lock, b);
 
-			b->m_cond.notify_all();
-
 			file->free_block(job_lock, b);
 
 #ifndef NDEBUG
@@ -369,8 +367,7 @@ void process_run() {
 		}
 
 		file->m_job_count--;
-		file->m_job_cond.notify_one();
-		if (b) b->m_cond.notify_all();
+		global_cond.notify_all();
 	}
 	delete[] _data1;
 	delete[] _data2;

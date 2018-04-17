@@ -16,6 +16,9 @@ typedef std::mutex mutex_t;
 typedef std::unique_lock<mutex_t> lock_t;
 typedef std::condition_variable cond_t;
 
+extern mutex_t global_mutex;
+extern cond_t global_cond;
+
 constexpr block_idx_t no_block_idx = std::numeric_limits<block_idx_t>::max();
 constexpr file_size_t no_file_size = std::numeric_limits<file_size_t>::max();
 constexpr block_size_t no_block_size = std::numeric_limits<block_size_t>::max();
@@ -31,12 +34,11 @@ bool is_known(const std::atomic<T> & val) {
 }
 
 class block;
-void create_available_block();
-block * pop_available_block();
-void make_block_unavailable(block * b);
-void destroy_available_block();
-void push_available_block(block * b);
-block * pop_available_block();
+void create_available_block(lock_t & l);
+block * pop_available_block(lock_t & l);
+void make_block_unavailable(lock_t & l, block * b);
+void destroy_available_block(lock_t & l);
+void push_available_block(lock_t & l, block * b);
 
 struct file_header {
 	static const uint64_t magicConst = 0x454c494645495054ull;
@@ -64,7 +66,6 @@ public:
 	file_impl * m_file;
 	uint32_t m_usage;
 	uint32_t m_readahead_usage;
-	cond_t m_cond;
 	bool m_io; // false = owned by main thread, true = owned by job thread
 
 	block_size_t m_prev_physical_size, m_physical_size, m_next_physical_size;
@@ -101,7 +102,6 @@ public:
 	// Tells how many jobs remain to be performed on the file.
 	// We can only close a file when the job count is 0.
 	uint32_t m_job_count;
-	cond_t m_job_cond;
 
 	block_size_t m_item_size;
 	std::map<block_idx_t, block *> m_block_map;
@@ -138,8 +138,8 @@ public:
 		return stream_position{0, 0, 0, sizeof(file_header) + m_outer->max_user_data_size()};
 	}
 
-	void block_ref_inc(lock_t &, block * b) const noexcept {
-		if (b->m_usage == 0) make_block_unavailable(b);
+	void block_ref_inc(lock_t & l, block * b) const noexcept {
+		if (b->m_usage == 0) make_block_unavailable(l, b);
 		b->m_usage++;
 	}
 
@@ -148,7 +148,7 @@ public:
 
 		// Make sure m_last_block is not repurposed before, we can get its info
 		block_ref_inc(l, m_last_block);
-		while (m_last_block->m_io) m_last_block->m_cond.wait(l);
+		while (m_last_block->m_io) global_cond.wait(l);
 
 		stream_position p;
 		p.m_block = m_last_block->m_block;
@@ -228,6 +228,6 @@ struct job {
 void process_run();
 
 extern std::queue<job> jobs;
-extern mutex_t job_mutex;
-extern std::condition_variable job_cond;
+extern mutex_t global_mutex;
+extern std::condition_variable global_cond;
 extern block_base void_block;

@@ -91,7 +91,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	if (fd == -1)
 		throw exception("Failed to open file: " + std::string(std::strerror(errno)));
 
-	lock_t l(job_mutex);
+	lock_t l(global_mutex);
 	m_impl->m_fd = fd;
 
 #ifndef NDEBUG
@@ -173,10 +173,10 @@ void file_base_base::close() {
 	if (!is_open())
 		throw exception("File is already closed");
 
-	lock_t l(job_mutex);
+	lock_t l(global_mutex);
 
 	// Wait for all jobs to be completed for this file
-	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+	while (m_impl->m_job_count) global_cond.wait(l);
 
 	if (!m_impl->m_streams.empty())
 		throw exception("Tried to close a file with open streams");
@@ -250,14 +250,14 @@ const std::string &file_base_base::path() const noexcept {
 
 void file_base_base::truncate(stream_position pos) {
 	assert(is_open() && is_writable());
-	lock_t l(job_mutex);
+	lock_t l(global_mutex);
 
 	block * new_last_block = m_impl->get_block(l, pos);
 	assert(new_last_block->m_logical_offset == pos.m_logical_offset);
 	assert(is_known(new_last_block->m_physical_offset));
 
 	// Wait for all jobs to be completed for this file
-	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+	while (m_impl->m_job_count) global_cond.wait(l);
 
 	// Make sure no one uses blocks past this one and kill them all
 	// First free all readahead blocks...
@@ -284,7 +284,7 @@ void file_base_base::truncate(stream_position pos) {
 	// Write the new last block if needed
 	new_last_block->m_usage++;
 	m_impl->free_block(l, new_last_block);
-	while (new_last_block->m_io) new_last_block->m_cond.wait(l);
+	while (new_last_block->m_io) global_cond.wait(l);
 
 	block * old_last_block = m_impl->m_last_block;
 	unused(old_last_block);
@@ -351,10 +351,10 @@ void file_base_base::truncate(stream_position pos) {
 		j.file = m_impl;
 		j.truncate_size = truncate_size;
 		jobs.push(j);
-		job_cond.notify_all();
+		global_cond.notify_all();
 	}
 
-	while (m_impl->m_job_count) m_impl->m_job_cond.wait(l);
+	while (m_impl->m_job_count) global_cond.wait(l);
 
 	// We can only free the new last block after the file has been truncated
 	m_impl->free_block(l, new_last_block);
@@ -363,7 +363,7 @@ void file_base_base::truncate(stream_position pos) {
 void file_base_base::truncate(file_size_t offset) {
 	stream_position p;
 	{
-		lock_t l(job_mutex);
+		lock_t l(global_mutex);
 		p = m_impl->position_from_offset(l, offset);
 	}
 	truncate(p);
@@ -476,7 +476,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		// even after it has released the lock.
 		// This doesn't apply to non-direct files as they are append-only
 		if (direct() && m_outer->is_writable()) {
-			while (b->m_io) b->m_cond.wait(l);
+			while (b->m_io) global_cond.wait(l);
 		}
 
 		update_related_physical_sizes(l, b);
@@ -484,9 +484,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		return b;
 	}
 	
-	l.unlock();
-	b = pop_available_block();
-	l.lock();
+	b = pop_available_block(l);
 
 	b->m_logical_offset = p.m_logical_offset;
 	b->m_maximal_logical_size = block_size() / m_item_size;
@@ -565,10 +563,10 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 			assert(!b->m_io);
 			b->m_io = true;
 			jobs.push(j);
-			job_cond.notify_all();
+			global_cond.notify_all();
 		}
 
-		while (b->m_io) b->m_cond.wait(l);
+		while (b->m_io) global_cond.wait(l);
 	}
 
 	if (p.m_block + 1 == m_blocks)
@@ -643,7 +641,7 @@ void file_impl::free_block(lock_t & l, block * b) {
 		b->m_io = true;
 		//log_info() << "write block " << *t << std::endl;
 		jobs.push(j);
-		job_cond.notify_all();
+		global_cond.notify_all();
 
 		return;
 	}
@@ -654,7 +652,7 @@ void file_impl::free_block(lock_t & l, block * b) {
 		log_info() << "      free block " << *b << " avail" << std::endl;
 		//log_info() << "avail block " << *t << std::endl;
 
-		push_available_block(b);
+		push_available_block(l, b);
 
 		// If this is the last block and it's size is 0
 		// We shouldn't count this block and we don't want to reuse it later

@@ -16,9 +16,10 @@ stream_base_base::stream_base_base(file_base_base * file_base)
 	m_impl->m_file->m_streams.insert(m_impl);
 	m_block = &void_block;
 
-	create_available_block();
+	lock_t l(global_mutex);
+	create_available_block(l);
 	if (m_impl->m_file->m_readahead)
-		create_available_block();
+		create_available_block(l);
 }
 
 stream_base_base::stream_base_base(stream_base_base && o)
@@ -94,7 +95,7 @@ stream_position stream_base_base::get_position() {
 }
 
 void stream_base_base::set_position(stream_position p) {
-	lock_t l(job_mutex);
+	lock_t l(global_mutex);
 	m_impl->set_position(l, p);
 }
 
@@ -105,18 +106,17 @@ block_base * stream_base_base::get_last_block() {
 #endif
 
 stream_impl::~stream_impl() {
+	lock_t l(global_mutex);
 	if (m_cur_block) {
-		lock_t lock(job_mutex);
-		m_file->free_block(lock, m_cur_block);
+		m_file->free_block(l, m_cur_block);
 	}
 	if (m_readahead_block) {
-		lock_t lock(job_mutex);
-		m_file->free_readahead_block(lock, m_readahead_block);
+		m_file->free_readahead_block(l, m_readahead_block);
 	}
 
-	destroy_available_block();
+	destroy_available_block(l);
 	if (m_file->m_readahead)
-		destroy_available_block();
+		destroy_available_block(l);
 
 	size_t c = m_file->m_streams.erase(this);
 	assert(c == 1);
@@ -124,7 +124,7 @@ stream_impl::~stream_impl() {
 }
 
 void stream_impl::next_block() {
-	lock_t lock(job_mutex);
+	lock_t lock(global_mutex);
 	block * b = m_cur_block;
 	if (b == nullptr) m_cur_block = m_file->get_first_block(lock);
 	else m_cur_block = m_file->get_successor_block(lock, b);
@@ -140,7 +140,7 @@ void stream_impl::next_block() {
 }
 
 void stream_impl::prev_block() {
-	lock_t lock(job_mutex);
+	lock_t lock(global_mutex);
 	block * b = m_cur_block;
 	assert(b);
 	m_cur_block = m_file->get_predecessor_block(lock, b);
@@ -171,7 +171,7 @@ void stream_impl::set_position(lock_t & l, stream_position p) {
 
 void stream_impl::seek(file_size_t offset, whence w) {
 	log_info() << "STREM seek       " << offset << std::endl;
-	lock_t l(job_mutex);
+	lock_t l(global_mutex);
 	
 	stream_position p;
 
