@@ -66,6 +66,7 @@ public:
 	file_impl * m_file;
 	uint32_t m_usage;
 	uint32_t m_readahead_usage;
+	bool m_done_reading;
 	bool m_io; // false = owned by main thread, true = owned by job thread
 
 	block_size_t m_prev_physical_size, m_physical_size, m_next_physical_size;
@@ -132,7 +133,7 @@ public:
 		return it->second;
 	}
 
-	block * get_block(lock_t & lock, stream_position p, bool find_next = true, block * rel = nullptr);
+	block * get_block(lock_t & lock, stream_position p, bool find_next = true, block * rel = nullptr, bool wait = true);
 
 	stream_position start_position() const noexcept {
 		return stream_position{0, 0, 0, sizeof(file_header) + m_outer->max_user_data_size()};
@@ -178,8 +179,8 @@ public:
 
 	block * get_first_block(lock_t & lock) {return get_block(lock, start_position());}
 	block * get_last_block(lock_t & lock) {return get_block(lock, end_position(lock));}
-	block * get_successor_block(lock_t & lock, block * block);
-	block * get_predecessor_block(lock_t & lock, block * block);
+	block * get_successor_block(lock_t & lock, block * block, bool wait = true);
+	block * get_predecessor_block(lock_t & lock, block * block, bool wait = true);
 	void free_readahead_block(lock_t & lock, block * block);
 	void free_block(lock_t & lock, block * block);
 	void kill_block(lock_t & lock, block * block);

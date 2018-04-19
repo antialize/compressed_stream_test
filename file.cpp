@@ -457,7 +457,7 @@ void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
 	}
 }
 
-block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, block * rel) {
+block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, block * rel, bool wait) {
 	log_info() << "FILE  get_block  " << p.m_block << std::endl;
 
 	block * b = get_available_block(l, p.m_block);
@@ -470,13 +470,17 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		if (b->m_block + 1 == m_blocks)
 			assert(m_last_block == b);
 
-		// If the file is direct and it is writable
-		// we must wait for it to finish writing
-		// as the write job may use the block's buffer
-		// even after it has released the lock.
-		// This doesn't apply to non-direct files as they are append-only
-		if (direct() && m_outer->is_writable()) {
-			while (b->m_io) global_cond.wait(l);
+		if (wait) {
+			while (!b->m_done_reading) global_cond.wait(l);
+
+			// If the file is direct and it is writable
+			// we must wait for it to finish writing
+			// as the write job may use the block's buffer
+			// even after it has released the lock.
+			// This doesn't apply to non-direct files as they are append-only
+			if (direct() && m_outer->is_writable()) {
+				while (b->m_io) global_cond.wait(l);
+			}
 		}
 
 		update_related_physical_sizes(l, b);
@@ -560,13 +564,16 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 			j.io_block = b;
 			j.file = this;
 			b->m_usage++;
+			b->m_done_reading = false;
 			assert(!b->m_io);
 			b->m_io = true;
 			jobs.push(j);
 			global_cond.notify_all();
 		}
 
-		while (b->m_io) global_cond.wait(l);
+		if (wait) {
+			while (b->m_io) global_cond.wait(l);
+		}
 	}
 
 	if (p.m_block + 1 == m_blocks)
@@ -576,16 +583,16 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 }
 	
 
-block * file_impl::get_successor_block(lock_t & l, block * b) {
+block * file_impl::get_successor_block(lock_t & l, block * b, bool wait) {
 	stream_position p;
 	p.m_block = b->m_block + 1;
 	p.m_index = 0;
 	p.m_logical_offset = b->m_logical_offset + b->m_maximal_logical_size;
 	p.m_physical_offset = no_file_size;
-	return get_block(l, p, true, b);
+	return get_block(l, p, true, b, wait);
 }
 
-block * file_impl::get_predecessor_block(lock_t & l, block * b) {
+block * file_impl::get_predecessor_block(lock_t & l, block * b, bool wait) {
 	stream_position p;
 	p.m_block = b->m_block - 1;
 	p.m_index = 0;
@@ -593,7 +600,7 @@ block * file_impl::get_predecessor_block(lock_t & l, block * b) {
 	// because of serialization
 	p.m_logical_offset = direct()? b->m_logical_offset - b->m_maximal_logical_size: no_file_size;
 	p.m_physical_offset = no_file_size;
-	return get_block(l, p, false, b);
+	return get_block(l, p, false, b, wait);
 }
 
 void file_impl::free_readahead_block(lock_t & l, block * b) {

@@ -228,6 +228,7 @@ void process_run() {
 				b->m_maximal_logical_size = logical_size;
 			}
 
+			b->m_done_reading = true;
 			b->m_io = false;
 
 			b->m_prev_physical_size = prev_physical_size;

@@ -112,6 +112,7 @@ block * pop_available_block(lock_t & l) {
 		b->m_file = nullptr;
 		b->m_usage = 0;
 		b->m_readahead_usage = 0;
+		b->m_done_reading = true;
 		b->m_io = false;
 		b->m_prev_physical_size = no_block_size;
 		b->m_physical_size = no_block_size;

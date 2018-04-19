@@ -134,7 +134,7 @@ void stream_impl::next_block() {
 
 	if (m_file->m_readahead && m_cur_block->m_block + 1 != m_file->m_blocks) {
 		m_file->free_readahead_block(lock, m_readahead_block);
-		m_readahead_block = m_file->get_successor_block(lock, m_cur_block);
+		m_readahead_block = m_file->get_successor_block(lock, m_cur_block, false);
 		m_readahead_block->m_readahead_usage++;
 	}
 }
@@ -150,7 +150,7 @@ void stream_impl::prev_block() {
 
 	if (m_file->m_readahead && m_cur_block->m_block != 0) {
 		m_file->free_readahead_block(lock, m_readahead_block);
-		m_readahead_block = m_file->get_predecessor_block(lock, m_cur_block);
+		m_readahead_block = m_file->get_predecessor_block(lock, m_cur_block, false);
 		m_readahead_block->m_readahead_usage++;
 	}
 }
