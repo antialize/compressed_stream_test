@@ -9,6 +9,8 @@
 #include <cassert>
 #include <cstring>
 
+void execute_read_job(lock_t & job_lock, file_impl * file, block * b);
+
 const uint64_t file_header::magicConst;
 const uint64_t file_header::versionConst;
 
@@ -483,8 +485,6 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 			}
 		}
 
-		update_related_physical_sizes(l, b);
-
 		return b;
 	}
 	
@@ -553,31 +553,30 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		++m_blocks;
 		b->m_logical_size = 0;
 		b->m_serialized_size = 0;
+
+		m_last_block = b;
 	} else {
 		log_info() << "FILE  read       " << *b << std::endl;
 		//We need to read stuff
-		{
-			m_job_count++;
 
+		m_job_count++;
+		b->m_usage++;
+		b->m_done_reading = false;
+		assert(!b->m_io);
+		b->m_io = true;
+
+		if (wait) {
+			execute_read_job(l, this, b);
+			m_job_count--;
+		} else {
 			job j;
 			j.type = job_type::read;
 			j.io_block = b;
 			j.file = this;
-			b->m_usage++;
-			b->m_done_reading = false;
-			assert(!b->m_io);
-			b->m_io = true;
 			jobs.push(j);
 			global_cond.notify_all();
 		}
-
-		if (wait) {
-			while (b->m_io) global_cond.wait(l);
-		}
 	}
-
-	if (p.m_block + 1 == m_blocks)
-		m_last_block = b;
 
 	return b;
 }

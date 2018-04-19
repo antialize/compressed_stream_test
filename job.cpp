@@ -78,6 +78,12 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 	block_size_t next_physical_size = b->m_next_physical_size;
 	auto blocks = file->m_blocks;
 
+	bool is_last_block = block + 1 == blocks;
+	bool read_next_header = false;
+	if (is_last_block) {
+		read_next_header = !is_known(prev_physical_size) && file->get_available_block(job_lock, block + 1) == nullptr;
+	}
+
 	job_lock.unlock();
 
 	assert(is_known(block));
@@ -103,8 +109,6 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 		read_size += sizeof(block_header);
 	}
 
-	bool is_last_block = block + 1 == blocks;
-	bool read_next_header = !is_last_block && !is_known(next_physical_size);
 	if (read_next_header) {
 		read_size += sizeof(block_header);
 	}
@@ -212,6 +216,10 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 	b->m_physical_size = physical_size;
 	b->m_logical_offset = logical_offset;
 	b->m_serialized_size = serialized_size;
+
+	if (is_last_block) {
+		file->m_last_block = b;
+	}
 
 	file->update_related_physical_sizes(job_lock, b);
 

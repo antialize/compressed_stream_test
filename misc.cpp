@@ -32,11 +32,15 @@ void file_stream_init(size_t threads) {
 			create_available_block(l);
 	}
 
+	init_job_buffers();
+
 	for (size_t i=0; i < threads; ++i)
 		process_threads.emplace_back(process_run);
 }
 
 void file_stream_term() {
+	destroy_job_buffers();
+
 	lock_t l(global_mutex);
 	{
 		job j;
