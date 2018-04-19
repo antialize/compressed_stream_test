@@ -226,6 +226,8 @@ struct job {
 	};
 };
 
+void init_job_buffers();
+void destroy_job_buffers();
 void process_run();
 
 extern std::queue<job> jobs;
