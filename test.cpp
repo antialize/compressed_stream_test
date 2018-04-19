@@ -901,13 +901,16 @@ int main(int argc, char ** argv) {
 	int job_threads = default_job_threads;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "hCt:x:")) != -1) {
+	while ((opt = getopt(argc, argv, "hCRt:x:")) != -1) {
 		switch (opt) {
 		case 'h':
 			std::cout << usage.str();
 			return EXIT_SUCCESS;
 		case 'C':
-			compression_flag = open_flags::no_compress;
+			compression_flag |= open_flags::no_compress;
+			break;
+		case 'R':
+			compression_flag |= open_flags::no_readahead;
 			break;
 		case 't':
 			job_threads = std::stoi(optarg);
