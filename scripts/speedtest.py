@@ -208,6 +208,8 @@ def runall(output_file):
 				output_file.write('\n')
 				output_file.flush()
 
+				print('Time:', time)
+
 
 if __name__ == '__main__':
 	dt = datetime.datetime.now()
