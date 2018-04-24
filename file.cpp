@@ -10,6 +10,7 @@
 #include <cstring>
 
 void execute_read_job(lock_t & job_lock, file_impl * file, block * b);
+void execute_truncate_job(lock_t & job_lock, file_impl * file, file_size_t truncate_size);
 
 const uint64_t file_header::magicConst;
 const uint64_t file_header::versionConst;
@@ -345,18 +346,10 @@ void file_base_base::truncate(stream_position pos) {
 	}
 
 	log_info() << "FILE  trunc       " << truncate_size << std::endl;
-	{
-		m_impl->m_job_count++;
 
-		job j;
-		j.type = job_type::trunc;
-		j.file = m_impl;
-		j.truncate_size = truncate_size;
-		jobs.push(j);
-		global_cond.notify_all();
-	}
-
-	while (m_impl->m_job_count) global_cond.wait(l);
+	m_impl->m_job_count++;
+	execute_truncate_job(l, this->m_impl, truncate_size);
+	m_impl->m_job_count--;
 
 	// We can only free the new last block after the file has been truncated
 	m_impl->free_block(l, new_last_block);
