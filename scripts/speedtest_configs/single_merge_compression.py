@@ -16,7 +16,7 @@ blocksizes = list(exprange(min_bs, max_bs))
 filesizes = list(exprange(min_fs, max_fs))
 
 compression_args = [1]
-readahead_args = bits
+readahead_args = bins
 item_args = [2]
 test_args = [4]
 merge_params = [64]
