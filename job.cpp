@@ -79,10 +79,7 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 	auto blocks = file->m_blocks;
 
 	bool is_last_block = block + 1 == blocks;
-	bool read_next_header = false;
-	if (is_last_block) {
-		read_next_header = !is_known(prev_physical_size) && file->get_available_block(job_lock, block + 1) == nullptr;
-	}
+	bool read_next_header = !is_last_block && !is_known(prev_physical_size);
 
 	job_lock.unlock();
 
@@ -131,11 +128,14 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 		uncompressed_data = buffer2;
 	}
 
-	auto r = _pread(file->m_fd, physical_data, read_size, read_off);
-	assert(r == static_cast<ssize_t>(read_size));
-	unused(r);
+	auto bytes_read = _pread(file->m_fd, physical_data, read_size, read_off);
+	if (read_next_header && bytes_read == static_cast<ssize_t>(read_size) - static_cast<ssize_t>(sizeof(block_header))) {
+		read_next_header = false;
+	} else {
+		assert(bytes_read == static_cast<ssize_t>(read_size));
+	}
 #ifndef NDEBUG
-	total_bytes_read += read_size;
+	total_bytes_read += bytes_read;
 #endif
 
 	if (read_prev_header) {

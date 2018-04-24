@@ -470,7 +470,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		block_ref_inc(l, b);
 
 		if (b->m_block + 1 == m_blocks)
-			assert(m_last_block == b);
+			assert(m_last_block == b || m_last_block == nullptr);
 
 		if (wait) {
 			while (!b->m_done_reading) global_cond.wait(l);
