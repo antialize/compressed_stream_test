@@ -94,6 +94,8 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	if (fd == -1)
 		throw exception("Failed to open file: " + std::string(std::strerror(errno)));
 
+	posix_fadvise64(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+
 	lock_t l(global_mutex);
 	m_impl->m_fd = fd;
 
