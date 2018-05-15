@@ -231,7 +231,7 @@ if __name__ == '__main__':
 			'min_same_x': True,
 		},
 		'timing_single_merge_new2': {
-			'X_axis': ('new streams', lambda r: 1 - r['old_streams']),
+			'X_axis': ('kind', lambda r: 1 - r['old_streams'] + r['readahead']),
 			'min_same_x': True,
 		},
 	}
