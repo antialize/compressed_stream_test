@@ -1,8 +1,7 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 #pragma once
-#include <log.h>
-#include <file_stream.h>
+#include <tpie/file_stream/file_stream.h>
 #include <mutex>
 #include <condition_variable>
 #include <limits>
@@ -11,6 +10,7 @@
 #include <unordered_set>
 #include <functional>
 #include <atomic>
+#include <iostream>
 
 typedef std::mutex mutex_t;
 typedef std::unique_lock<mutex_t> lock_t;

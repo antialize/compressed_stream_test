@@ -1,7 +1,8 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 
-#include <file_stream_impl.h>
+#include <tpie/tpie_log.h>
+#include <tpie/file_stream/file_stream_impl.h>
 #include <unordered_set>
 #include <cassert>
 
@@ -13,6 +14,7 @@ size_t ctr = 0;
 
 #ifndef NDEBUG
 #include <unordered_map>
+
 std::unordered_set<block *> all_blocks;
 void print_debug() {
 	std::unordered_set<file_impl *> files;
@@ -59,7 +61,7 @@ void create_available_block(lock_t &) {
 	all_blocks.insert(b);
 #endif
 
-	log_info() << "AVAIL create     " << *b << std::endl;
+	log_debug() << "AVAIL create     " << *b << std::endl;
 }
 
 block * pop_available_block(lock_t &);
@@ -67,7 +69,7 @@ block * pop_available_block(lock_t &);
 void destroy_available_block(lock_t & l) {
 	auto b = pop_available_block(l);
 	assert(b->m_usage == 0);
-	log_info() << "AVAIL destroy    " << *b << std::endl;
+	log_debug() << "AVAIL destroy    " << *b << std::endl;
 #ifndef NDEBUG
 	size_t c = all_blocks.erase(b);
 	assert(c == 1);
@@ -82,7 +84,7 @@ void push_available_block(lock_t &, block * b) {
 
 	available_blocks.insert(b);
 	global_cond.notify_all();
-	log_info() << "AVAIL push       " << *b << std::endl;
+	log_debug() << "AVAIL push       " << *b << std::endl;
 }
 
 void make_block_unavailable(lock_t &, block * b) {
@@ -98,7 +100,7 @@ block * pop_available_block(lock_t & l) {
 		block * b = *it;
 		available_blocks.erase(it);
 		if (b->m_file) {
-			//log_info() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
+			//log_debug() << "\033[0;32mfree " << b->m_idx << " " << b->m_block << "\033[0m" << std::endl;
 			b->m_file->kill_block(l, b);
 		}
 
@@ -118,7 +120,7 @@ block * pop_available_block(lock_t & l) {
 		b->m_physical_size = no_block_size;
 		b->m_next_physical_size = no_block_size;
 		b->m_physical_offset = no_file_size;
-		log_info() << "AVAIL pop        " << *b << std::endl;
+		log_debug() << "AVAIL pop        " << *b << std::endl;
 		return b;
 	}
 }

@@ -12,9 +12,8 @@
 #include <string.h>
 #include <cassert>
 
+#include <tpie/exception.h>
 #include <tpie/serialization2.h>
-#include "exception.h"
-#include <defaults.h>
 using namespace tpie;
 
 // Declare all types
@@ -334,7 +333,7 @@ public:
 
 		if (this->m_block->m_serialized_size + serialized_size > max_serialized_block_size()) {
 			if (serialized_size > max_serialized_block_size()) {
-				throw exception("Serialized item is too big, size="
+				throw io_exception("Serialized item is too big, size="
 									+ std::to_string(serialized_size) + ", max="
 									+ std::to_string(max_serialized_block_size()));
 			}

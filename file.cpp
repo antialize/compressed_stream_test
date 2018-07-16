@@ -1,13 +1,14 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
-#include <file_stream_impl.h>
-#include <file_utils.h>
+#include <tpie/file_stream/file_stream_impl.h>
+#include <tpie/file_stream/file_utils.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <cassert>
 #include <cstring>
+#include <tpie/tpie_log.h>
 
 void execute_read_job(lock_t & job_lock, file_impl * file, block * b);
 void execute_truncate_job(lock_t & job_lock, file_impl * file, file_size_t truncate_size);
@@ -71,9 +72,9 @@ void file_base_base::impl_changed() {
 
 void file_base_base::open(const std::string & path, open_flags::open_flags flags, size_t max_user_data_size) {
 	if (is_open())
-		throw exception("File is already open");
+		throw io_exception("File is already open");
 	if ((flags & open_flags::read_only) && (flags & open_flags::truncate))
-		throw exception("Can't open file as truncated with read only flag");
+		throw io_exception("Can't open file as truncated with read only flag");
 
 	m_impl->m_path = path;
 
@@ -92,7 +93,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 
 	int fd = ::open(path.c_str(), posix_flags, 00660);
 	if (fd == -1)
-		throw exception("Failed to open file: " + std::string(std::strerror(errno)));
+		throw io_exception("Failed to open file: " + std::string(std::strerror(errno)));
 
 	posix_fadvise64(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
 
@@ -107,27 +108,27 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 	file_header & header = m_impl->m_header;
 	if (fsize > 0) {
 		if (fsize < sizeof(file_header))
-			throw exception("Invalid TPIE file (too small)");
+			throw invalid_file_exception("Invalid TPIE file (too small)");
 		_pread(fd, &header, sizeof header, 0);
 		if (header.magic != file_header::magicConst) {
-			log_info() << "Header magic was wrong, expected " << file_header::magicConst
+			log_error() << "Header magic was wrong, expected " << file_header::magicConst
 					   << ", got " << header.magic << "\n";
-			throw exception("Invalid TPIE file (wrong magic)");
+			throw invalid_file_exception("Invalid TPIE file (wrong magic)");
 		}
 		if (header.version != file_header::versionConst) {
-			log_info() << "Header version was wrong, expected " << file_header::versionConst
+			log_error() << "Header version was wrong, expected " << file_header::versionConst
 					   << ", got " << header.version << "\n";
-			throw exception("Invalid TPIE file (wrong version)");
+			throw invalid_file_exception("Invalid TPIE file (wrong version)");
 		}
 		if (header.isCompressed != m_impl->m_compressed) {
-			log_info() << "Opened file is " << (header.isCompressed? "": "not ") << "compressed"
+			log_error() << "Opened file is " << (header.isCompressed? "": "not ") << "compressed"
 					   << ", but file was opened with" << (m_impl->m_compressed? "": "out") << " compression\n";
-			throw exception("Invalid TPIE file (wrong compression)");
+			throw invalid_file_exception("Invalid TPIE file (wrong compression)");
 		}
 		if (header.isSerialized != m_impl->m_serialized) {
-			log_info() << "Opened file is " << (header.isSerialized? "": "not ") << "serialized"
+			log_error() << "Opened file is " << (header.isSerialized? "": "not ") << "serialized"
 					   << ", a " << (header.isSerialized? "": "non-") << "serialized file was required\n";
-			throw exception("Invalid TPIE file (wrong serialized)");
+			throw invalid_file_exception("Invalid TPIE file (wrong serialized)");
 		}
 
 		assert(max_user_data_size == 0 || header.max_user_data_size == max_user_data_size);
@@ -176,7 +177,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 
 void file_base_base::close() {
 	if (!is_open())
-		throw exception("File is already closed");
+		throw io_exception("File is already closed");
 
 	lock_t l(global_mutex);
 
@@ -184,7 +185,7 @@ void file_base_base::close() {
 	while (m_impl->m_job_count) global_cond.wait(l);
 
 	if (!m_impl->m_streams.empty())
-		throw exception("Tried to close a file with open streams");
+		throw io_exception("Tried to close a file with open streams");
 
 	// Kill all blocks
 	m_impl->foreach_block([&](block * b){
@@ -279,7 +280,7 @@ void file_base_base::truncate(stream_position pos) {
 		if (b->m_block > pos.m_block) {
 			assert(b->m_readahead_usage == 0);
 			if (b->m_usage != 0) {
-				throw exception("Trying to truncate before an open stream's position");
+				throw io_exception("Trying to truncate before an open stream's position");
 			} else {
 				m_impl->kill_block(l, b);
 			}
@@ -347,7 +348,7 @@ void file_base_base::truncate(stream_position pos) {
 		}
 	}
 
-	log_info() << "FILE  trunc       " << truncate_size << std::endl;
+	log_debug() << "FILE  trunc       " << truncate_size << std::endl;
 
 	m_impl->m_job_count++;
 	execute_truncate_job(l, this->m_impl, truncate_size);
@@ -455,11 +456,11 @@ void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
 }
 
 block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, block * rel, bool wait) {
-	log_info() << "FILE  get_block  " << p.m_block << std::endl;
+	log_debug() << "FILE  get_block  " << p.m_block << std::endl;
 
 	block * b = get_available_block(l, p.m_block);
 	if (b) {
-		log_info() << "FILE  fetch      " << *b << std::endl;
+		log_debug() << "FILE  fetch      " << *b << std::endl;
 		assert(b->m_block < m_blocks);
 		assert(b->m_block == p.m_block);
 		block_ref_inc(l, b);
@@ -551,7 +552,7 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 
 		m_last_block = b;
 	} else {
-		log_info() << "FILE  read       " << *b << std::endl;
+		log_debug() << "FILE  read       " << *b << std::endl;
 		//We need to read stuff
 
 		m_job_count++;
@@ -627,7 +628,7 @@ void file_impl::free_block(lock_t & l, block * b) {
 			b->m_physical_size = m_item_size * b->m_logical_size + 2 * sizeof(block_header);
 		}
 
-		log_info() << "      free block " << *b << " write" << std::endl;
+		log_debug() << "      free block " << *b << " write" << std::endl;
 
 		m_job_count++;
 
@@ -640,7 +641,7 @@ void file_impl::free_block(lock_t & l, block * b) {
 		b->m_dirty = false;
 		assert(!b->m_io);
 		b->m_io = true;
-		//log_info() << "write block " << *t << std::endl;
+		//log_debug() << "write block " << *t << std::endl;
 		jobs.push(j);
 		global_cond.notify_all();
 
@@ -650,8 +651,8 @@ void file_impl::free_block(lock_t & l, block * b) {
 	if (b->m_usage != 0) return;
 
 	if (is_known(b->m_physical_offset)) {
-		log_info() << "      free block " << *b << " avail" << std::endl;
-		//log_info() << "avail block " << *t << std::endl;
+		log_debug() << "      free block " << *b << " avail" << std::endl;
+		//log_debug() << "avail block " << *t << std::endl;
 
 		push_available_block(l, b);
 
@@ -665,7 +666,7 @@ void file_impl::free_block(lock_t & l, block * b) {
 }
 
 void file_impl::kill_block(lock_t & l, block * b) {
-	log_info() << "      kill block " << *b << std::endl;
+	log_debug() << "      kill block " << *b << std::endl;
 	assert(b->m_usage == 0);
 	assert(b->m_file == this);
 	assert(is_known(b->m_logical_offset));

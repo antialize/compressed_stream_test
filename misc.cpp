@@ -1,6 +1,6 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
-#include <file_stream_impl.h>
+#include <tpie/file_stream/file_stream_impl.h>
 #include <vector>
 #include <thread>
 #include <cassert>
@@ -19,7 +19,7 @@ size_t available_blocks(size_t threads) {
 
 void file_stream_init(size_t threads) {
 	if (threads < 1) {
-		throw exception("Need at least one file job thread");
+		throw invalid_argument_exception("Need at least one file job thread");
 	}
 	void_block.m_logical_offset = 0;
 	void_block.m_logical_size = 0;
@@ -68,8 +68,3 @@ void file_stream_term() {
 	jobs.pop();
 	assert(jobs.size() == 0);
 }
-
-#ifndef NDEBUG
-mutex_t crapper::m;
-#endif
-

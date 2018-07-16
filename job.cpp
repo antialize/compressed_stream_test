@@ -1,10 +1,11 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
-#include <file_utils.h>
-#include <file_stream_impl.h>
+#include <tpie/file_stream/file_utils.h>
+#include <tpie/file_stream/file_stream_impl.h>
 #include <cassert>
 #include <snappy.h>
 #include <atomic>
+#include <tpie/tpie_log.h>
 
 #ifndef NDEBUG
 std::atomic_int64_t total_blocks_read, total_blocks_written, total_bytes_read, total_bytes_written;
@@ -110,7 +111,7 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 		read_size += sizeof(block_header);
 	}
 
-	log_info() << "JOB " << id << " pread      " << *b << " from " << read_off << " - " << (read_off + read_size - 1) << std::endl;
+	log_debug() << "JOB " << id << " pread      " << *b << " from " << read_off << " - " << (read_off + read_size - 1) << std::endl;
 
 	char * physical_data;
 	if (file->direct()) {
@@ -139,7 +140,7 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 #endif
 
 	if (read_prev_header) {
-		//log_info() << id << "read prev header" << std::endl;
+		//log_debug() << id << "read prev header" << std::endl;
 		block_header h;
 		memcpy(&h, physical_data, sizeof(block_header));
 		physical_data += sizeof(block_header);
@@ -151,7 +152,7 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 	{
 		block_header h;
 		memcpy(&h, physical_data, sizeof(block_header));
-		//log_info() << id << "Read current header " << physical_size << " " << h.physical_size << std::endl;
+		//log_debug() << id << "Read current header " << physical_size << " " << h.physical_size << std::endl;
 
 		physical_data += sizeof(block_header);
 		assert(physical_size == h.physical_size);
@@ -193,7 +194,7 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 		assert(unserialized_size == logical_size * file->m_item_size);
 	}
 
-	log_info() << "Read " << *b << '\n'
+	log_debug() << "Read " << *b << '\n'
 	           << "Logical size " << logical_size << '\n'
 	           << "First data " << reinterpret_cast<int*>(b->m_data)[0]
 	           << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
@@ -236,7 +237,7 @@ void execute_write_job(lock_t & job_lock, file_impl * file, block * b) {
 	block_header h;
 	h.logical_size = b->m_logical_size;
 	h.logical_offset = b->m_logical_offset;
-	log_info() << "JOB " << id << " compress   " << *b << " size " << unserialized_size << '\n'
+	log_debug() << "JOB " << id << " compress   " << *b << " size " << unserialized_size << '\n'
 	           << "First data " << reinterpret_cast<int*>(b->m_data)[0]
 	           << " " << reinterpret_cast<int*>(b->m_data)[1] << std::endl;
 
@@ -273,7 +274,7 @@ void execute_write_job(lock_t & job_lock, file_impl * file, block * b) {
 	memcpy(physical_data, &h, sizeof(block_header));
 	memcpy(physical_data + sizeof(h) + compressed_size, &h, sizeof(block_header));
 
-	log_info() << "JOB " << id << " compressed " << *b << " size " << physical_size << std::endl;
+	log_debug() << "JOB " << id << " compressed " << *b << " size " << physical_size << std::endl;
 
 	while (!is_known(b->m_physical_offset)) {
 		// Spin lock
@@ -292,7 +293,7 @@ void execute_write_job(lock_t & job_lock, file_impl * file, block * b) {
 
 	job_lock.lock();
 
-	log_info() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + physical_size - 1 <<  " physical_size " << std::endl;
+	log_debug() << "JOB " << id << " written    " << *b << " at " <<  off << " - " << off + physical_size - 1 <<  " physical_size " << std::endl;
 
 #ifndef NDEBUG
 	{
@@ -330,7 +331,7 @@ void execute_truncate_job(lock_t &, file_impl * file, file_size_t truncate_size)
 	assert(r == 0);
 	unused(r);
 
-	log_info() << "JOB " << id << " truncated  " << file->m_path << " to size " << truncate_size << std::endl;
+	log_debug() << "JOB " << id << " truncated  " << file->m_path << " to size " << truncate_size << std::endl;
 
 #ifndef NDEBUG
 	{
@@ -351,28 +352,28 @@ void process_run() {
 	init_job_buffers();
 
 	lock_t job_lock(global_mutex);
-	log_info() << "JOB " << id << " start" << std::endl;
+	log_debug() << "JOB " << id << " start" << std::endl;
 	while (true) {
 		while (jobs.empty()) global_cond.wait(job_lock);
 		auto j = jobs.front();
 		// Don't pop the job as all threads should terminate
 		if (j.type == job_type::term) {
-			log_info() << "JOB " << id << " pop job    TERM\n";
+			log_debug() << "JOB " << id << " pop job    TERM\n";
 			break;
 		}
 
-		log_info() << "JOB " << id << " pop job    " << j.type << " ";
+		log_debug() << "JOB " << id << " pop job    " << j.type << " ";
 		if (j.type == job_type::trunc) {
-			log_info() << j.truncate_size;
+			log_debug() << j.truncate_size;
 		} else {
-			log_info() << *j.io_block;
+			log_debug() << *j.io_block;
 
 			if (j.type == job_type::write)
-				log_info() << " " << j.io_block->m_logical_size;
+				log_debug() << " " << j.io_block->m_logical_size;
 
 			assert(j.io_block->m_usage != 0);
 		}
-		log_info() << "\n";
+		log_debug() << "\n";
 
 		jobs.pop();
 
@@ -397,5 +398,5 @@ void process_run() {
 
 	destroy_job_buffers();
 
-	log_info() << "JOB " << id << " end" << std::endl;
+	log_debug() << "JOB " << id << " end" << std::endl;
 }

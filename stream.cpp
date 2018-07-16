@@ -1,7 +1,8 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
-#include <file_stream_impl.h>
+#include <tpie/file_stream/file_stream_impl.h>
 #include <cassert>
+#include <tpie/tpie_log.h>
 
 block_base void_block;
 
@@ -170,7 +171,7 @@ void stream_impl::set_position(lock_t & l, stream_position p) {
 }
 
 void stream_impl::seek(file_size_t offset, whence w) {
-	log_info() << "STREM seek       " << offset << std::endl;
+	log_debug() << "STREM seek       " << offset << std::endl;
 	lock_t l(global_mutex);
 	
 	stream_position p;
@@ -195,7 +196,7 @@ void stream_impl::seek(file_size_t offset, whence w) {
 		p = m_file->start_position();
 	} else {
 		p = m_file->end_position(l);
-		log_info() << "STREM Seeked to end at offset " << p.m_physical_offset << std::endl;
+		log_debug() << "STREM Seeked to end at offset " << p.m_physical_offset << std::endl;
 	}
 	set_position(l, p);
 }
