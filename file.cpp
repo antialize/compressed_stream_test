@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstring>
 #include <tpie/tpie_log.h>
+#include <tpie/util.h>
 
 namespace tpie {
 namespace new_streams {
@@ -71,26 +72,26 @@ void file_base_base::impl_changed() {
 	}
 }
 
-void file_base_base::open(const std::string & path, open_flags::open_flags flags, size_t max_user_data_size) {
+void file_base_base::open(const std::string & path, open::type flags, size_t max_user_data_size) {
 	if (is_open())
 		throw io_exception("File is already open");
-	if ((flags & open_flags::read_only) && (flags & open_flags::truncate))
+	if ((flags & open::read_only) && (flags & open::truncate_file))
 		throw io_exception("Can't open file as truncated with read only flag");
 
 	m_impl->m_path = path;
 
 	int posix_flags = 0;
-	if (flags & open_flags::read_only) {
+	if (flags & open::read_only) {
 		posix_flags |= O_RDONLY;
-	} else if (flags & open_flags::truncate) {
+	} else if (flags & open::truncate_file) {
 		posix_flags |= O_CREAT | O_TRUNC | O_RDWR;
 	} else {
 		posix_flags |= O_CREAT | O_RDWR;
 	}
 
-	m_impl->m_readonly = flags & open_flags::read_only;
-	m_impl->m_compressed = !(flags & open_flags::no_compress);
-	m_impl->m_readahead = !(flags & open_flags::no_readahead);
+	m_impl->m_readonly = flags & open::read_only;
+	m_impl->m_compressed = open::has_compression(flags);
+	m_impl->m_readahead = flags & open::readahead_enabled;
 
 	int fd = ::open(path.c_str(), posix_flags, 00660);
 	if (fd == -1)
@@ -154,7 +155,7 @@ void file_base_base::open(const std::string & path, open_flags::open_flags flags
 			m_impl->m_end_position = m_impl->start_position();
 		}
 	} else {
-		assert(!(flags & open_flags::read_only));
+		assert(!(flags & open::read_only));
 
 		::memset(&header, 0, sizeof header);
 		header.magic = file_header::magicConst;
@@ -294,7 +295,7 @@ void file_base_base::truncate(stream_position pos) {
 	while (new_last_block->m_io) global_cond.wait(l);
 
 	block * old_last_block = m_impl->m_last_block;
-	unused(old_last_block);
+	tpie::unused(old_last_block);
 
 	m_impl->m_last_block = new_last_block;
 
@@ -696,7 +697,7 @@ void file_impl::kill_block(lock_t & l, block * b) {
 
 	size_t c = m_block_map.erase(b->m_block);
 	assert(c == 1);
-	unused(c);
+	tpie::unused(c);
 	b->m_file = nullptr;
 }
 

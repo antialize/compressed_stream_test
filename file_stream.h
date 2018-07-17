@@ -14,6 +14,7 @@
 
 #include <tpie/exception.h>
 #include <tpie/serialization2.h>
+#include <tpie/open_type.h>
 
 namespace tpie {
 namespace new_streams {
@@ -41,8 +42,6 @@ class stream_base;
 // Not used
 #define FILE_STREAM_BLOCK_SIZE 1024
 #endif
-
-#define unused(x) do { (void)(x); } while(0)
 
 // Constexpr methods
 constexpr block_size_t block_size() {return FILE_STREAM_BLOCK_SIZE;}
@@ -90,30 +89,6 @@ struct stream_position {
 	}
 };
 
-namespace open_flags {
-enum open_flags {
-	default_flags = 0,
-	read_only = 1 << 0,
-	truncate = 1 << 1,
-	no_compress = 1 << 2,
-	no_readahead = 1 << 3,
-
-	// Alias for other flags
-	read_write = default_flags,
-	write_only = read_write,
-};
-#define T std::underlying_type<open_flags>::type
-#define OP_IMPL(op) \
-    inline open_flags operator op(open_flags f1, open_flags f2) { return static_cast<open_flags>(T(f1) op T(f2)); } \
-    inline open_flags & operator op##=(open_flags & f1, open_flags f2) { return f1 = f1 op f2; }
-OP_IMPL(|)
-OP_IMPL(&)
-OP_IMPL(^)
-#undef OP_IMPL
-inline open_flags operator~(open_flags f) { return static_cast<open_flags>(~T(f)); }
-#undef T
-}
-
 class file_base_base {
 public:
 	friend class file_impl;
@@ -125,7 +100,7 @@ public:
 	file_base_base & operator=(file_base_base &&);
 
 	// TODO more magic open methods here
-	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0);
+	void open(const std::string & path, open::type flags = open::defaults, size_t max_user_data_size = 0);
 	void close();
 
 	bool is_open() const noexcept;
@@ -456,7 +431,7 @@ public:
 	file_stream_base & operator=(file_stream_base &&) = default;
 
 	// == file_base_base functions ==
-	void open(const std::string & path, open_flags::open_flags flags = open_flags::default_flags, size_t max_user_data_size = 0) {
+	void open(const std::string & path, open::type flags = open::defaults, size_t max_user_data_size = 0) {
 		m_file.open(path, flags, max_user_data_size);
 		m_stream = std::unique_ptr<stream_base<T, serialized>>(new stream_base<T, serialized>(m_file.stream()));
 	}

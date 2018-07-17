@@ -6,6 +6,7 @@
 #include <snappy.h>
 #include <atomic>
 #include <tpie/tpie_log.h>
+#include <tpie/util.h>
 
 namespace tpie {
 namespace new_streams {
@@ -100,7 +101,7 @@ void execute_read_job(lock_t & job_lock, file_impl * file, block * b) {
 		block_header h;
 		auto r = _pread(file->m_fd, &h, sizeof(block_header), physical_offset);
 		assert(r == sizeof(block_header));
-		unused(r);
+		tpie::unused(r);
 #ifndef NDEBUG
 		total_bytes_read += sizeof(block_header);
 #endif

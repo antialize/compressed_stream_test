@@ -3,6 +3,7 @@
 #include <tpie/file_stream/file_stream_impl.h>
 #include <cassert>
 #include <tpie/tpie_log.h>
+#include <tpie/util.h>
 
 namespace tpie {
 namespace new_streams {
@@ -122,7 +123,7 @@ stream_impl::~stream_impl() {
 
 	size_t c = m_file->m_streams.erase(this);
 	assert(c == 1);
-	unused(c);
+	tpie::unused(c);
 }
 
 void stream_impl::next_block() {

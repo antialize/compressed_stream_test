@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <tpie/file_stream/available_blocks.h>
 #include <tpie/file_stream/file_stream_impl.h>
+#include <tpie/util.h>
 
 #ifndef NDEBUG
 #include <unordered_map>
@@ -94,7 +95,7 @@ void push_available_block(lock_t &, block * b) {
 void make_block_unavailable(lock_t &, block * b) {
 	size_t res = available_blocks.erase(b);
 	assert(res == 1);
-	unused(res);
+	tpie::unused(res);
 }
 
 block * pop_available_block(lock_t & l) {
