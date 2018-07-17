@@ -8,6 +8,8 @@
 namespace tpie {
 namespace new_streams {
 
+block_base void_block;
+
 stream_base_base::stream_base_base(file_base_base * file_base)
 	: m_block(nullptr)
 	, m_file_base(file_base)

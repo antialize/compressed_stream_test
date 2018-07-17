@@ -19,8 +19,8 @@ typedef std::mutex mutex_t;
 typedef std::unique_lock<mutex_t> lock_t;
 typedef std::condition_variable cond_t;
 
-static mutex_t global_mutex;
-static cond_t global_cond;
+extern mutex_t global_mutex;
+extern cond_t global_cond;
 
 constexpr block_idx_t no_block_idx = std::numeric_limits<block_idx_t>::max();
 constexpr file_size_t no_file_size = std::numeric_limits<file_size_t>::max();
@@ -229,8 +229,8 @@ struct job {
 	};
 };
 
-static std::queue<job> jobs;
-static block_base void_block;
+extern std::queue<job> jobs;
+extern block_base void_block;
 
 } // namespace new_streams
 } // namespace tpie

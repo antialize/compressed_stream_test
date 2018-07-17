@@ -11,6 +11,10 @@
 namespace tpie {
 namespace new_streams {
 
+std::queue<job> jobs;
+mutex_t global_mutex;
+cond_t global_cond;
+
 #ifndef NDEBUG
 namespace {
 std::atomic_int64_t total_blocks_read, total_blocks_written, total_bytes_read, total_bytes_written;
