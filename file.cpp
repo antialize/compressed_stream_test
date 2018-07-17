@@ -155,7 +155,8 @@ void file_base_base::open(const std::string & path, open::type flags, size_t max
 			m_impl->m_end_position = m_impl->start_position();
 		}
 	} else {
-		assert(!(flags & open::read_only));
+		if (flags & open::read_only)
+			throw invalid_file_exception("Can't open an empty file as read only");
 
 		::memset(&header, 0, sizeof header);
 		header.magic = file_header::magicConst;
