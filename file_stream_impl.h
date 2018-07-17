@@ -12,12 +12,15 @@
 #include <atomic>
 #include <iostream>
 
+namespace tpie {
+namespace new_streams {
+
 typedef std::mutex mutex_t;
 typedef std::unique_lock<mutex_t> lock_t;
 typedef std::condition_variable cond_t;
 
-extern mutex_t global_mutex;
-extern cond_t global_cond;
+static mutex_t global_mutex;
+static cond_t global_cond;
 
 constexpr block_idx_t no_block_idx = std::numeric_limits<block_idx_t>::max();
 constexpr file_size_t no_file_size = std::numeric_limits<file_size_t>::max();
@@ -226,11 +229,8 @@ struct job {
 	};
 };
 
-void init_job_buffers();
-void destroy_job_buffers();
-void process_run();
+static std::queue<job> jobs;
+static block_base void_block;
 
-extern std::queue<job> jobs;
-extern mutex_t global_mutex;
-extern std::condition_variable global_cond;
-extern block_base void_block;
+} // namespace new_streams
+} // namespace tpie

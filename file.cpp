@@ -2,6 +2,7 @@
 // vi:set ts=4 sts=4 sw=4 noet :
 #include <tpie/file_stream/file_stream_impl.h>
 #include <tpie/file_stream/file_utils.h>
+#include <tpie/file_stream/job.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -10,8 +11,8 @@
 #include <cstring>
 #include <tpie/tpie_log.h>
 
-void execute_read_job(lock_t & job_lock, file_impl * file, block * b);
-void execute_truncate_job(lock_t & job_lock, file_impl * file, file_size_t truncate_size);
+namespace tpie {
+namespace new_streams {
 
 const uint64_t file_header::magicConst;
 const uint64_t file_header::versionConst;
@@ -698,3 +699,6 @@ void file_impl::kill_block(lock_t & l, block * b) {
 	unused(c);
 	b->m_file = nullptr;
 }
+
+} // namespace new_streams
+} // namespace tpie

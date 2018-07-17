@@ -14,7 +14,9 @@
 
 #include <tpie/exception.h>
 #include <tpie/serialization2.h>
-using namespace tpie;
+
+namespace tpie {
+namespace new_streams {
 
 // Declare all types
 class block_base;
@@ -22,6 +24,7 @@ class file_impl;
 class file_base_base;
 class stream_impl;
 class stream_base_base;
+
 struct stream_position;
 
 typedef uint64_t block_idx_t; // Used for numbering blocks from 0 to n-1
@@ -126,7 +129,7 @@ public:
 	void close();
 
 	bool is_open() const noexcept;
-	
+
 	bool is_readable() const noexcept;
 	bool is_writable() const noexcept;
 
@@ -178,7 +181,7 @@ public:
 	stream_base_base(stream_base_base &&);
 	stream_base_base & operator=(stream_base_base &&);
 	~stream_base_base();
-	
+
 	bool can_read() const noexcept {
 		return offset() < m_file_base->size();
 	}
@@ -192,7 +195,7 @@ public:
 		if (m_cur_index == m_block->m_logical_size) next_block();
 		++m_cur_index;
 	}
-	
+
 	void skip_back() {
 		assert(m_file_base->is_open() && can_read_back());
 		if (m_cur_index == 0) prev_block();
@@ -200,7 +203,7 @@ public:
 	}
 
 	void seek(file_size_t offset, whence w = whence::set);
-	
+
 	file_size_t offset() const noexcept {
 		return m_block->m_logical_offset + m_cur_index;
 	}
@@ -212,7 +215,7 @@ public:
 	stream_position get_position();
 
 	void set_position(stream_position p);
-	
+
 	friend class stream_impl;
 	friend class file_base_base;
 protected:
@@ -283,7 +286,7 @@ template <typename T, bool serialized>
 class stream_base: public stream_base_<T, serialized> {
 protected:
 	stream_base(file_base_base * imp): stream_base_<T, serialized>(imp) {}
-	
+
 	friend class file_base<T, serialized>;
 public:
 	stream_base(const stream_base &) = delete;
@@ -522,3 +525,6 @@ using file_stream = file_stream_base<T, false>;
 
 template <typename T>
 using serialized_file_stream = file_stream_base<T, true>;
+
+} // namespace new_streams
+} // namespace tpie

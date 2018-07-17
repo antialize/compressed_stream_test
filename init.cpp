@@ -1,15 +1,24 @@
 // -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
+#include <tpie/file_stream/init.h>
 #include <tpie/file_stream/file_stream_impl.h>
+#include <tpie/file_stream/job.h>
 #include <vector>
 #include <thread>
 #include <cassert>
 #include <exception>
-
-std::vector<std::thread> process_threads;
-
 #ifndef NDEBUG
 #include <unordered_set>
+#endif
+
+namespace {
+std::vector<std::thread> process_threads;
+}
+
+namespace tpie {
+namespace new_streams {
+
+#ifndef NDEBUG
 extern std::unordered_set<block *> all_blocks;
 #endif
 
@@ -18,9 +27,18 @@ size_t available_blocks(size_t threads) {
 }
 
 void file_stream_init(size_t threads) {
-	if (threads < 1) {
+	if (threads == 0) {
+		const char * v = getenv("TPIE_STREAM_THREADS");
+		if (v != nullptr) {
+			threads = strtoull(v, nullptr, 0);
+		} else {
+			threads = 2; // Default number of stream threads is 2
+		}
+	}
+	if (threads == 0) {
 		throw invalid_argument_exception("Need at least one file job thread");
 	}
+
 	void_block.m_logical_offset = 0;
 	void_block.m_logical_size = 0;
 	void_block.m_maximal_logical_size = 0;
@@ -68,3 +86,6 @@ void file_stream_term() {
 	jobs.pop();
 	assert(jobs.size() == 0);
 }
+
+} // namespace new_streams
+} // namespace tpie

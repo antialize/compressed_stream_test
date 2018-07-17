@@ -2,20 +2,24 @@
 // vi:set ts=4 sts=4 sw=4 noet :
 
 #include <tpie/tpie_log.h>
-#include <tpie/file_stream/file_stream_impl.h>
 #include <unordered_set>
-#include <cassert>
+#include <tpie/file_stream/available_blocks.h>
+#include <tpie/file_stream/file_stream_impl.h>
+
+#ifndef NDEBUG
+#include <unordered_map>
+#endif
+
+namespace tpie {
+namespace new_streams {
 
 namespace {
-std::unordered_set<block *> available_blocks;
+	std::unordered_set<block *> available_blocks;
 }
 
 size_t ctr = 0;
 
 #ifndef NDEBUG
-#include <unordered_map>
-
-std::unordered_set<block *> all_blocks;
 void print_debug() {
 	std::unordered_set<file_impl *> files;
 	std::unordered_map<file_impl *, std::vector<block *>> owned_blocks;
@@ -124,3 +128,6 @@ block * pop_available_block(lock_t & l) {
 		return b;
 	}
 }
+
+} // namespace new_streams
+} // namespace tpie

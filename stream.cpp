@@ -4,7 +4,8 @@
 #include <cassert>
 #include <tpie/tpie_log.h>
 
-block_base void_block;
+namespace tpie {
+namespace new_streams {
 
 stream_base_base::stream_base_base(file_base_base * file_base)
 	: m_block(nullptr)
@@ -201,4 +202,5 @@ void stream_impl::seek(file_size_t offset, whence w) {
 	set_position(l, p);
 }
 
-
+} // namespace new_streams
+} // namespace tpie

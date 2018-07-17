@@ -7,8 +7,14 @@
 #include <atomic>
 #include <tpie/tpie_log.h>
 
+namespace tpie {
+namespace new_streams {
+
 #ifndef NDEBUG
+namespace {
 std::atomic_int64_t total_blocks_read, total_blocks_written, total_bytes_read, total_bytes_written;
+}
+
 int64_t get_total_blocks_read() {
 	return total_blocks_read;
 }
@@ -21,14 +27,15 @@ int64_t get_total_bytes_read() {
 int64_t get_total_bytes_written() {
 	return total_bytes_written;
 }
+
+namespace {
 std::map<size_t, std::map<block_idx_t, std::pair<file_size_t, file_size_t>>> block_offsets;
+}
 #endif
 
-std::queue<job> jobs;
-mutex_t global_mutex;
-cond_t global_cond;
-
+namespace {
 std::atomic_uint tid;
+}
 
 std::ostream & operator <<(std::ostream & o, const job_type t) {
 	const char *s = nullptr;
@@ -49,6 +56,7 @@ std::ostream & operator <<(std::ostream & o, const job_type t) {
 	return o << s;
 }
 
+namespace {
 const size_t extra_before_buffer = 2 * sizeof(block_header);
 const size_t max_buffer_size = snappy::MaxCompressedLength(max_serialized_block_size()) + 2 * sizeof(block_header);
 
@@ -57,6 +65,7 @@ thread_local char * _data1 = nullptr;
 thread_local char * _data2 = nullptr;
 thread_local char * buffer1 = nullptr;
 thread_local char * buffer2 = nullptr;
+}
 
 void init_job_buffers() {
 	_data1 = new char[extra_before_buffer + max_buffer_size];
@@ -400,3 +409,6 @@ void process_run() {
 
 	log_debug() << "JOB " << id << " end" << std::endl;
 }
+
+} // namespace new_streams
+} // namespace tpie
