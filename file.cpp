@@ -415,11 +415,18 @@ void update_if_known(T1 & val1, T2 & val2) {
 void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
 	if (direct()) return;
 
+	bool b_full = b->m_logical_size == b->m_maximal_logical_size && !b->m_dirty;
+
 	if (b->m_block != 0) { // Not first block
 		auto pb = get_available_block(l, b->m_block - 1);
 		if (pb) {
-			update_if_known(pb->m_next_physical_size, b->m_physical_size);
-			update_if_known(pb->m_physical_size, b->m_prev_physical_size);
+			bool pb_full = pb->m_logical_size == pb->m_maximal_logical_size && !pb->m_dirty;
+
+			if (b_full)
+				update_if_known(b->m_physical_size, pb->m_next_physical_size);
+
+			if (pb_full)
+				update_if_known(pb->m_physical_size, b->m_prev_physical_size);
 
 			/*
 			if (is_known(pb->m_physical_offset) &&
@@ -434,12 +441,22 @@ void file_impl::update_related_physical_sizes(lock_t & l, block * b) {
 	if (b->m_block + 1 != m_blocks) { // Not last block
 		auto nb = get_available_block(l, b->m_block + 1);
 		if (nb) {
-			update_if_known(nb->m_prev_physical_size, b->m_physical_size);
-			update_if_known(nb->m_physical_size, b->m_next_physical_size);
+			bool nb_full = nb->m_logical_size == nb->m_maximal_logical_size && !nb->m_dirty;
 
-			if (is_known(b->m_physical_offset) && is_known(b->m_physical_size)) {
+			if (b_full)
+				update_if_known(b->m_physical_size, nb->m_prev_physical_size);
+
+			if (nb_full)
+				update_if_known(nb->m_physical_size, b->m_next_physical_size);
+
+			// If b is full, update next block's physical offset
+			if (b_full &&
+			    is_known(b->m_physical_offset) &&
+			    is_known(b->m_physical_size)) {
 				auto next_offset = b->m_physical_offset + b->m_physical_size;
+
 				assert_known_implies_equal(nb->m_physical_offset, next_offset);
+
 				nb->m_physical_offset = next_offset;
 			}
 
@@ -514,10 +531,12 @@ block * file_impl::get_block(lock_t & l, stream_position p, bool find_next, bloc
 		} else {
 			assert(rel != nullptr);
 
+			bool rel_full = rel->m_logical_size == rel->m_maximal_logical_size && !rel->m_dirty;
+
 			if (is_known(rel->m_physical_offset)) {
 				if (find_next) {
 					// rel is previous block
-					if (is_known(rel->m_physical_size)) {
+					if (rel_full && is_known(rel->m_physical_size)) {
 						b->m_physical_offset = rel->m_physical_offset + rel->m_physical_size;
 					}
 				} else {
