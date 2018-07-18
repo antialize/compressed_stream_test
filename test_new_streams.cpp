@@ -843,7 +843,7 @@ tpie::tests & add_tests(const std::string & suffix, tpie::tests & t) {
 	typedef tests<flags> T;
 
 	auto test_wrapper = [](auto f){
-		return [&f]() {
+		return [f]() {
 			bool res = f();
 			if (res) {
 				if (!check_file(tmp_file.path().c_str()))
