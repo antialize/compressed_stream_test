@@ -474,7 +474,7 @@ static bool serialized_dtor() {
 
 static bool user_data() {
 	const std::string user_data = "foobar";
-	constexpr size_t size = 7;
+	const size_t size = user_data.size();
 
 	{
 		file<int> f;
@@ -492,10 +492,13 @@ static bool user_data() {
 		TEST_ENSURE_EQUALITY(size, f.user_data_size(), "user_data_size");
 
 		f.write_user_data(user_data.c_str(), 1);
+		TEST_ENSURE_EQUALITY(size_t(1), f.user_data_size(), "user_data_size");
+
+		f.write_user_data(user_data.c_str(), size);
 		TEST_ENSURE_EQUALITY(size, f.user_data_size(), "user_data_size");
 
-		char user_data2[size];
-		f.read_user_data(user_data2, size);
+		std::string user_data2(size, ' ');
+		f.read_user_data(&user_data2[0], size);
 		TEST_ENSURE_EQUALITY(user_data, user_data2, "read_user_data");
 
 		auto s = f.stream();

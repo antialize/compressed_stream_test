@@ -246,7 +246,7 @@ void file_base_base::write_user_data(const void *data, size_t count) {
 	assert(is_open() && is_readable());
 	assert(count <= max_user_data_size());
 	_pwrite(m_impl->m_fd, data, count, sizeof(file_header));
-	m_impl->m_header.user_data_size = std::max(user_data_size(), count);
+	m_impl->m_header.user_data_size = count;
 }
 
 const std::string &file_base_base::path() const noexcept {
