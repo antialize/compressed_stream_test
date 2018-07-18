@@ -75,16 +75,12 @@ void file_base_base::impl_changed() {
 void file_base_base::open(const std::string & path, open::type flags, size_t max_user_data_size) {
 	if (is_open())
 		throw io_exception("File is already open");
-	if ((flags & open::read_only) && (flags & open::truncate_file))
-		throw io_exception("Can't open file as truncated with read only flag");
 
 	m_impl->m_path = path;
 
 	int posix_flags = 0;
 	if (flags & open::read_only) {
 		posix_flags |= O_RDONLY;
-	} else if (flags & open::truncate_file) {
-		posix_flags |= O_CREAT | O_TRUNC | O_RDWR;
 	} else {
 		posix_flags |= O_CREAT | O_RDWR;
 	}
