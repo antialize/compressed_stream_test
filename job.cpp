@@ -320,7 +320,10 @@ void execute_write_job(lock_t & job_lock, file_impl * file, block * b) {
 		}
 		auto it = offsets.find(b->m_block - 1);
 		if (it != offsets.end() && is_known(it->second.second)) {
-			assert(it->second.second == off);
+			// Direct files can write blocks in any order
+			if (!file->direct()) {
+				assert(it->second.second == off);
+			}
 		}
 
 		offsets[b->m_block] = {off, off + physical_size};
