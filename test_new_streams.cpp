@@ -859,8 +859,7 @@ tpie::tests & add_tests(const std::string & suffix, tpie::tests & t) {
 
 	add_test(T::flush_test, "flush");
 	add_test(T::size_test, "size");
-	// FIXME: Always seems to fail
-	//add_test(T::write_seek_write_read, "write_seek_write_read");
+	add_test(T::write_seek_write_read, "write_seek_write_read");
 	add_test(T::open_close, "open_close");
 	add_test(T::seek_start_seek_end, "seek_start_seek_end");
 	add_test(T::write_end, "write_end");
@@ -872,8 +871,7 @@ tpie::tests & add_tests(const std::string & suffix, tpie::tests & t) {
 	add_test(T::serialized_dtor, "serialized_dtor");
 	add_test(T::user_data, "user_data");
 	add_test(T::get_set_position, "get_set_position");
-	// FIXME: Sometimes fails
-	//add_test(T::truncate, "truncate");
+	add_test(T::truncate, "truncate");
 	add_test(T::open_truncate_close, "open_truncate_close");
 	add_test(T::file_stream_test, "file_stream");
 	add_test(T::move_file_object, "move_file_object");
