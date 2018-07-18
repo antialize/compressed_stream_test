@@ -13,9 +13,6 @@
 
 using namespace tpie::new_streams;
 
-// TODO: Run check_file after each test
-//#include "check_file.h"
-
 
 template <typename T, size_t repeat>
 class debug_class {
