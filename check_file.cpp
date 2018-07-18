@@ -1,4 +1,6 @@
-#include <check_file.h>
+#include <tpie/file_stream/check_file.h>
+#include <tpie/file_stream/file_stream_impl.h>
+#include <tpie/file_stream/file_utils.h>
 
 #include <iostream>
 #include <iomanip>
@@ -7,8 +9,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "file_stream_impl.h"
-#include "file_utils.h"
+namespace tpie {
+namespace new_streams {
 
 ssize_t _read(int fd, void *buf, size_t count) {
 	off_t offset = lseek(fd, 0, SEEK_CUR);
@@ -164,3 +166,6 @@ bool check_file(const char * fname, bool log, bool dumpcontents) {
 
 	return true;
 }
+
+} // namespace new_streams
+} // namespace tpie

@@ -6,6 +6,7 @@
 #include <tpie/tpie_log.h>
 #include <tpie/tpie.h>
 #include <tpie/file_stream/file_stream.h>
+#include <tpie/file_stream/check_file.h>
 #include <tpie/serialization2.h>
 #include <numeric>
 #include <atomic>
@@ -123,17 +124,13 @@ void unserialize(S & src, debug_class<T, repeat> & o) {
 }
 
 
-template <tpie::open::type flags>
-struct tests {
-static tpie::temp_file tmp_file;
-
-static void setup() {
+tpie::temp_file tmp_file;
+void setup() {
 	tmp_file.free();
 }
 
-static void finish() {
-	//check_file(tmp_file.path())
-}
+template <tpie::open::type flags>
+struct tests {
 
 static bool flush_test() {
 	file<int> f;
@@ -191,9 +188,6 @@ static bool size_test() {
 }
 
 static bool write_seek_write_read() {
-	// FIXME: This test fails, so skip it for now.
-	return true;
-
 	file<int> f;
 	f.open(tmp_file.path(), flags);
 
@@ -222,18 +216,6 @@ static bool write_seek_write_read() {
 static bool open_close() {
 	file<int> f;
 	block_size_t b;
-	/*
-	f.open(tmp_file.path(), flags);
-	{
-		auto s = f.stream();
-		b = s.logical_block_size();
-		for (int i = 0; i < 100 * (int)b; i++)
-			s.write(i);
-	}
-
-	f.close();
-	f.open(tmp_file.path(), tpie::open::truncate | flags);
-	*/
 	f.open(tmp_file.path(), flags);
 
 	{
@@ -570,9 +552,6 @@ static bool get_set_position() {
 }
 
 static bool truncate() {
-	// FIXME: This test sometimes fails
-	return true;
-
 	file<int> f;
 	f.open(tmp_file.path(), flags);
 
@@ -856,9 +835,6 @@ static bool read_seq() {
 
 };
 
-template <tpie::open::type flags>
-tpie::temp_file tests<flags>::tmp_file;
-
 
 template <bool compression, bool readahead>
 tpie::tests & add_tests(const std::string & suffix, tpie::tests & t) {
@@ -866,35 +842,49 @@ tpie::tests & add_tests(const std::string & suffix, tpie::tests & t) {
 								 (readahead? tpie::open::readahead_enabled: tpie::open::defaults);
 	typedef tests<flags> T;
 
-	t.setup(T::setup).finish(T::finish)
-	 .test(T::flush_test, "flush" + suffix)
-	 .test(T::write_read, "write_read" + suffix)
-	 .test(T::size_test, "size" + suffix)
-	 .test(T::write_seek_write_read, "write_seek_write_read" + suffix)
-	 .test(T::open_close, "open_close" + suffix)
-	 .test(T::seek_start_seek_end, "seek_start_seek_end" + suffix)
-	 .test(T::write_end, "write_end" + suffix)
-	 .test(T::open_close_dead_stream, "open_close_dead_stream" + suffix)
-	 .test(T::peek_test, "peek" + suffix)
-	 .test(T::peek_back_test, "peek_back" + suffix)
-	 .test(T::read_back_test, "read_back" + suffix)
-	 .test(T::serialized_string, "serialized_string" + suffix)
-	 .test(T::serialized_dtor, "serialized_dtor" + suffix)
-	 .test(T::user_data, "user_data" + suffix)
-	 .test(T::get_set_position, "get_set_position" + suffix)
-	 .test(T::truncate, "truncate" + suffix)
-	 .test(T::open_truncate_close, "open_truncate_close" + suffix)
-	 .test(T::file_stream_test, "file_stream" + suffix)
-	 .test(T::move_file_object, "move_file_object" + suffix)
-	 .test(T::test_non_serializable, "non_serializable" + suffix)
-	 .test(T::write_chunked, "write_chunked" + suffix)
-	 .test(T::test_read_only, "read_only" + suffix)
-	 .test(T::read_seq, "read_seq" + suffix)
-	 ;
+	auto test_wrapper = [](auto f){
+		return [&f]() {
+			bool res = f();
+			if (res) {
+				if (!check_file(tmp_file.path().c_str()))
+					res = false;
+			}
+			return res;
+		};
+	};
+
+	auto add_test = [&](auto f, const std::string & name) {
+		t.test(test_wrapper(f), name + suffix);
+	};
+
+	add_test(T::flush_test, "flush");
+	add_test(T::size_test, "size");
+	// FIXME: Always seems to fail
+	//add_test(T::write_seek_write_read, "write_seek_write_read");
+	add_test(T::open_close, "open_close");
+	add_test(T::seek_start_seek_end, "seek_start_seek_end");
+	add_test(T::write_end, "write_end");
+	add_test(T::open_close_dead_stream, "open_close_dead_stream");
+	add_test(T::peek_test, "peek");
+	add_test(T::peek_back_test, "peek_back");
+	add_test(T::read_back_test, "read_back");
+	add_test(T::serialized_string, "serialized_string");
+	add_test(T::serialized_dtor, "serialized_dtor");
+	add_test(T::user_data, "user_data");
+	add_test(T::get_set_position, "get_set_position");
+	// FIXME: Sometimes fails
+	//add_test(T::truncate, "truncate");
+	add_test(T::open_truncate_close, "open_truncate_close");
+	add_test(T::file_stream_test, "file_stream");
+	add_test(T::move_file_object, "move_file_object");
+	add_test(T::test_non_serializable, "non_serializable");
+	add_test(T::write_chunked, "write_chunked");
+	add_test(T::test_read_only, "read_only");
+	add_test(T::read_seq, "read_seq");
 
 	if (!compression) {
-		t.test(T::direct_file, "direct_file" + suffix)
-						.test(T::direct_file2, "direct_file2" + suffix);
+		add_test(T::direct_file, "direct_file");
+		add_test(T::direct_file2, "direct_file2");
 	}
 
 	return t;
@@ -902,17 +892,13 @@ tpie::tests & add_tests(const std::string & suffix, tpie::tests & t) {
 
 int main(int argc, char ** argv) {
 	tpie::tests t(argc, argv);
-	return add_tests<false, false>("_u",
-	       add_tests<true, false>("",
-		   add_tests<false, true>("_u_r",
-		   add_tests<true, true>("_r",
-	                                              t))));
-	/*
-			.test(backwards_file_stream_test, "backwards_fs", "n", static_cast<size_t>(1 << 23))
-			.test(odd_block_size_test, "odd_block_size")
-			.test(write_peek_test, "write_peek", "n", static_cast<size_t>(1 << 23))
-					// .test(read_only_test, "read_only")
-			.test(write_only_test, "write_only")
-			.test(stack_test, "lockstep_reverse");
-			*/
+
+	t.setup(setup);
+
+	add_tests<false, false>("_u", t);
+	add_tests<true, false>("", t);
+	add_tests<false, true>("_u_r", t);
+	add_tests<true, true>("_r", t);
+
+	return t;
 }
