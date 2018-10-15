@@ -2,6 +2,7 @@
 // vi:set ts=4 sts=4 sw=4 noet :
 #include <file_stream_impl.h>
 #include <cassert>
+#include "exception.h"
 
 block_base void_block;
 
@@ -73,6 +74,19 @@ void stream_base_base::next_block() {
 void stream_base_base::prev_block() {
 	m_impl->prev_block();
 }
+
+
+void stream_base_base::serialize_block_overflow(block_size_t serialized_size) {
+	if (serialized_size > max_serialized_block_size()) {
+		throw exception("Serialized item is too big, size="
+						+ std::to_string(serialized_size) + ", max="
+						+ std::to_string(max_serialized_block_size()));
+	}
+	
+	this->m_block->m_maximal_logical_size = this->m_cur_index;
+	this->next_block();
+}
+
 
 void stream_base_base::seek(file_size_t off, whence w) {
 	m_impl->seek(off, w);

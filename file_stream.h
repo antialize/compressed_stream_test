@@ -13,7 +13,6 @@
 #include <cassert>
 
 #include <tpie/serialization2.h>
-#include "exception.h"
 #include <defaults.h>
 using namespace tpie;
 
@@ -217,6 +216,7 @@ public:
 	friend class stream_impl;
 	friend class file_base_base;
 protected:
+	void serialize_block_overflow(block_size_t serialized_size);
 	void next_block();
 	void prev_block();
 	stream_base_base(file_base_base * impl);
@@ -228,12 +228,13 @@ protected:
 };
 
 template <typename T, bool serialized>
-class stream_base_: public stream_base_base {
+class stream_base: public stream_base_base {
 public:
 	constexpr block_size_t logical_block_size() const {return block_size() / sizeof(T);}
 
+	friend class file_base<T, serialized>;
 protected:
-	stream_base_(file_base_base * imp): stream_base_base(imp) {}
+	stream_base(file_base_base * imp): stream_base_base(imp) {}
 
 public:
 	const T & read() {
@@ -262,15 +263,25 @@ public:
 		if (m_cur_index == 0) prev_block();
 		return reinterpret_cast<const T *>(m_block->m_data)[m_cur_index - 1];
 	}
-
-protected:
-	void write_start() {
+	
+	void write(T item) {
 		assert(m_file_base->is_open() && m_file_base->is_writable());
-
 		if (m_cur_index == m_block->m_maximal_logical_size) next_block();
-	}
 
-	void write_end(T item) {
+		if constexpr (serialized) {
+			struct Counter {
+				block_size_t s = 0;
+				void write(const char *, size_t size) {
+					s += size;
+				}
+			};
+			Counter c;
+			serialize(c, item);
+			if (this->m_block->m_serialized_size + c.s > max_serialized_block_size()) serialize_block_overflow(c.s);
+			this->m_block->m_serialized_size += c.s;
+
+		}
+
 		assert(m_file_base->direct() || get_last_block() == m_block);
 		assert(m_file_base->direct() || m_block->m_logical_size == m_cur_index);
 
@@ -278,98 +289,32 @@ protected:
 		m_block->m_logical_size = std::max(m_block->m_logical_size, m_cur_index); //Hopefully this is a cmove
 		m_block->m_dirty = true;
 	}
-};
-
-template <typename T, bool serialized>
-class stream_base: public stream_base_<T, serialized> {
-protected:
-	stream_base(file_base_base * imp): stream_base_<T, serialized>(imp) {}
-	
-	friend class file_base<T, serialized>;
-public:
-	stream_base(const stream_base &) = delete;
-	stream_base & operator=(const stream_base &) = delete;
-	stream_base(stream_base &&) = default;
-	stream_base & operator=(stream_base &&) = default;
-
-	void write(T item) {
-		this->write_start();
-		this->write_end(std::move(item));
-	}
 
 	void write(T * items, size_t n) {
-		assert(this->m_file_base->is_open() && this->m_file_base->is_writable());
-
-		size_t written = 0;
-		while (written < n) {
-			if (this->m_cur_index == this->m_block->m_maximal_logical_size) this->next_block();
-			block_size_t remaining = static_cast<block_size_t>(
-				std::min<size_t>(this->m_block->m_maximal_logical_size - this->m_cur_index, n - written));
-			memcpy(this->m_block->m_data + this->m_cur_index * sizeof(T), items + written, remaining * sizeof(T));
-			this->m_cur_index += remaining;
-			this->m_block->m_logical_size = std::max(this->m_block->m_logical_size, this->m_cur_index); //Hopefully this is a cmove
-			this->m_block->m_dirty = true;
-			written += remaining;
-		}
-
-	}
-};
-
-template <typename T>
-class stream_base<T, true>: public stream_base_<T, true> {
-protected:
-	stream_base(file_base_base * imp): stream_base_<T, true>(imp) {}
-
-	friend class file_base<T, true>;
-public:
-	stream_base(const stream_base &) = delete;
-	stream_base & operator=(const stream_base &) = delete;
-	stream_base(stream_base &&) = default;
-	stream_base & operator=(stream_base &&) = default;
-
-	void write(T item) {
-		this->write_start();
-
-		block_size_t serialized_size = get_serialized_size(item);
-
-		if (this->m_block->m_serialized_size + serialized_size > max_serialized_block_size()) {
-			if (serialized_size > max_serialized_block_size()) {
-				throw exception("Serialized item is too big, size="
-									+ std::to_string(serialized_size) + ", max="
-									+ std::to_string(max_serialized_block_size()));
+		if constexpr (serialized) {
+			for (size_t i = 0; i < n; i++)
+				write(items[i]);
+		} else {
+			assert(this->m_file_base->is_open() && this->m_file_base->is_writable());
+			size_t written = 0;
+			while (written < n) {
+				if (this->m_cur_index == this->m_block->m_maximal_logical_size) this->next_block();
+				block_size_t remaining = static_cast<block_size_t>(
+					std::min<size_t>(this->m_block->m_maximal_logical_size - this->m_cur_index, n - written));
+				memcpy(this->m_block->m_data + this->m_cur_index * sizeof(T), items + written, remaining * sizeof(T));
+				this->m_cur_index += remaining;
+				this->m_block->m_logical_size = std::max(this->m_block->m_logical_size, this->m_cur_index); //Hopefully this is a cmove
+				this->m_block->m_dirty = true;
+				written += remaining;
 			}
-
-			this->m_block->m_maximal_logical_size = this->m_cur_index;
-			this->next_block();
 		}
-
-		this->m_block->m_serialized_size += serialized_size;
-
-		this->write_end(std::move(item));
-	}
-
-	void write(T * items, size_t n) {
-		for (size_t i = 0; i < n; i++) write(items[i]);
-	}
-
-private:
-	block_size_t get_serialized_size(const T & item) {
-		struct Counter {
-			block_size_t s = 0;
-			void write(const char *, size_t size) {
-				s += size;
-			}
-		};
-		Counter c;
-		serialize(c, item);
-		return c.s;
 	}
 };
 
 template <typename T, bool serialized>
 class file_base final: public file_base_base {
 	static_assert(sizeof(T) <= block_size(), "Size of item must be lower than the block size");
-	static_assert(std::is_trivially_copyable<T>::value, "Non-serialized stream must have trivially copyable items");
+	static_assert(serialized || std::is_trivially_copyable<T>::value, "Non-serialized stream must have trivially copyable items");
 
 public:
 	stream_base<T, serialized> stream() {return stream_base<T, serialized>(this);}
@@ -385,62 +330,63 @@ public:
 		if (is_open())
 			close();
 	}
-};
 
-template <typename T>
-class file_base<T, true> final: public file_base_base {
-public:
-	stream_base<T, true> stream() {return stream_base<T, true>(this);}
-	file_base(): file_base_base(true, sizeof(T)) {}
-	file_base(const file_base &) = delete;
-	file_base & operator=(const file_base &) = delete;
-	file_base(file_base &&) = default;
-	file_base & operator=(file_base &&) = default;
-
-	// We can't close the file in file_base_base's dtor
-	// as the job thread might need to serialize some items before we close the file.
-	~file_base() override {
-		if (is_open())
-			close();
-	}
-
-protected:
 	void do_serialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) override {
-		struct W {
-			char * o;
-			block_size_t s = 0;
-			void write(const char * data, size_t size) {
-				if(o) memcpy(o + s, data, size);
-				s += size;
-			}
-			W(char * o) : o(o) {}
-		};
-		W w(out);
-		for (size_t i = 0; i < in_items; i++)
-			serialize(w, reinterpret_cast<const T*>(in)[i]);
-		*out_size = w.s;
+		if constexpr (serialized) {
+			struct W {
+				char * o;
+				block_size_t s = 0;
+				void write(const char * data, size_t size) {
+					if(o) memcpy(o + s, data, size);
+					s += size;
+				}
+				W(char * o) : o(o) {}
+			};
+			W w(out);
+			for (size_t i = 0; i < in_items; i++)
+				serialize(w, reinterpret_cast<const T*>(in)[i]);
+			*out_size = w.s;
+		} else {
+			unused(in);
+			unused(in_items);
+			unused(out);
+			unused(out_size);
+		}
 	}
 
 	void do_unserialize(const char * in, block_size_t in_items, char * out, block_size_t * out_size) override {
-		struct R {
-			const char * i;
-			block_size_t s = 0;
-			void read(char * data, size_t size) {
-				memcpy(data, i + s, size);
-				s += size;
+		if constexpr (serialized) {
+			struct R {
+				const char * i;
+				block_size_t s = 0;
+				void read(char * data, size_t size) {
+					memcpy(data, i + s, size);
+					s += size;
+				}
+				R(const char * i) : i(i) {}
+			};
+			R r(in);
+			for (size_t i = 0; i < in_items; i++) {
+				T * o = new(out + i * sizeof(T)) T;
+				unserialize(r, *o);
 			}
-			R(const char * i) : i(i) {}
-		};
-		R r(in);
-		for (size_t i = 0; i < in_items; i++) {
-			T * o = new(out + i * sizeof(T)) T;
-			unserialize(r, *o);
+			*out_size = sizeof(T) * in_items;
+		} else {
+			unused(in);
+			unused(in_items);
+			unused(out);
+			unused(out_size);
 		}
-		*out_size = sizeof(T) * in_items;
 	}
+	
 	void do_destruct(char * data, block_size_t size) override {
-		for (size_t i=0; i < size; ++i)
-			reinterpret_cast<T *>(data)[i].~T();
+		if constexpr (serialized) {
+			for (size_t i=0; i < size; ++i)
+				reinterpret_cast<T *>(data)[i].~T();
+		} else {
+			unused(data);
+			unused(size);			
+		}
 	}
 };
 

@@ -5,6 +5,7 @@
 #include <thread>
 #include <cassert>
 #include <exception>
+#include "exception.h"
 
 std::vector<std::thread> process_threads;
 

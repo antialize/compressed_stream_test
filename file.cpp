@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <cassert>
 #include <cstring>
+#include "exception.h"
 
 void execute_read_job(lock_t & job_lock, file_impl * file, block * b);
 void execute_truncate_job(lock_t & job_lock, file_impl * file, file_size_t truncate_size);
